@@ -78,7 +78,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V20_Fixed"
+ScreenGui.Name = "AuraHub_V21_Polished"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -422,12 +422,12 @@ ScrollContainer.Parent = MainPanel
 
 local UIList = Instance.new("UIListLayout", ScrollContainer)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
-UIList.Padding = UDim.new(0, 8)
+UIList.Padding = UDim.new(0, 5) -- Reduced padding here for tighter look
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local UIPad = Instance.new("UIPadding", ScrollContainer)
 UIPad.PaddingTop = UDim.new(0, 5)
-UIPad.PaddingBottom = UDim.new(0, 60) 
+UIPad.PaddingBottom = UDim.new(0, 35) -- Reduced bottom spacing
 
 --// HELPER FOR BUTTON CREATION
 local function CreateButton(text, callback, layoutOrder)
@@ -566,7 +566,7 @@ CreatePresetFOV(70, "Default (70)")
 CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
 
-CreateButton("Toggle FOV Modifier", function(b)
+CreateButton("👁️ Toggle FOV Modifier", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then Camera.FieldOfView = 70 end
     b.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
@@ -700,7 +700,7 @@ CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
 
-CreateButton("Toggle Subtle Pursuit", function(b)
+CreateButton("⚡ Toggle Subtle Pursuit", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
     b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "Toggle Subtle Pursuit First"
@@ -865,7 +865,7 @@ DynamicTimeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 DynamicTimeBtn.TextColor3 = Color3.new(1, 1, 1)
 DynamicTimeBtn.Font = Enum.Font.GothamSemibold
 DynamicTimeBtn.TextSize = 10
-DynamicTimeBtn.Text = "Dynamic Day & Night Cycle (Slow)"
+DynamicTimeBtn.Text = "🔄 Dynamic Day & Night Cycle (Slow)"
 DynamicTimeBtn.LayoutOrder = 9
 Instance.new("UICorner", DynamicTimeBtn)
 
@@ -881,7 +881,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
     Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
-CreateButton("Toggle Time Changer", function(b)
+CreateButton("🕒 Toggle Time Changer", function(b)
     timeChangerEnabled = not timeChangerEnabled
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
@@ -1055,7 +1055,7 @@ WallsOnlyBtn.MouseButton1Click:Connect(function()
     WallsOnlyBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
 end)
 
-CreateButton("Master ESP Toggle", function(b)
+CreateButton("🔍 Master ESP Toggle", function(b)
     espEnabled = not espEnabled
     b.TextColor3 = espEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if not espEnabled then
@@ -1447,20 +1447,20 @@ RunService.RenderStepped:Connect(function()
 end)
 
 --// MISC FEATURES
-CreateButton("Shiftlock: OFF", function(b)
+CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
-    b.Text = "Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
+    b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, 20)
 
-CreateButton("Force Shoulder View", function(b)
+CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, 21)
 
-CreateButton("Clear Vision (Remove Fog)", function(b)
+CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     noFogEnabled = not noFogEnabled
     if noFogEnabled then
         if Lighting:FindFirstChildOfClass("Atmosphere") then Lighting:FindFirstChildOfClass("Atmosphere").Parent = nil end
@@ -1473,7 +1473,7 @@ CreateButton("Clear Vision (Remove Fog)", function(b)
     Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, 22)
 
-CreateButton("Fullbright (Night Vision)", function(b)
+CreateButton("☀️ Fullbright (Night Vision)", function(b)
     fullbrightEnabled = not fullbrightEnabled
     if not fullbrightEnabled then
         Lighting.Ambient = originalAmbient
@@ -1484,7 +1484,7 @@ CreateButton("Fullbright (Night Vision)", function(b)
     Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, 23)
 
-CreateButton("Natural FPS Boost", function(b)
+CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
@@ -1519,7 +1519,7 @@ CreateButton("Natural FPS Boost", function(b)
     end
 end, 24)
 
-CreateButton("Toggle Shadows", function(b)
+CreateButton("🌑 Toggle Shadows", function(b)
     shadowsDisabled = not shadowsDisabled
     if shadowsDisabled then
         Lighting.GlobalShadows = false
@@ -1532,28 +1532,28 @@ CreateButton("Toggle Shadows", function(b)
     end
 end, 25)
 
-CreateButton("Dynamic Lighting & Shadows", function(b)
+CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, 26)
 
-CreateButton("HDR Lighting", function(b)
+CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
 end, 27)
 
-CreateButton("Anti-AFK", function(b)
+CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, 28)
 
-CreateButton("Server Hopper", function() StableServerHop() end, 29)
-CreateButton("Rejoin Server", function() RejoinServer() end, 30)
-CreateButton("Reset Character", function() 
+CreateButton("🌐 Server Hopper", function() StableServerHop() end, 29)
+CreateButton("🔄 Rejoin Server", function() RejoinServer() end, 30)
+CreateButton("☠️ Reset Character", function() 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         Notify("Respawning...")
         LocalPlayer.Character.Humanoid.Health = 0
@@ -1564,7 +1564,7 @@ end, 31)
 --// BLATANT / RISKY SECTION
 -------------------------------------------------------------------------
 local SpacerRisky = Instance.new("Frame", ScrollContainer)
-SpacerRisky.Size = UDim2.new(1, 0, 0, 20)
+SpacerRisky.Size = UDim2.new(1, 0, 0, 10) -- Reduced spacer size
 SpacerRisky.BackgroundTransparency = 1
 SpacerRisky.LayoutOrder = 32
 
@@ -1628,6 +1628,21 @@ local function ToggleFly(state)
         
         hum.PlatformStand = true 
         
+        -- DEATH MONITOR: Updates GUI if you die while flying
+        local deathConnection
+        deathConnection = hum.Died:Connect(function()
+            if flyEnabled then
+                flyEnabled = false
+                if flyButtonRef then
+                    flyButtonRef.Text = "FLY (RISK: HIGH)"
+                    flyButtonRef.TextColor3 = Color3.new(1, 1, 1)
+                    flyButtonRef.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+                end
+                if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+                deathConnection:Disconnect()
+            end
+        end)
+
         flyConnection = RunService.RenderStepped:Connect(function()
             if not flyEnabled or not char.Parent or not hrp.Parent then
                 ToggleFly(false) return
@@ -1670,7 +1685,7 @@ end
 
 local function UpdateFlyButtonVisuals()
     if flyButtonRef then
-        flyButtonRef.Text = flyEnabled and "FLY: ACTIVE ⚠️" or "FLY (RISK: HIGH)"
+        flyButtonRef.Text = flyEnabled and "🚀 FLY: ACTIVE ⚠️" or "FLY (RISK: HIGH)"
         flyButtonRef.TextColor3 = flyEnabled and Color3.fromRGB(255, 50, 50) or Color3.new(1, 1, 1)
         flyButtonRef.BackgroundColor3 = flyEnabled and Color3.fromRGB(50, 10, 10) or Color3.fromRGB(35, 35, 35)
     end
@@ -1775,4 +1790,4 @@ MainCircle.MouseButton1Click:Connect(function()
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V20 (Cleanup Fixed)")
+Notify("Aura Hub V21 (Polished UI)")
