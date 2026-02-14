@@ -11,7 +11,7 @@ local CollectionService = game:GetService("CollectionService")
 local LocalPlayer = Players.LocalPlayer
 -- Wait for PlayerGui to ensure UI can be created
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10) 
-if not PlayerGui then return end -- Failsafe
+if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
 --// Global States
@@ -78,10 +78,17 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V23_RiskSorted"
+ScreenGui.Name = "AuraHub_V24_FixedLayout" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+-- Layout Order Helper (To fix sorting issues)
+local _layoutOrder = 0
+local function GetNextOrder()
+    _layoutOrder = _layoutOrder + 1
+    return _layoutOrder
+end
 
 --// Notifier System
 local function Notify(msg)
@@ -113,15 +120,15 @@ local function ClearAllESP()
     end
 end
 
---// SPECIFIC CLEANUP FUNCTIONS (FIXED)
+--// SPECIFIC CLEANUP FUNCTIONS
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
-            -- Clear Chams (Parented to Character)
+            -- Clear Chams
             local chams = p.Character:FindFirstChild("AuraChams")
             if chams then chams:Destroy() end
              
-            -- Clear Boxes/Tags/Tracers (Parented to RootPart)
+            -- Clear Root Items
             local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
             if root then
                 if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
@@ -135,11 +142,9 @@ end
 local function ClearNPCESP()
     for _, npc in pairs(NPCCache) do
         if npc and npc.Parent then
-            -- Clear Chams
             local chams = npc:FindFirstChild("AuraChams")
             if chams then chams:Destroy() end
             
-            -- Clear Root Items
             local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
             if root then
                 if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
@@ -150,7 +155,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR SYSTEM
+--// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
     local ls = player:FindFirstChild("leaderstats")
     if ls then
@@ -214,7 +219,6 @@ local function GetSmartColor(role, player)
                return Color3.fromRGB(200, 200, 200)
         end
     end
- 
     if player.TeamColor then return player.TeamColor.Color end
     return Color3.fromRGB(255, 255, 255)
 end
@@ -223,14 +227,11 @@ end
 local function IsVisible(targetPart, ignoreList)
     local origin = Camera.CFrame.Position
     local direction = targetPart.Position - origin
-    
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = ignoreList
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
-    
     local result = workspace:Raycast(origin, direction, params)
-    
     if not result or result.Instance:IsDescendantOf(targetPart.Parent) then
         return true
     end
@@ -243,7 +244,6 @@ local function StableServerHop()
     local Success, Result = pcall(function()
         return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")).data
     end)
-    
     if Success then
         local PossibleServers = {}
         for _, server in pairs(Result) do
@@ -351,8 +351,8 @@ Instance.new("UICorner", ConfirmNoBtn).CornerRadius = UDim.new(0, 6)
 ConfirmNoBtn.Parent = ConfirmModal
 
 -------------------------------------------------------------------------
-
---// The Draggable Circle
+--// UI BASE (Draggable)
+-------------------------------------------------------------------------
 local MainCircle = Instance.new("ImageButton")
 MainCircle.Name = "MainCircle"
 MainCircle.Size = UDim2.new(0, 60, 0, 60)
@@ -363,7 +363,6 @@ MainCircle.ZIndex = 10
 MainCircle.Parent = ScreenGui
 Instance.new("UICorner", MainCircle).CornerRadius = UDim.new(1, 0)
 
---// The Main Panel
 local MainPanel = Instance.new("Frame")
 MainPanel.Name = "MainPanel"
 MainPanel.Size = UDim2.new(0, 0, 0.65, 0) 
@@ -374,11 +373,10 @@ MainPanel.Active = true
 MainPanel.Parent = ScreenGui
 Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 15)
 
---// Profile & Stats (Protected Call)
+--// Profile & Stats
 local ProfileImg = Instance.new("ImageLabel")
 ProfileImg.Size = UDim2.new(0, 45, 0, 45)
 ProfileImg.Position = UDim2.new(0, 12, 0, 15)
--- Safe load image
 pcall(function()
     ProfileImg.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 end)
@@ -422,14 +420,14 @@ ScrollContainer.Parent = MainPanel
 
 local UIList = Instance.new("UIListLayout", ScrollContainer)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
-UIList.Padding = UDim.new(0, 4) -- Tightened Padding
+UIList.Padding = UDim.new(0, 4) 
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local UIPad = Instance.new("UIPadding", ScrollContainer)
 UIPad.PaddingTop = UDim.new(0, 5)
 UIPad.PaddingBottom = UDim.new(0, 25)
 
---// HELPER FOR BUTTON CREATION
+-- Helpers
 local function CreateButton(text, callback, layoutOrder)
     local btn = Instance.new("TextButton", ScrollContainer)
     btn.Size = UDim2.new(0.9, 0, 0, 35)
@@ -439,13 +437,22 @@ local function CreateButton(text, callback, layoutOrder)
     btn.TextSize = 11
     btn.Text = text
     btn.LayoutOrder = layoutOrder
+    btn.ZIndex = 2
     Instance.new("UICorner", btn)
     btn.MouseButton1Click:Connect(function() callback(btn) end)
     return btn
 end
 
+local function CreateSpacer(layoutOrder)
+    local sp = Instance.new("Frame", ScrollContainer)
+    sp.Size = UDim2.new(1, 0, 0, 12) -- 12px visible gap
+    sp.BackgroundTransparency = 1
+    sp.LayoutOrder = layoutOrder
+    return sp
+end
+
 -------------------------------------------------------------------------
---// 🟢 SAFE SECTION (Visuals)
+--// 🟢 SAFE SECTION
 -------------------------------------------------------------------------
 local SafeLabel = Instance.new("TextLabel", ScrollContainer)
 SafeLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -454,13 +461,13 @@ SafeLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 SafeLabel.BackgroundTransparency = 1
 SafeLabel.Font = Enum.Font.GothamBold
 SafeLabel.TextSize = 10
-SafeLabel.LayoutOrder = 1
+SafeLabel.LayoutOrder = GetNextOrder()
 
---// FOV SECTION
+--// FOV
 local FOVFrame = Instance.new("Frame", ScrollContainer)
 FOVFrame.Size = UDim2.new(0.9, 0, 0, 65) 
 FOVFrame.BackgroundTransparency = 1
-FOVFrame.LayoutOrder = 2
+FOVFrame.LayoutOrder = GetNextOrder()
 
 local FOVLabel = Instance.new("TextLabel", FOVFrame)
 FOVLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -479,28 +486,6 @@ FOVNote.BackgroundTransparency = 1
 FOVNote.Font = Enum.Font.GothamBold
 FOVNote.TextSize = 9
 FOVNote.Position = UDim2.new(0, 0, 0, 15)
-
-local RulerFrameFOV = Instance.new("Frame", FOVFrame)
-RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
-RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45) 
-RulerFrameFOV.BackgroundTransparency = 1
-
-local function CreateFOVRulerMark(posScale, text)
-    local mark = Instance.new("TextLabel", RulerFrameFOV)
-    mark.Size = UDim2.new(0, 20, 1, 0)
-    mark.Position = UDim2.new(posScale, -10, 0, 0)
-    mark.BackgroundTransparency = 1
-    mark.Text = text
-    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
-    mark.Font = Enum.Font.Gotham
-    mark.TextSize = 8
-end
-CreateFOVRulerMark(0, "70")
-CreateFOVRulerMark(0.2, "80")
-CreateFOVRulerMark(0.4, "90")
-CreateFOVRulerMark(0.6, "100")
-CreateFOVRulerMark(0.8, "110")
-CreateFOVRulerMark(1, "120")
 
 local SliderBarFOV = Instance.new("TextButton", FOVFrame)
 SliderBarFOV.Size = UDim2.new(1, 0, 0, 6)
@@ -536,26 +521,22 @@ SliderBarFOV.InputBegan:Connect(function(input)
         UpdateFOV(input)
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if slidingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         UpdateFOV(input)
     end
 end)
-
 UserInputService.InputEnded:Connect(function() slidingFOV = false end)
 
--- FOV PRESETS
+-- FOV Presets
 local PresetFrameFOV = Instance.new("Frame", ScrollContainer)
 PresetFrameFOV.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameFOV.BackgroundTransparency = 1
-PresetFrameFOV.LayoutOrder = 3
-
+PresetFrameFOV.LayoutOrder = GetNextOrder()
 local PresetLayoutFOV = Instance.new("UIListLayout", PresetFrameFOV)
 PresetLayoutFOV.FillDirection = Enum.FillDirection.Horizontal
-PresetLayoutFOV.SortOrder = Enum.SortOrder.LayoutOrder
-PresetLayoutFOV.Padding = UDim.new(0, 5)
 PresetLayoutFOV.HorizontalAlignment = Enum.HorizontalAlignment.Center
+PresetLayoutFOV.Padding = UDim.new(0, 5)
 
 local function CreatePresetFOV(val, label)
     local btn = Instance.new("TextButton", PresetFrameFOV)
@@ -571,7 +552,6 @@ local function CreatePresetFOV(val, label)
         SetSliderVisualsFOV(val)
     end)
 end
-
 CreatePresetFOV(70, "Default (70)")
 CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
@@ -583,13 +563,13 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     FOVNote.Text = fovEnabled and "Status: Active" or "Toggle FOV Modifier First"
     FOVNote.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
-end, 4)
+end, GetNextOrder())
 
---// TIME SECTION
+--// TIME
 local TimeFrame = Instance.new("Frame", ScrollContainer)
 TimeFrame.Size = UDim2.new(0.9, 0, 0, 65) 
 TimeFrame.BackgroundTransparency = 1
-TimeFrame.LayoutOrder = 5
+TimeFrame.LayoutOrder = GetNextOrder()
 
 local TimeLabel = Instance.new("TextLabel", TimeFrame)
 TimeLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -608,27 +588,6 @@ TimeNote.BackgroundTransparency = 1
 TimeNote.Font = Enum.Font.GothamBold
 TimeNote.TextSize = 9
 TimeNote.Position = UDim2.new(0, 0, 0, 15)
-
-local RulerFrame = Instance.new("Frame", TimeFrame)
-RulerFrame.Size = UDim2.new(1, 0, 0, 10)
-RulerFrame.Position = UDim2.new(0, 0, 0, 45)
-RulerFrame.BackgroundTransparency = 1
-
-local function CreateRulerMark(posScale, text)
-    local mark = Instance.new("TextLabel", RulerFrame)
-    mark.Size = UDim2.new(0, 20, 1, 0)
-    mark.Position = UDim2.new(posScale, -10, 0, 0)
-    mark.BackgroundTransparency = 1
-    mark.Text = text
-    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
-    mark.Font = Enum.Font.Gotham
-    mark.TextSize = 8
-end
-CreateRulerMark(0, "12am")
-CreateRulerMark(0.25, "6am")
-CreateRulerMark(0.5, "12pm")
-CreateRulerMark(0.75, "6pm")
-CreateRulerMark(1, "12am")
 
 local SliderBarTime = Instance.new("TextButton", TimeFrame)
 SliderBarTime.Size = UDim2.new(1, 0, 0, 6)
@@ -650,9 +609,7 @@ local function FormatTime(val)
     if hours >= 12 then
         period = "PM"
         if hours > 12 then hours = hours - 12 end
-    elseif hours == 0 then
-        hours = 12
-    end
+    elseif hours == 0 then hours = 12 end
     return string.format("%02d:%02d %s", hours, minutes, period)
 end
 
@@ -677,23 +634,19 @@ SliderBarTime.InputBegan:Connect(function(input)
         UpdateTime(input)
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if slidingTime and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         UpdateTime(input)
     end
 end)
-
 UserInputService.InputEnded:Connect(function() slidingTime = false end)
 
 local PresetFrameTime = Instance.new("Frame", ScrollContainer)
 PresetFrameTime.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameTime.BackgroundTransparency = 1
-PresetFrameTime.LayoutOrder = 6
-
+PresetFrameTime.LayoutOrder = GetNextOrder()
 local PresetLayoutTime = Instance.new("UIListLayout", PresetFrameTime)
 PresetLayoutTime.FillDirection = Enum.FillDirection.Horizontal
-PresetLayoutTime.SortOrder = Enum.SortOrder.LayoutOrder
 PresetLayoutTime.Padding = UDim.new(0, 3) 
 PresetLayoutTime.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
@@ -712,7 +665,6 @@ local function CreatePresetTime(val, label)
         SetSliderVisualsTime(val)
     end)
 end
-
 CreatePresetTime(6, "Dawn")
 CreatePresetTime(9, "Morning")
 CreatePresetTime(12, "Noon")
@@ -741,9 +693,8 @@ DynamicTimeBtn.TextColor3 = Color3.new(1, 1, 1)
 DynamicTimeBtn.Font = Enum.Font.GothamSemibold
 DynamicTimeBtn.TextSize = 10
 DynamicTimeBtn.Text = "🔄 Dynamic Day & Night Cycle (Slow)"
-DynamicTimeBtn.LayoutOrder = 7
+DynamicTimeBtn.LayoutOrder = GetNextOrder()
 Instance.new("UICorner", DynamicTimeBtn)
-
 DynamicTimeBtn.MouseButton1Click:Connect(function()
     dynamicDayNightEnabled = not dynamicDayNightEnabled
     DynamicTimeBtn.TextColor3 = dynamicDayNightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
@@ -762,9 +713,8 @@ CreateButton("🕒 Toggle Time Changer", function(b)
     if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
     UpdateTimeStatusVisuals()
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
-end, 8)
+end, GetNextOrder())
 
--- Safe Visual Toggles
 CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     noFogEnabled = not noFogEnabled
     if noFogEnabled then
@@ -776,7 +726,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
-end, 9)
+end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
     fullbrightEnabled = not fullbrightEnabled
@@ -787,22 +737,19 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
-end, 10)
+end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
     if optimizationEnabled then
         Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
-        
         local function Optimize(v)
              if v:IsA("BasePart") then
                 if not optimizationCache[v] then
                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
-            
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
             end
@@ -822,7 +769,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         end
         table.clear(optimizationCache)
     end
-end, 11)
+end, GetNextOrder())
 
 CreateButton("🌑 Toggle Shadows", function(b)
     shadowsDisabled = not shadowsDisabled
@@ -835,28 +782,25 @@ CreateButton("🌑 Toggle Shadows", function(b)
         b.TextColor3 = Color3.new(1, 1, 1)
         Notify("Global Shadows Restored")
     end
-end, 12)
+end, GetNextOrder())
 
 CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
-end, 13)
+end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
-end, 14)
+end, GetNextOrder())
 
-local Spacer1 = Instance.new("Frame", ScrollContainer)
-Spacer1.Size = UDim2.new(1, 0, 0, 10) 
-Spacer1.BackgroundTransparency = 1
-Spacer1.LayoutOrder = 15
+CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🟡 UTILITY & ESP (Use Caution)
+--// 🟡 UTILITY SECTION
 -------------------------------------------------------------------------
 local UtilLabel = Instance.new("TextLabel", ScrollContainer)
 UtilLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -865,52 +809,40 @@ UtilLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 UtilLabel.BackgroundTransparency = 1
 UtilLabel.Font = Enum.Font.GothamBold
 UtilLabel.TextSize = 10
-UtilLabel.LayoutOrder = 16
+UtilLabel.LayoutOrder = GetNextOrder()
 
-local EspLabel = Instance.new("TextLabel", ScrollContainer)
-EspLabel.Size = UDim2.new(1, 0, 0, 20)
-EspLabel.Text = "Visuals & ESP Config"
-EspLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-EspLabel.BackgroundTransparency = 1
-EspLabel.Font = Enum.Font.GothamBold
-EspLabel.TextSize = 10
-EspLabel.LayoutOrder = 17
-
--- Row 1: Player & NPC Toggles
+-- ESP Rows
 local EspRow1 = Instance.new("Frame", ScrollContainer)
 EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow1.BackgroundTransparency = 1
-EspRow1.LayoutOrder = 18
+EspRow1.LayoutOrder = GetNextOrder()
 local EspRow1Layout = Instance.new("UIListLayout", EspRow1)
 EspRow1Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow1Layout.Padding = UDim.new(0, 5)
 EspRow1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Row 2: Box & Name
 local EspRow2 = Instance.new("Frame", ScrollContainer)
 EspRow2.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow2.BackgroundTransparency = 1
-EspRow2.LayoutOrder = 19
+EspRow2.LayoutOrder = GetNextOrder()
 local EspRow2Layout = Instance.new("UIListLayout", EspRow2)
 EspRow2Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow2Layout.Padding = UDim.new(0, 5)
 EspRow2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Row 3: Tracer & Chams
 local EspRow3 = Instance.new("Frame", ScrollContainer)
 EspRow3.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow3.BackgroundTransparency = 1
-EspRow3.LayoutOrder = 20
+EspRow3.LayoutOrder = GetNextOrder()
 local EspRow3Layout = Instance.new("UIListLayout", EspRow3)
 EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow3Layout.Padding = UDim.new(0, 5)
 EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Row 4: Walls Only
 local EspRow4 = Instance.new("Frame", ScrollContainer)
 EspRow4.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow4.BackgroundTransparency = 1
-EspRow4.LayoutOrder = 21
+EspRow4.LayoutOrder = GetNextOrder()
 local EspRow4Layout = Instance.new("UIListLayout", EspRow4)
 EspRow4Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow4Layout.Padding = UDim.new(0, 5)
@@ -933,24 +865,17 @@ local function CreateSmallToggle(parent, text, defaultState, callback)
     return btn
 end
 
--- ROW 1: ENTITY TYPES
+-- ESP Toggles
 CreateSmallToggle(EspRow1, "Show Players", true, function()
     espShowPlayers = not espShowPlayers
-    if not espShowPlayers then
-        ClearPlayerESP() -- Now calls the fixed cleanup
-    end
+    if not espShowPlayers then ClearPlayerESP() end
     return espShowPlayers
 end)
-
 CreateSmallToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
-    if not espShowNPCs then
-        ClearNPCESP() -- Now calls the fixed cleanup
-    end
+    if not espShowNPCs then ClearNPCESP() end
     return espShowNPCs
 end)
-
--- ROW 2: BASICS
 CreateSmallToggle(EspRow2, "Boxes", true, function()
     espShowBoxes = not espShowBoxes
     if not espShowBoxes then
@@ -960,7 +885,6 @@ CreateSmallToggle(EspRow2, "Boxes", true, function()
     end
     return espShowBoxes
 end)
-
 CreateSmallToggle(EspRow2, "Name & Dist", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
@@ -975,8 +899,6 @@ CreateSmallToggle(EspRow2, "Name & Dist", true, function()
     end
     return espShowNames
 end)
-
--- ROW 3: ADVANCED
 local TracerBtn = Instance.new("TextButton", EspRow3)
 TracerBtn.Size = UDim2.new(0.48, 0, 1, 0)
 TracerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -995,7 +917,6 @@ TracerBtn.MouseButton1Click:Connect(function()
         end
     end
 end)
-
 local ChamsBtn = Instance.new("TextButton", EspRow3)
 ChamsBtn.Size = UDim2.new(0.48, 0, 1, 0)
 ChamsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -1014,8 +935,6 @@ ChamsBtn.MouseButton1Click:Connect(function()
         end
     end
 end)
-
--- ROW 4: WALLS ONLY
 local WallsOnlyBtn = Instance.new("TextButton", EspRow4)
 WallsOnlyBtn.Size = UDim2.new(0.98, 0, 1, 0)
 WallsOnlyBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
@@ -1039,43 +958,43 @@ CreateButton("🔍 Master ESP Toggle", function(b)
     else
         Notify("ESP Master Active")
     end
-end, 22)
+end, GetNextOrder())
+
+-- SPACER UNDER MASTER ESP (Requested)
+CreateSpacer(GetNextOrder())
 
 CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
-end, 23)
+end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
-end, 24)
+end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
-end, 25)
+end, GetNextOrder())
 
-CreateButton("🌐 Server Hopper", function() StableServerHop() end, 26)
-CreateButton("🔄 Rejoin Server", function() RejoinServer() end, 27)
+CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
+CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
 CreateButton("☠️ Reset Character", function() 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         Notify("Respawning...")
         LocalPlayer.Character.Humanoid.Health = 0
     end 
-end, 28)
+end, GetNextOrder())
 
-local SpacerRisky = Instance.new("Frame", ScrollContainer)
-SpacerRisky.Size = UDim2.new(1, 0, 0, 10) -- Reduced spacer size
-SpacerRisky.BackgroundTransparency = 1
-SpacerRisky.LayoutOrder = 29
+CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🔴 RISKY / BLATANT SECTION
+--// 🔴 RISKY SECTION
 -------------------------------------------------------------------------
 local RiskyLabel = Instance.new("TextLabel", ScrollContainer)
 RiskyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -1084,13 +1003,13 @@ RiskyLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
 RiskyLabel.BackgroundTransparency = 1
 RiskyLabel.Font = Enum.Font.GothamBold
 RiskyLabel.TextSize = 10
-RiskyLabel.LayoutOrder = 30
+RiskyLabel.LayoutOrder = GetNextOrder()
 
---// SPEED SECTION (MOVED TO RISKY)
+-- Speed UI
 local SpeedFrame = Instance.new("Frame", ScrollContainer)
 SpeedFrame.Size = UDim2.new(0.9, 0, 0, 65) 
 SpeedFrame.BackgroundTransparency = 1
-SpeedFrame.LayoutOrder = 31
+SpeedFrame.LayoutOrder = GetNextOrder()
 
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -1110,27 +1029,6 @@ SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
 SpeedNote.Position = UDim2.new(0, 0, 0, 15)
 
-local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
-RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
-RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
-RulerFrameSpeed.BackgroundTransparency = 1
-
-local function CreateSpeedRulerMark(posScale, text)
-    local mark = Instance.new("TextLabel", RulerFrameSpeed)
-    mark.Size = UDim2.new(0, 20, 1, 0)
-    mark.Position = UDim2.new(posScale, -10, 0, 0)
-    mark.BackgroundTransparency = 1
-    mark.Text = text
-    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
-    mark.Font = Enum.Font.Gotham
-    mark.TextSize = 8
-end
-CreateSpeedRulerMark(0.047, "20") 
-CreateSpeedRulerMark(0.28, "40")
-CreateSpeedRulerMark(0.52, "60")
-CreateSpeedRulerMark(0.76, "80")
-CreateSpeedRulerMark(1, "100")
-
 local SliderBarSpeed = Instance.new("TextButton", SpeedFrame)
 SliderBarSpeed.Size = UDim2.new(1, 0, 0, 6)
 SliderBarSpeed.Position = UDim2.new(0, 0, 0, 35)
@@ -1146,21 +1044,18 @@ Instance.new("UICorner", SliderDotSpeed).CornerRadius = UDim.new(1, 0)
 
 local minSpeed = 16
 local maxSpeed = 100
-
 local function SetSliderVisualsSpeed(val)
     local percentage = (val - minSpeed) / (maxSpeed - minSpeed)
     percentage = math.clamp(percentage, 0, 1)
     SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
     SpeedLabel.Text = "Subtle Speed: " .. val .. (val == 16 and " (Default)" or "")
 end
-
 local function UpdateSpeed(input)
     local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
     SliderDotSpeed.Position = UDim2.new(pos, -8, 0.5, -8)
     subtleSpeedValue = math.floor(minSpeed + (pos * (maxSpeed - minSpeed)))
     SpeedLabel.Text = "Subtle Speed: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
 end
-
 local slidingSpeed = false
 SliderBarSpeed.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -1168,26 +1063,21 @@ SliderBarSpeed.InputBegan:Connect(function(input)
         UpdateSpeed(input)
     end
 end)
-
 UserInputService.InputChanged:Connect(function(input)
     if slidingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         UpdateSpeed(input)
     end
 end)
-
 UserInputService.InputEnded:Connect(function() slidingSpeed = false end)
 
--- SPEED PRESETS
 local PresetFrameSpeed = Instance.new("Frame", ScrollContainer)
 PresetFrameSpeed.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameSpeed.BackgroundTransparency = 1
-PresetFrameSpeed.LayoutOrder = 32
-
+PresetFrameSpeed.LayoutOrder = GetNextOrder()
 local PresetLayoutSpeed = Instance.new("UIListLayout", PresetFrameSpeed)
 PresetLayoutSpeed.FillDirection = Enum.FillDirection.Horizontal
-PresetLayoutSpeed.SortOrder = Enum.SortOrder.LayoutOrder
-PresetLayoutSpeed.Padding = UDim.new(0, 5)
 PresetLayoutSpeed.HorizontalAlignment = Enum.HorizontalAlignment.Center
+PresetLayoutSpeed.Padding = UDim.new(0, 5)
 
 local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
@@ -1203,7 +1093,6 @@ local function CreatePresetSpeed(val, label)
         SetSliderVisualsSpeed(val)
     end)
 end
-
 CreatePresetSpeed(16, "16")
 CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
@@ -1215,8 +1104,12 @@ CreateButton("⚡ Toggle Subtle Pursuit (Risk: Medium)", function(b)
     SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "Toggle Subtle Pursuit First"
     SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
-end, 33)
+end, GetNextOrder())
 
+-- SPACER BETWEEN SPEED AND FLY (Requested)
+CreateSpacer(GetNextOrder())
+
+-- FLY BUTTON LOGIC
 local flyEnabled = false
 local flySpeed = 50
 local flyConnection = nil
@@ -1239,36 +1132,27 @@ local function ToggleFly(state)
     
     if state then
         Notify("🚀 Fly Enabled")
-        
-        -- FORCE STOP ANIMATIONS
         local animator = hum:FindFirstChild("Animator")
         if animator then
-            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
-                track:Stop()
-            end
+            for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
         end
-        
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = true end
         
         local att = Instance.new("Attachment", hrp)
         att.Name = "FlyAtt"
-        
         local lv = Instance.new("LinearVelocity", att)
         lv.Attachment0 = att
         lv.MaxForce = 1e6
         lv.VectorVelocity = Vector3.zero
         lv.RelativeTo = Enum.ActuatorRelativeTo.World
-        
         local ao = Instance.new("AlignOrientation", att)
         ao.Attachment0 = att
         ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
         ao.RigidityEnabled = true
         ao.CFrame = hrp.CFrame
-        
         hum.PlatformStand = true 
         
-        -- DEATH MONITOR: Updates GUI if you die while flying
         local deathConnection
         deathConnection = hum.Died:Connect(function()
             if flyEnabled then
@@ -1284,15 +1168,10 @@ local function ToggleFly(state)
         end)
 
         flyConnection = RunService.RenderStepped:Connect(function()
-            if not flyEnabled or not char.Parent or not hrp.Parent then
-                ToggleFly(false) return
-            end
-            
-            -- NOCLIP (Allows flying through walls)
+            if not flyEnabled or not char.Parent or not hrp.Parent then ToggleFly(false) return end
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("BasePart") then v.CanCollide = false end
             end
-            
             local ctrl = GetControls()
             if ctrl then
                 local moveVec = ctrl:GetMoveVector()
@@ -1337,7 +1216,6 @@ ConfirmYesBtn.MouseButton1Click:Connect(function()
     ToggleFly(true)
     UpdateFlyButtonVisuals()
 end)
-
 ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
 
 CreateButton("FLY (RISK: HIGH)", function(b)
@@ -1349,38 +1227,356 @@ CreateButton("FLY (RISK: HIGH)", function(b)
     else
         ConfirmModal.Visible = true
     end
-end, 34)
+end, GetNextOrder())
 
 -------------------------------------------------------------------------
---// DRAG & SESSION
+--// LOOPS
 -------------------------------------------------------------------------
-local SessionLabel = Instance.new("TextLabel", MainPanel)
-SessionLabel.Size = UDim2.new(1, 0, 0, 20)
-SessionLabel.Position = UDim2.new(0, 0, 1, -25)
-SessionLabel.BackgroundTransparency = 1
-SessionLabel.Text = "Session Duration: 00:00:00"
-SessionLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-SessionLabel.Font = Enum.Font.GothamMedium
-SessionLabel.TextSize = 9 
 
-local frameCount, lastUpdate, currentFPS = 0, tick(), 60
-RunService.Heartbeat:Connect(function()
-    frameCount = frameCount + 1
-    if tick() - lastUpdate >= 1 then
-        currentFPS = frameCount
-        frameCount = 0
-        lastUpdate = tick()
-    end
-end)
-
+-- NPC CACHE
 task.spawn(function()
-    while task.wait(0.5) do
-        local t = math.floor(time())
-        SessionLabel.Text = string.format("Session Duration: %02d:%02d:%02d", math.floor(t/3600), math.floor((t%3600)/60), t%60)
-        StatsLabel.Text = string.format("Ping: %dms | FPS: %d", math.floor(LocalPlayer:GetNetworkPing()*1000), currentFPS)
+    while true do
+        if espEnabled and espShowNPCs then
+            local newCache = {}
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
+                    if not Players:GetPlayerFromCharacter(v) then
+                        table.insert(newCache, v)
+                    end
+                end
+            end
+            NPCCache = newCache
+        else
+            NPCCache = {}
+        end
+        task.wait(2)
     end
 end)
 
+-- LOGIC LOOP (Protected)
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        -- TRACER ORIGIN
+        if LocalPlayer.Character then
+            local rootPos = nil
+            local pRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
+            if pRoot then rootPos = pRoot.Position end
+            if rootPos then
+                local ignoreList = {LocalPlayer.Character}
+                for _, p in pairs(Players:GetPlayers()) do
+                     if p.Character then table.insert(ignoreList, p.Character) end
+                end
+                local params = RaycastParams.new()
+                params.FilterDescendantsInstances = ignoreList
+                params.FilterType = Enum.RaycastFilterType.Exclude
+                local rayResult = workspace:Raycast(rootPos, Vector3.new(0, -500, 0), params)
+                if rayResult then TracerOriginAtt.Position = rayResult.Position
+                else TracerOriginAtt.Position = rootPos - Vector3.new(0, 3, 0) end
+            end
+        end
+
+        -- FOV
+        if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
+            Camera.FieldOfView = currentFOV
+        end
+
+        -- Time
+        if timeChangerEnabled then
+            if dynamicDayNightEnabled then
+                customClockTime = customClockTime + dayNightSpeed
+                if customClockTime >= 24 then customClockTime = 0 end
+                SetSliderVisualsTime(customClockTime)
+            end
+            Lighting.ClockTime = customClockTime
+        else
+            if Lighting.ClockTime ~= customClockTime then
+                 customClockTime = Lighting.ClockTime
+                 SetSliderVisualsTime(customClockTime)
+            end
+        end
+
+        -- Lighting
+        if fullbrightEnabled then
+            Lighting.Ambient = Color3.new(1, 1, 1)
+            Lighting.Brightness = 2
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 100000
+            if not timeChangerEnabled then Lighting.ClockTime = 14 end
+        elseif shadowsDisabled then
+            Lighting.GlobalShadows = false
+        end
+        if noFogEnabled then
+            Lighting.FogEnd = 100000
+            Lighting.FogStart = 100000
+        end
+
+        if dynamicActivated and not fullbrightEnabled then
+            if dynamicEnabled then
+                Lighting.EnvironmentDiffuseScale = 1
+                Lighting.EnvironmentSpecularScale = 1
+            else
+                Lighting.EnvironmentDiffuseScale = 0
+                Lighting.EnvironmentSpecularScale = 0
+            end
+        end
+
+        local Bloom, ColorCorr = GetHDREffects()
+        if hdrEnabled and not fullbrightEnabled then
+            Bloom.Enabled = true
+            Bloom.Intensity = 0.4
+            Bloom.Threshold = 2.5
+            ColorCorr.Enabled = true
+            ColorCorr.Contrast = 0.05
+        else
+            Bloom.Enabled = false
+            ColorCorr.Enabled = false
+        end
+
+        -- Subtle Pursuit
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
+        
+            if hum and hrp then
+                if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
+                    local speedDiff = math.max(0, subtleSpeedValue - 16)
+                    local multiplier = speedDiff * 0.018 
+                    if multiplier > 0 then
+                        hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
+                    end
+                end
+
+                if forceThirdPerson then
+                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                    LocalPlayer.CameraMaxZoomDistance = 8
+                    LocalPlayer.CameraMinZoomDistance = 8
+                    Camera.CFrame = Camera.CFrame * CFrame.new(2, 0.5, 0)
+                else
+                    if LocalPlayer.CameraMaxZoomDistance == 8 then
+                         LocalPlayer.CameraMaxZoomDistance = 128
+                         LocalPlayer.CameraMinZoomDistance = 0.5
+                    end
+                end
+
+                if shiftLockEnabled or forceThirdPerson then
+                     hum.AutoRotate = false
+                    local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
+                    hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
+                else
+                    hum.AutoRotate = true
+                end
+            end
+        end
+    end)
+end)
+
+-- ESP LOOP (Protected)
+RunService.RenderStepped:Connect(function()
+    pcall(function()
+        if not espEnabled then return end
+        
+        -- Player ESP
+        if espShowPlayers then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
+                    if root then
+                        local humanoid = p.Character:FindFirstChild("Humanoid")
+                        local role = GetUniversalRole(p)
+                        local color = GetSmartColor(role, p)
+
+                        if espShowBoxes then
+                            local box = root:FindFirstChild("AuraBox")
+                            if not box then
+                                box = Instance.new("BillboardGui", root)
+                                box.Name = "AuraBox"
+                                box.Size = UDim2.new(4, 0, 5.5, 0)
+                                box.AlwaysOnTop = true 
+                                CollectionService:AddTag(box, "AuraESP")
+                                local frame = Instance.new("Frame", box)
+                                frame.Size = UDim2.new(1, 0, 1, 0)
+                                frame.BackgroundTransparency = 1
+                                local stroke = Instance.new("UIStroke", frame)
+                                stroke.Thickness = 2
+                            end
+                            box.Frame.UIStroke.Color = color
+                        end
+                        
+                        if espShowChams then
+                            local highlight = p.Character:FindFirstChild("AuraChams")
+                            if not highlight then
+                                highlight = Instance.new("Highlight", p.Character)
+                                highlight.Name = "AuraChams"
+                                highlight.Adornee = p.Character
+                                CollectionService:AddTag(highlight, "AuraESP")
+                            end
+                            highlight.FillColor = color
+                            highlight.OutlineColor = Color3.new(1, 1, 1)
+                            highlight.FillTransparency = 0.5
+                            highlight.OutlineTransparency = 0
+                            if not espWallsOnly then
+                                highlight.Enabled = true
+                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            else
+                                local visible = IsVisible(root, {LocalPlayer.Character, p.Character})
+                                if visible then highlight.Enabled = false
+                                else highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+                            end
+                        else
+                            local h = p.Character:FindFirstChild("AuraChams")
+                            if h then h:Destroy() end
+                        end
+                        
+                        if espShowTracers then
+                            local origin = TracerOriginAtt.Position
+                            local tracer = root:FindFirstChild("AuraTracer")
+                            if not tracer then
+                                tracer = Instance.new("BoxHandleAdornment", root)
+                                tracer.Name = "AuraTracer"
+                                tracer.Adornee = workspace.Terrain 
+                                tracer.AlwaysOnTop = true 
+                                tracer.ZIndex = 5
+                                tracer.Transparency = 0.2
+                                CollectionService:AddTag(tracer, "AuraESP")
+                            end
+                            tracer.Color3 = color
+                            local targetPos = root.Position - Vector3.new(0, 3, 0)
+                            local distance = (targetPos - origin).Magnitude
+                            tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                            local midPoint = (origin + targetPos) / 2
+                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                        end
+
+                        if espShowNames then
+                            if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                            local tag = root:FindFirstChild("AuraTag")
+                            if not tag then
+                                tag = Instance.new("BillboardGui", root)
+                                tag.Name = "AuraTag"
+                                tag.Size = UDim2.new(0, 200, 0, 50)
+                                tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                                tag.AlwaysOnTop = true 
+                                CollectionService:AddTag(tag, "AuraESP")
+                                local t = Instance.new("TextLabel", tag)
+                                t.Size = UDim2.new(1, 0, 1, 0)
+                                t.BackgroundTransparency = 1
+                                t.TextStrokeTransparency = 0
+                                t.Font = Enum.Font.GothamBold
+                                t.TextSize = 13
+                            end
+                            local dist = 0
+                            if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                            else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
+                            local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
+                            if role then txt = txt .. "\n[Role: " .. role .. "]" end
+                            txt = txt .. "\n[" .. dist .. "m]"
+                            tag.TextLabel.Text = txt
+                            tag.TextLabel.TextColor3 = color
+                        else
+                            if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                        end
+                    end
+                end
+            end
+        end
+
+        -- NPC ESP
+        if espShowNPCs then
+            for _, npc in pairs(NPCCache) do
+                if npc and npc.Parent then
+                    local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
+                    if root then
+                        local color = Color3.fromRGB(255, 170, 0)
+                        if espShowBoxes then
+                            local box = root:FindFirstChild("AuraBox")
+                            if not box then
+                                box = Instance.new("BillboardGui", root)
+                                box.Name = "AuraBox"
+                                box.Size = UDim2.new(4, 0, 5.5, 0)
+                                box.AlwaysOnTop = true 
+                                CollectionService:AddTag(box, "AuraESP")
+                                local frame = Instance.new("Frame", box)
+                                frame.Size = UDim2.new(1, 0, 1, 0)
+                                frame.BackgroundTransparency = 1
+                                local stroke = Instance.new("UIStroke", frame)
+                                stroke.Thickness = 2
+                            end
+                            box.Frame.UIStroke.Color = color
+                        end
+                        if espShowChams then
+                            local highlight = npc:FindFirstChild("AuraChams")
+                            if not highlight then
+                                highlight = Instance.new("Highlight", npc)
+                                highlight.Name = "AuraChams"
+                                highlight.Adornee = npc
+                                CollectionService:AddTag(highlight, "AuraESP")
+                            end
+                            highlight.FillColor = color
+                            highlight.OutlineColor = Color3.new(1, 1, 1)
+                            highlight.FillTransparency = 0.5
+                            highlight.OutlineTransparency = 0
+                            if not espWallsOnly then highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            else
+                                local visible = IsVisible(root, {LocalPlayer.Character, npc})
+                                if visible then highlight.Enabled = false
+                                else highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
+                            end
+                        else
+                            local h = npc:FindFirstChild("AuraChams")
+                            if h then h:Destroy() end
+                        end
+                        if espShowTracers then
+                            local origin = TracerOriginAtt.Position
+                            local tracer = root:FindFirstChild("AuraTracer")
+                            if not tracer then
+                                tracer = Instance.new("BoxHandleAdornment", root)
+                                tracer.Name = "AuraTracer"
+                                tracer.Adornee = workspace.Terrain 
+                                tracer.AlwaysOnTop = true 
+                                tracer.ZIndex = 5
+                                tracer.Transparency = 0.2
+                                CollectionService:AddTag(tracer, "AuraESP")
+                            end
+                            tracer.Color3 = color
+                            local targetPos = root.Position - Vector3.new(0, 3, 0)
+                            local distance = (targetPos - origin).Magnitude
+                            tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                            local midPoint = (origin + targetPos) / 2
+                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                        end
+                        if espShowNames then
+                            local tag = root:FindFirstChild("AuraTag")
+                            if not tag then
+                                tag = Instance.new("BillboardGui", root)
+                                tag.Name = "AuraTag"
+                                tag.Size = UDim2.new(0, 200, 0, 50)
+                                tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                                tag.AlwaysOnTop = true 
+                                CollectionService:AddTag(tag, "AuraESP")
+                                local t = Instance.new("TextLabel", tag)
+                                t.Size = UDim2.new(1, 0, 1, 0)
+                                t.BackgroundTransparency = 1
+                                t.TextStrokeTransparency = 0
+                                t.Font = Enum.Font.GothamBold
+                                t.TextSize = 13
+                            end
+                            local dist = 0
+                            if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                            else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
+                            local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
+                            tag.TextLabel.Text = txt
+                            tag.TextLabel.TextColor3 = color
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end)
+
+--// DRAGGABLE LOGIC
 local expanded = false
 local dragging = false
 local movedDuringClick = false
@@ -1429,5 +1625,23 @@ MainCircle.MouseButton1Click:Connect(function()
     end
 end)
 
+local frameCount, lastUpdate, currentFPS = 0, tick(), 60
+RunService.Heartbeat:Connect(function()
+    frameCount = frameCount + 1
+    if tick() - lastUpdate >= 1 then
+        currentFPS = frameCount
+        frameCount = 0
+        lastUpdate = tick()
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local t = math.floor(time())
+        SessionLabel.Text = string.format("Session Duration: %02d:%02d:%02d", math.floor(t/3600), math.floor((t%3600)/60), t%60)
+        StatsLabel.Text = string.format("Ping: %dms | FPS: %d", math.floor(LocalPlayer:GetNetworkPing()*1000), currentFPS)
+    end
+end)
+
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V23 (Risk Sorted)")
+Notify("Aura Hub V24 (Fixed & Spaced)")
