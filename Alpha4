@@ -30,12 +30,13 @@ local fullbrightEnabled = false
 
 -- ESP States
 local espEnabled = false
+local espShowPlayers = true -- [NEW] Player State
+local espShowNPCs = false   -- NPC State
 local espShowNames = true
 local espShowBoxes = true 
 local espShowTracers = true
 local espShowChams = false 
 local espWallsOnly = false 
-local espShowNPCs = false -- [NEW] NPC State
 
 -- Time States
 local timeChangerEnabled = false
@@ -74,7 +75,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V18_Final"
+ScreenGui.Name = "AuraHub_V19_Final"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -84,7 +85,7 @@ local function Notify(msg)
     local n = Instance.new("TextLabel")
     n.Size = UDim2.new(0, 280, 0, 45)
     n.Position = UDim2.new(0.5, -140, -0.1, 0)
-    n.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    n.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
     n.TextColor3 = Color3.fromRGB(0, 255, 140)
     n.Text = "» " .. msg
     n.Font = Enum.Font.GothamBold
@@ -93,7 +94,7 @@ local function Notify(msg)
     Instance.new("UICorner", n)
     local Stroke = Instance.new("UIStroke", n)
     Stroke.Color = Color3.fromRGB(0, 255, 140)
-    Stroke.Transparency = 0.8
+    Stroke.Transparency = 0.6
     
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
    
@@ -106,6 +107,19 @@ end
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
         item:Destroy()
+    end
+end
+
+-- Specific cleanup for players only (used when toggling Show Players off)
+local function ClearPlayerESP()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            for _, child in pairs(p.Character:GetChildren()) do
+                if CollectionService:HasTag(child, "AuraESP") then
+                    child:Destroy()
+                end
+            end
+        end
     end
 end
 
@@ -239,14 +253,14 @@ local function GetHDREffects()
 end
 
 -------------------------------------------------------------------------
---// DANGER CONFIRMATION MODAL (FIXED UI SPACING)
+--// DANGER CONFIRMATION MODAL (IMPROVED DARK THEME)
 -------------------------------------------------------------------------
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
--- INCREASED HEIGHT to 150 to give breathing room
 ConfirmModal.Size = UDim2.new(0, 260, 0, 150)
 ConfirmModal.Position = UDim2.new(0.5, -130, 0.5, -75)
-ConfirmModal.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+-- CHANGED: Pitch black background for better contrast
+ConfirmModal.BackgroundColor3 = Color3.fromRGB(5, 5, 5) 
 ConfirmModal.BorderSizePixel = 0
 ConfirmModal.Visible = false
 ConfirmModal.ZIndex = 50 
@@ -254,12 +268,12 @@ ConfirmModal.Parent = ScreenGui
 Instance.new("UICorner", ConfirmModal).CornerRadius = UDim.new(0, 12)
 
 local ConfirmStroke = Instance.new("UIStroke", ConfirmModal)
-ConfirmStroke.Color = Color3.fromRGB(255, 50, 50)
-ConfirmStroke.Thickness = 2
+ConfirmStroke.Color = Color3.fromRGB(255, 30, 30)
+ConfirmStroke.Thickness = 3 -- Thicker stroke
+ConfirmStroke.Transparency = 0
 
 local WarningIcon = Instance.new("TextLabel", ConfirmModal)
 WarningIcon.Size = UDim2.new(1, 0, 0, 40)
--- PUSHED DOWN slightly (Y = 5)
 WarningIcon.Position = UDim2.new(0, 0, 0, 5) 
 WarningIcon.Text = "⚠️"
 WarningIcon.TextSize = 30
@@ -268,7 +282,6 @@ WarningIcon.Parent = ConfirmModal
 
 local WarningTitle = Instance.new("TextLabel", ConfirmModal)
 WarningTitle.Size = UDim2.new(1, 0, 0, 20)
--- PUSHED DOWN to Y = 45
 WarningTitle.Position = UDim2.new(0, 0, 0, 45)
 WarningTitle.Text = "SECURITY ALERT"
 WarningTitle.TextColor3 = Color3.fromRGB(255, 50, 50)
@@ -279,20 +292,19 @@ WarningTitle.Parent = ConfirmModal
 
 local WarningDesc = Instance.new("TextLabel", ConfirmModal)
 WarningDesc.Size = UDim2.new(0.9, 0, 0, 40)
--- PUSHED DOWN to Y = 65
 WarningDesc.Position = UDim2.new(0.05, 0, 0, 65)
 WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to enable Fly?"
-WarningDesc.TextColor3 = Color3.fromRGB(200, 200, 200)
+WarningDesc.TextColor3 = Color3.fromRGB(230, 230, 230)
 WarningDesc.Font = Enum.Font.Gotham
 WarningDesc.TextSize = 11
 WarningDesc.TextWrapped = true
+WarningDesc.BackgroundTransparency = 1
 WarningDesc.Parent = ConfirmModal
 
 local ConfirmYesBtn = Instance.new("TextButton", ConfirmModal)
 ConfirmYesBtn.Size = UDim2.new(0.4, 0, 0, 30)
--- Adjusted Y to 0.76 (Calculated for new height)
 ConfirmYesBtn.Position = UDim2.new(0.05, 0, 0.76, 0)
-ConfirmYesBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+ConfirmYesBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
 ConfirmYesBtn.Text = "YES (Enable)"
 ConfirmYesBtn.TextColor3 = Color3.new(1, 1, 1)
 ConfirmYesBtn.Font = Enum.Font.GothamBold
@@ -302,9 +314,8 @@ ConfirmYesBtn.Parent = ConfirmModal
 
 local ConfirmNoBtn = Instance.new("TextButton", ConfirmModal)
 ConfirmNoBtn.Size = UDim2.new(0.4, 0, 0, 30)
--- Adjusted Y to 0.76
 ConfirmNoBtn.Position = UDim2.new(0.55, 0, 0.76, 0)
-ConfirmNoBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+ConfirmNoBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ConfirmNoBtn.Text = "NO (Cancel)"
 ConfirmNoBtn.TextColor3 = Color3.new(1, 1, 1)
 ConfirmNoBtn.Font = Enum.Font.GothamBold
@@ -863,38 +874,45 @@ EspLabel.Font = Enum.Font.GothamBold
 EspLabel.TextSize = 10
 EspLabel.LayoutOrder = 11
 
-local EspConfigFrame = Instance.new("Frame", ScrollContainer)
-EspConfigFrame.Size = UDim2.new(0.9, 0, 0, 25)
-EspConfigFrame.BackgroundTransparency = 1
-EspConfigFrame.LayoutOrder = 12
+-- Row 1: Player & NPC Toggles
+local EspRow1 = Instance.new("Frame", ScrollContainer)
+EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow1.BackgroundTransparency = 1
+EspRow1.LayoutOrder = 12
+local EspRow1Layout = Instance.new("UIListLayout", EspRow1)
+EspRow1Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow1Layout.Padding = UDim.new(0, 5)
+EspRow1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local EspConfigLayout = Instance.new("UIListLayout", EspConfigFrame)
-EspConfigLayout.FillDirection = Enum.FillDirection.Horizontal
-EspConfigLayout.SortOrder = Enum.SortOrder.LayoutOrder
-EspConfigLayout.Padding = UDim.new(0, 5)
-EspConfigLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+-- Row 2: Box & Name
+local EspRow2 = Instance.new("Frame", ScrollContainer)
+EspRow2.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow2.BackgroundTransparency = 1
+EspRow2.LayoutOrder = 13
+local EspRow2Layout = Instance.new("UIListLayout", EspRow2)
+EspRow2Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow2Layout.Padding = UDim.new(0, 5)
+EspRow2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local EspConfigFrame2 = Instance.new("Frame", ScrollContainer)
-EspConfigFrame2.Size = UDim2.new(0.9, 0, 0, 25)
-EspConfigFrame2.BackgroundTransparency = 1
-EspConfigFrame2.LayoutOrder = 13
+-- Row 3: Tracer & Chams
+local EspRow3 = Instance.new("Frame", ScrollContainer)
+EspRow3.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow3.BackgroundTransparency = 1
+EspRow3.LayoutOrder = 14
+local EspRow3Layout = Instance.new("UIListLayout", EspRow3)
+EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow3Layout.Padding = UDim.new(0, 5)
+EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local EspConfigLayout2 = Instance.new("UIListLayout", EspConfigFrame2)
-EspConfigLayout2.FillDirection = Enum.FillDirection.Horizontal
-EspConfigLayout2.SortOrder = Enum.SortOrder.LayoutOrder
-EspConfigLayout2.Padding = UDim.new(0, 5)
-EspConfigLayout2.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local EspConfigFrame3 = Instance.new("Frame", ScrollContainer)
-EspConfigFrame3.Size = UDim2.new(0.9, 0, 0, 25)
-EspConfigFrame3.BackgroundTransparency = 1
-EspConfigFrame3.LayoutOrder = 14
-
-local EspConfigLayout3 = Instance.new("UIListLayout", EspConfigFrame3)
-EspConfigLayout3.FillDirection = Enum.FillDirection.Horizontal
-EspConfigLayout3.SortOrder = Enum.SortOrder.LayoutOrder
-EspConfigLayout3.Padding = UDim.new(0, 5)
-EspConfigLayout3.HorizontalAlignment = Enum.HorizontalAlignment.Center
+-- Row 4: Walls Only
+local EspRow4 = Instance.new("Frame", ScrollContainer)
+EspRow4.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow4.BackgroundTransparency = 1
+EspRow4.LayoutOrder = 15
+local EspRow4Layout = Instance.new("UIListLayout", EspRow4)
+EspRow4Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow4Layout.Padding = UDim.new(0, 5)
+EspRow4Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local function CreateSmallToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
@@ -913,7 +931,22 @@ local function CreateSmallToggle(parent, text, defaultState, callback)
     return btn
 end
 
-CreateSmallToggle(EspConfigFrame, "Boxes", true, function()
+-- ROW 1: ENTITY TYPES
+CreateSmallToggle(EspRow1, "Show Players", true, function()
+    espShowPlayers = not espShowPlayers
+    if not espShowPlayers then
+        ClearPlayerESP()
+    end
+    return espShowPlayers
+end)
+
+CreateSmallToggle(EspRow1, "Show NPCs", false, function()
+    espShowNPCs = not espShowNPCs
+    return espShowNPCs
+end)
+
+-- ROW 2: BASICS
+CreateSmallToggle(EspRow2, "Boxes", true, function()
     espShowBoxes = not espShowBoxes
     if not espShowBoxes then
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
@@ -923,7 +956,7 @@ CreateSmallToggle(EspConfigFrame, "Boxes", true, function()
     return espShowBoxes
 end)
 
-CreateSmallToggle(EspConfigFrame, "Name & Dist", true, function()
+CreateSmallToggle(EspRow2, "Name & Dist", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
@@ -938,7 +971,8 @@ CreateSmallToggle(EspConfigFrame, "Name & Dist", true, function()
     return espShowNames
 end)
 
-local TracerBtn = Instance.new("TextButton", EspConfigFrame2)
+-- ROW 3: ADVANCED
+local TracerBtn = Instance.new("TextButton", EspRow3)
 TracerBtn.Size = UDim2.new(0.48, 0, 1, 0)
 TracerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 TracerBtn.Text = "Tracers: ON"
@@ -957,19 +991,8 @@ TracerBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-CreateSmallToggle(EspConfigFrame2, "Show NPCs", false, function()
-    espShowNPCs = not espShowNPCs
-    if not espShowNPCs then
-         -- Clean up only NPC tags if toggled off? For now global clear is safer or wait for loop to clean
-         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-            -- Optional: Add specific cleanup logic if needed, but the main loop handles visibility
-         end
-    end
-    return espShowNPCs
-end)
-
-local ChamsBtn = Instance.new("TextButton", EspConfigFrame3)
-ChamsBtn.Size = UDim2.new(0.33, 0, 1, 0)
+local ChamsBtn = Instance.new("TextButton", EspRow3)
+ChamsBtn.Size = UDim2.new(0.48, 0, 1, 0)
 ChamsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 ChamsBtn.Text = "Chams: OFF"
 ChamsBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
@@ -987,8 +1010,9 @@ ChamsBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local WallsOnlyBtn = Instance.new("TextButton", EspConfigFrame3)
-WallsOnlyBtn.Size = UDim2.new(0.65, 0, 1, 0)
+-- ROW 4: WALLS ONLY
+local WallsOnlyBtn = Instance.new("TextButton", EspRow4)
+WallsOnlyBtn.Size = UDim2.new(0.98, 0, 1, 0)
 WallsOnlyBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 WallsOnlyBtn.Text = "Only Walls: OFF"
 WallsOnlyBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
@@ -1010,18 +1034,18 @@ CreateButton("Master ESP Toggle", function(b)
     else
         Notify("ESP Master Active")
     end
-end, 15)
+end, 16)
 
 local Spacer = Instance.new("Frame", ScrollContainer)
 Spacer.Size = UDim2.new(1, 0, 0, 20)
 Spacer.BackgroundTransparency = 1
-Spacer.LayoutOrder = 16
+Spacer.LayoutOrder = 17
 
 -------------------------------------------------------------------------
 --// LOOPS
 -------------------------------------------------------------------------
 
--- NPC CACHE SYSTEM (Optimized to scan every 2 seconds instead of every frame)
+-- NPC CACHE SYSTEM
 local NPCCache = {}
 task.spawn(function()
     while true do
@@ -1165,115 +1189,117 @@ RunService.RenderStepped:Connect(function()
     if not espEnabled then return end
     
     -- Player ESP Loop
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
-            
-            if root then
-                local humanoid = p.Character:FindFirstChild("Humanoid")
-                local role = GetUniversalRole(p)
-                local color = GetSmartColor(role, p)
-
-                if espShowBoxes then
-                    local box = root:FindFirstChild("AuraBox")
-                    if not box then
-                        box = Instance.new("BillboardGui", root)
-                        box.Name = "AuraBox"
-                        box.Size = UDim2.new(4, 0, 5.5, 0)
-                        box.AlwaysOnTop = true 
-                        CollectionService:AddTag(box, "AuraESP")
-                        local frame = Instance.new("Frame", box)
-                        frame.Size = UDim2.new(1, 0, 1, 0)
-                        frame.BackgroundTransparency = 1
-                        local stroke = Instance.new("UIStroke", frame)
-                        stroke.Thickness = 2
-                    end
-                    box.Frame.UIStroke.Color = color
-                end
+    if espShowPlayers then
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                 
-                if espShowChams then
-                    local highlight = p.Character:FindFirstChild("AuraChams")
-                    if not highlight then
-                        highlight = Instance.new("Highlight", p.Character)
-                        highlight.Name = "AuraChams"
-                        highlight.Adornee = p.Character
-                        CollectionService:AddTag(highlight, "AuraESP")
+                if root then
+                    local humanoid = p.Character:FindFirstChild("Humanoid")
+                    local role = GetUniversalRole(p)
+                    local color = GetSmartColor(role, p)
+
+                    if espShowBoxes then
+                        local box = root:FindFirstChild("AuraBox")
+                        if not box then
+                            box = Instance.new("BillboardGui", root)
+                            box.Name = "AuraBox"
+                            box.Size = UDim2.new(4, 0, 5.5, 0)
+                            box.AlwaysOnTop = true 
+                            CollectionService:AddTag(box, "AuraESP")
+                            local frame = Instance.new("Frame", box)
+                            frame.Size = UDim2.new(1, 0, 1, 0)
+                            frame.BackgroundTransparency = 1
+                            local stroke = Instance.new("UIStroke", frame)
+                            stroke.Thickness = 2
+                        end
+                        box.Frame.UIStroke.Color = color
                     end
                     
-                    highlight.FillColor = color
-                    highlight.OutlineColor = Color3.new(1, 1, 1)
-                    highlight.FillTransparency = 0.5
-                    highlight.OutlineTransparency = 0
-                    
-                    if not espWallsOnly then
-                        highlight.Enabled = true
-                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                    else
-                        local visible = IsVisible(root, {LocalPlayer.Character, p.Character})
-                        if visible then
-                            highlight.Enabled = false
-                        else
+                    if espShowChams then
+                        local highlight = p.Character:FindFirstChild("AuraChams")
+                        if not highlight then
+                            highlight = Instance.new("Highlight", p.Character)
+                            highlight.Name = "AuraChams"
+                            highlight.Adornee = p.Character
+                            CollectionService:AddTag(highlight, "AuraESP")
+                        end
+                        
+                        highlight.FillColor = color
+                        highlight.OutlineColor = Color3.new(1, 1, 1)
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineTransparency = 0
+                        
+                        if not espWallsOnly then
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        else
+                            local visible = IsVisible(root, {LocalPlayer.Character, p.Character})
+                            if visible then
+                                highlight.Enabled = false
+                            else
+                                highlight.Enabled = true
+                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            end
                         end
-                    end
-                else
-                    local h = p.Character:FindFirstChild("AuraChams")
-                    if h then h:Destroy() end
-                end
-                
-                if espShowTracers then
-                    local origin = TracerOriginAtt.Position
-                    local tracer = root:FindFirstChild("AuraTracer")
-                    if not tracer then
-                        tracer = Instance.new("BoxHandleAdornment", root)
-                        tracer.Name = "AuraTracer"
-                        tracer.Adornee = workspace.Terrain 
-                        tracer.AlwaysOnTop = true 
-                        tracer.ZIndex = 5
-                        tracer.Transparency = 0.2
-                        CollectionService:AddTag(tracer, "AuraESP")
-                    end
-                    tracer.Color3 = color
-                    local targetPos = root.Position - Vector3.new(0, 3, 0)
-                    local distance = (targetPos - origin).Magnitude
-                    tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                    local midPoint = (origin + targetPos) / 2
-                    tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
-                end
-
-                if espShowNames then
-                    if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-                    local tag = root:FindFirstChild("AuraTag")
-                    if not tag then
-                        tag = Instance.new("BillboardGui", root)
-                        tag.Name = "AuraTag"
-                        tag.Size = UDim2.new(0, 200, 0, 50)
-                        tag.StudsOffset = Vector3.new(0, 4.5, 0) 
-                        tag.AlwaysOnTop = true 
-                        CollectionService:AddTag(tag, "AuraESP")
-                        local t = Instance.new("TextLabel", tag)
-                        t.Size = UDim2.new(1, 0, 1, 0)
-                        t.BackgroundTransparency = 1
-                        t.TextStrokeTransparency = 0
-                        t.Font = Enum.Font.GothamBold
-                        t.TextSize = 13
-                    end
-                    
-                    local dist = 0
-                    if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                         dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                     else
-                         dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+                        local h = p.Character:FindFirstChild("AuraChams")
+                        if h then h:Destroy() end
                     end
                     
-                    local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
-                    if role then txt = txt .. "\n[Role: " .. role .. "]" end
-                    txt = txt .. "\n[" .. dist .. "m]"
-                    tag.TextLabel.Text = txt
-                    tag.TextLabel.TextColor3 = color
-                else
-                    if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                    if espShowTracers then
+                        local origin = TracerOriginAtt.Position
+                        local tracer = root:FindFirstChild("AuraTracer")
+                        if not tracer then
+                            tracer = Instance.new("BoxHandleAdornment", root)
+                            tracer.Name = "AuraTracer"
+                            tracer.Adornee = workspace.Terrain 
+                            tracer.AlwaysOnTop = true 
+                            tracer.ZIndex = 5
+                            tracer.Transparency = 0.2
+                            CollectionService:AddTag(tracer, "AuraESP")
+                        end
+                        tracer.Color3 = color
+                        local targetPos = root.Position - Vector3.new(0, 3, 0)
+                        local distance = (targetPos - origin).Magnitude
+                        tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                        local midPoint = (origin + targetPos) / 2
+                        tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    end
+
+                    if espShowNames then
+                        if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                        local tag = root:FindFirstChild("AuraTag")
+                        if not tag then
+                            tag = Instance.new("BillboardGui", root)
+                            tag.Name = "AuraTag"
+                            tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                            tag.AlwaysOnTop = true 
+                            CollectionService:AddTag(tag, "AuraESP")
+                            local t = Instance.new("TextLabel", tag)
+                            t.Size = UDim2.new(1, 0, 1, 0)
+                            t.BackgroundTransparency = 1
+                            t.TextStrokeTransparency = 0
+                            t.Font = Enum.Font.GothamBold
+                            t.TextSize = 13
+                        end
+                        
+                        local dist = 0
+                        if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                             dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                        else
+                             dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+                        end
+                        
+                        local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
+                        if role then txt = txt .. "\n[Role: " .. role .. "]" end
+                        txt = txt .. "\n[" .. dist .. "m]"
+                        tag.TextLabel.Text = txt
+                        tag.TextLabel.TextColor3 = color
+                    else
+                        if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                    end
                 end
             end
         end
@@ -1719,4 +1745,4 @@ MainCircle.MouseButton1Click:Connect(function()
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V18 (NPC ESP Added)")
+Notify("Aura Hub V19 (Player Toggle Added)")
