@@ -15,7 +15,7 @@ local Camera = workspace.CurrentCamera
 
 --// 🛑 CLEANUP OLD GUIS
 for _, oldGui in pairs(PlayerGui:GetChildren()) do
-    if oldGui.Name:match("AuraHub") or oldGui.Name == "FreecamGui" then
+    if oldGui.Name:match("AuraHub") then
         oldGui:Destroy()
     end
 end
@@ -33,14 +33,6 @@ local forceThirdPerson = false
 local subtleSpeedEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
-
--- Free Cam States
-local freeCamEnabled = false
-local freeCamSpeed = 1
-local freeCamPitch = 0
-local freeCamYaw = 0
-local freeCamTargetPart = nil
-local freeCamHasTarget = false
 
 -- ESP States
 local espEnabled = false
@@ -92,7 +84,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V29_Ultimate" 
+ScreenGui.Name = "AuraHub_V28_Spaced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -224,7 +216,7 @@ local function GetSmartColor(role, player)
         elseif r:find("sheriff") or r:find("police") or r:find("guard") or r:find("hero") or r:find("ct") then
             return Color3.fromRGB(40, 100, 255) -- Blue
         elseif r:find("innocent") or r:find("survivor") or r:find("civilian") or r:find("guest") then
-             return Color3.fromRGB(40, 255, 100) -- Green
+            return Color3.fromRGB(40, 255, 100) -- Green
         elseif r:find("lobby") or r:find("spectator") or r:find("dead") then
                return Color3.fromRGB(200, 200, 200)
         end
@@ -330,7 +322,7 @@ WarningTitle.Parent = ConfirmModal
 local WarningDesc = Instance.new("TextLabel", ConfirmModal)
 WarningDesc.Size = UDim2.new(0.9, 0, 0, 40)
 WarningDesc.Position = UDim2.new(0.05, 0, 0, 65)
-WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to proceed?"
+WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to enable Fly?"
 WarningDesc.TextColor3 = Color3.fromRGB(230, 230, 230)
 WarningDesc.Font = Enum.Font.Gotham
 WarningDesc.TextSize = 11
@@ -359,95 +351,6 @@ ConfirmNoBtn.Font = Enum.Font.GothamBold
 ConfirmNoBtn.TextSize = 11
 Instance.new("UICorner", ConfirmNoBtn).CornerRadius = UDim.new(0, 6)
 ConfirmNoBtn.Parent = ConfirmModal
-
--- Variable to store what action triggered the modal
-local pendingAction = nil
-
--------------------------------------------------------------------------
---// FREECAM CONTROLLER UI (Hidden by Default)
--------------------------------------------------------------------------
-local FreeCamPanel = Instance.new("Frame")
-FreeCamPanel.Name = "FreeCamControl"
-FreeCamPanel.Size = UDim2.new(0, 220, 0, 140)
-FreeCamPanel.Position = UDim2.new(0.5, -110, 0.15, 0) -- Top Center
-FreeCamPanel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-FreeCamPanel.BorderSizePixel = 0
-FreeCamPanel.Visible = false
-FreeCamPanel.ZIndex = 200
-FreeCamPanel.Parent = ScreenGui
-Instance.new("UICorner", FreeCamPanel).CornerRadius = UDim.new(0, 8)
-Instance.new("UIStroke", FreeCamPanel).Color = Color3.fromRGB(0, 255, 140)
-FreeCamPanel:FindFirstChild("UIStroke").Thickness = 1
-
-local FCHdr = Instance.new("TextLabel", FreeCamPanel)
-FCHdr.Size = UDim2.new(1, 0, 0, 30)
-FCHdr.BackgroundTransparency = 1
-FCHdr.Text = "FREE CAM ULTIMATE"
-FCHdr.TextColor3 = Color3.fromRGB(0, 255, 140)
-FCHdr.Font = Enum.Font.GothamBold
-FCHdr.TextSize = 12
-
-local FCSpeedLbl = Instance.new("TextLabel", FreeCamPanel)
-FCSpeedLbl.Size = UDim2.new(1, 0, 0, 15)
-FCSpeedLbl.Position = UDim2.new(0, 0, 0, 30)
-FCSpeedLbl.BackgroundTransparency = 1
-FCSpeedLbl.Text = "Speed: 100%"
-FCSpeedLbl.TextColor3 = Color3.fromRGB(180, 180, 180)
-FCSpeedLbl.Font = Enum.Font.Gotham
-FCSpeedLbl.TextSize = 10
-
-local FCSliderBg = Instance.new("Frame", FreeCamPanel)
-FCSliderBg.Size = UDim2.new(0.8, 0, 0, 4)
-FCSliderBg.Position = UDim2.new(0.1, 0, 0, 50)
-FCSliderBg.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-Instance.new("UICorner", FCSliderBg)
-
-local FCSliderDot = Instance.new("Frame", FCSliderBg)
-FCSliderDot.Size = UDim2.new(0, 14, 0, 14)
-FCSliderDot.Position = UDim2.new(0.1, -7, 0.5, -7)
-FCSliderDot.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
-Instance.new("UICorner", FCSliderDot).CornerRadius = UDim.new(1, 0)
-
--- Slider Logic for Free Cam
-local draggingFC = false
-FCSliderBg.InputBegan:Connect(function(i) 
-    if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then 
-        draggingFC = true 
-    end 
-end)
-UserInputService.InputEnded:Connect(function(i) 
-    if i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 then 
-        draggingFC = false 
-    end 
-end)
-UserInputService.InputChanged:Connect(function(i)
-    if draggingFC and (i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseMovement) then
-        local rel = math.clamp((i.Position.X - FCSliderBg.AbsolutePosition.X) / FCSliderBg.AbsoluteSize.X, 0, 1)
-        FCSliderDot.Position = UDim2.new(rel, -7, 0.5, -7)
-        freeCamSpeed = 0.5 + (rel * 5) -- Speed multiplier
-        FCSpeedLbl.Text = "Speed: " .. math.floor(freeCamSpeed * 100) .. "%"
-    end
-end)
-
-local FCTeleportBtn = Instance.new("TextButton", FreeCamPanel)
-FCTeleportBtn.Size = UDim2.new(0.4, 0, 0, 30)
-FCTeleportBtn.Position = UDim2.new(0.05, 0, 0.7, 0)
-FCTeleportBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
-FCTeleportBtn.Text = "TELEPORT"
-FCTeleportBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
-FCTeleportBtn.Font = Enum.Font.GothamBold
-FCTeleportBtn.TextSize = 10
-Instance.new("UICorner", FCTeleportBtn).CornerRadius = UDim.new(0, 6)
-
-local FCExitBtn = Instance.new("TextButton", FreeCamPanel)
-FCExitBtn.Size = UDim2.new(0.4, 0, 0, 30)
-FCExitBtn.Position = UDim2.new(0.55, 0, 0.7, 0)
-FCExitBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-FCExitBtn.Text = "EXIT CAM"
-FCExitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-FCExitBtn.Font = Enum.Font.GothamBold
-FCExitBtn.TextSize = 10
-Instance.new("UICorner", FCExitBtn).CornerRadius = UDim.new(0, 6)
 
 -------------------------------------------------------------------------
 --// UI BASE (Draggable)
@@ -1074,7 +977,7 @@ TracerBtn.MouseButton1Click:Connect(function()
     TracerBtn.TextColor3 = espShowTracers and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
     if not espShowTracers then
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-             if item.Name == "AuraTracer" then item:Destroy() end
+            if item.Name == "AuraTracer" then item:Destroy() end
         end
     end
 end)
@@ -1393,129 +1296,13 @@ local function UpdateFlyButtonVisuals()
     end
 end
 
---// FREECAM LOGIC & FUNCTIONS
-local freeCamButtonRef = nil
-
-local function ToggleFreeCam(state)
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    
-    if state then
-        -- Enable
-        local rx, ry, rz = Camera.CFrame:ToOrientation()
-        freeCamPitch, freeCamYaw = math.deg(rx), math.deg(ry)
-        freeCamEnabled = true
-        Camera.CameraType = Enum.CameraType.Scriptable
-        
-        FreeCamPanel.Visible = true
-        Notify("📷 Free Cam Enabled")
-        
-        if hum then
-            hum.WalkSpeed = 0
-            hum.AutoRotate = false
-            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-        end
-        
-        -- Create Target Part
-        if not freeCamTargetPart then
-            freeCamTargetPart = Instance.new("Part")
-            freeCamTargetPart.Size = Vector3.new(3, 0.05, 3)
-            freeCamTargetPart.Anchored = true
-            freeCamTargetPart.CanCollide = false
-            freeCamTargetPart.Transparency = 1
-            freeCamTargetPart.Color = Color3.fromRGB(0, 255, 140)
-            freeCamTargetPart.Parent = workspace
-            local mesh = Instance.new("CylinderMesh", freeCamTargetPart)
-            mesh.Scale = Vector3.new(1, 0.02, 1)
-        end
-        
-    else
-        -- Disable
-        freeCamEnabled = false
-        Camera.CameraType = Enum.CameraType.Custom
-        
-        FreeCamPanel.Visible = false
-        Notify("Free Cam Disabled")
-        
-        if hum then
-            Camera.CameraSubject = hum
-            hum.WalkSpeed = 16
-            hum.AutoRotate = true
-            hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-        end
-        
-        if freeCamTargetPart then
-            freeCamTargetPart.Transparency = 1
-            freeCamHasTarget = false
-        end
-        
-        if freeCamButtonRef then
-             freeCamButtonRef.Text = "📷 Free Cam & Teleport (Risky)"
-             freeCamButtonRef.TextColor3 = Color3.new(1, 1, 1)
-        end
-    end
-end
-
-local function FreeCamTeleport()
-    if freeCamEnabled and freeCamHasTarget and freeCamTargetPart then
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            char.Humanoid.PlatformStand = true
-            hrp.Velocity = Vector3.zero
-            task.wait(0.05)
-            hrp.CFrame = freeCamTargetPart.CFrame + Vector3.new(0, 3, 0)
-            task.wait(0.05)
-            char.Humanoid.PlatformStand = false
-            ToggleFreeCam(false)
-            Notify("Teleported!")
-        end
-    end
-end
-
--- Free Cam Touch Look Logic
-local lookTouchFC, lastLookPosFC = nil, nil
-UserInputService.TouchStarted:Connect(function(t, gp)
-    if freeCamEnabled and t.Position.X > Camera.ViewportSize.X * 0.5 then
-        lookTouchFC, lastLookPosFC = t, t.Position
-    end
-end)
-UserInputService.TouchMoved:Connect(function(t)
-    if freeCamEnabled and t == lookTouchFC and lastLookPosFC then
-        local delta = t.Position - lastLookPosFC
-        freeCamYaw = freeCamYaw - (delta.X * 0.6)
-        freeCamPitch = math.clamp(freeCamPitch - (delta.Y * 0.6), -80, 80)
-        lastLookPosFC = t.Position
-    end
-end)
-UserInputService.TouchEnded:Connect(function(t) 
-    if t == lookTouchFC then lookTouchFC = nil end 
-end)
-
--- Connect Buttons in Free Cam Panel
-FCTeleportBtn.MouseButton1Click:Connect(FreeCamTeleport)
-FCExitBtn.MouseButton1Click:Connect(function() ToggleFreeCam(false) end)
-
---// MODAL CONFIRMATION LOGIC
 ConfirmYesBtn.MouseButton1Click:Connect(function()
     ConfirmModal.Visible = false
-    if pendingAction == "Fly" then
-        flyEnabled = true
-        ToggleFly(true)
-        UpdateFlyButtonVisuals()
-    elseif pendingAction == "FreeCam" then
-        ToggleFreeCam(true)
-        if freeCamButtonRef then
-             freeCamButtonRef.Text = "📷 Free Cam: ACTIVE"
-             freeCamButtonRef.TextColor3 = Color3.fromRGB(0, 255, 140)
-        end
-    end
-    pendingAction = nil
+    flyEnabled = true
+    ToggleFly(true)
+    UpdateFlyButtonVisuals()
 end)
-ConfirmNoBtn.MouseButton1Click:Connect(function() 
-    ConfirmModal.Visible = false 
-    pendingAction = nil
-end)
+ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
 
 CreateButton("FLY (RISK: HIGH)", function(b)
     flyButtonRef = b
@@ -1524,17 +1311,6 @@ CreateButton("FLY (RISK: HIGH)", function(b)
         ToggleFly(false)
         UpdateFlyButtonVisuals()
     else
-        pendingAction = "Fly"
-        ConfirmModal.Visible = true
-    end
-end, GetNextOrder())
-
-CreateButton("📷 Free Cam & Teleport (Risky)", function(b)
-    freeCamButtonRef = b
-    if freeCamEnabled then
-        ToggleFreeCam(false)
-    else
-        pendingAction = "FreeCam"
         ConfirmModal.Visible = true
     end
 end, GetNextOrder())
@@ -1586,36 +1362,8 @@ RunService.RenderStepped:Connect(function()
         end
 
         -- FOV
-        if not freeCamEnabled and fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
+        if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
             Camera.FieldOfView = currentFOV
-        end
-        
-        -- Free Cam Logic
-        if freeCamEnabled then
-            Camera.CameraType = Enum.CameraType.Scriptable
-            
-            local rot = CFrame.fromOrientation(math.rad(freeCamPitch), math.rad(freeCamYaw), 0)
-            local ctrl = GetControls()
-            if ctrl then
-                local moveVec = ctrl:GetMoveVector()
-                local dir = (rot.LookVector * -moveVec.Z) + (rot.RightVector * moveVec.X)
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position + (dir * freeCamSpeed)) * rot
-                
-                -- Target Disc Raycast
-                local params = RaycastParams.new()
-                params.FilterDescendantsInstances = {LocalPlayer.Character, freeCamTargetPart}
-                local ray = workspace:Raycast(Camera.CFrame.Position, rot.LookVector * 1000, params)
-                if ray then
-                    freeCamHasTarget = true
-                    freeCamTargetPart.Transparency = 0.3
-                    freeCamTargetPart.CFrame = CFrame.new(ray.Position, ray.Position + ray.Normal) * CFrame.Angles(math.rad(90), 0, 0)
-                else
-                    freeCamHasTarget = false
-                    freeCamTargetPart.Transparency = 1
-                end
-            end
-        elseif freeCamTargetPart then
-            freeCamTargetPart.Transparency = 1 -- Hide if disabled
         end
 
         -- Time
@@ -1684,7 +1432,7 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                if forceThirdPerson and not freeCamEnabled then
+                if forceThirdPerson then
                     LocalPlayer.CameraMode = Enum.CameraMode.Classic
                     LocalPlayer.CameraMaxZoomDistance = 8
                     LocalPlayer.CameraMinZoomDistance = 8
@@ -1696,15 +1444,12 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
-                if (shiftLockEnabled or forceThirdPerson) and not freeCamEnabled then
-                    hum.AutoRotate = false
+                if shiftLockEnabled or forceThirdPerson then
+                     hum.AutoRotate = false
                     local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
                     hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
                 else
-                    -- Only auto-rotate if freecam is off (Freecam handles auto-rotate toggle itself)
-                    if not freeCamEnabled then
-                         hum.AutoRotate = true
-                    end
+                    hum.AutoRotate = true
                 end
             end
         end
@@ -1790,4 +1535,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V29 (Ultimate)")
+Notify("Aura Hub V28 (Spaced)")
