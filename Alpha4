@@ -30,13 +30,16 @@ local fullbrightEnabled = false
 
 -- ESP States
 local espEnabled = false
-local espShowPlayers = true -- [NEW] Player State
-local espShowNPCs = false   -- NPC State
+local espShowPlayers = true 
+local espShowNPCs = false   
 local espShowNames = true
 local espShowBoxes = true 
 local espShowTracers = true
 local espShowChams = false 
 local espWallsOnly = false 
+
+-- NPC Cache for cleanup
+local NPCCache = {}
 
 -- Time States
 local timeChangerEnabled = false
@@ -49,7 +52,7 @@ local dayNightSpeed = 0.001
 local optimizationEnabled = false 
 local optimizationConnection = nil 
 local optimizationCache = {} 
-local originalQualityLevel = 1 -- Default fallback
+local originalQualityLevel = 1 
 pcall(function() originalQualityLevel = settings().Rendering.QualityLevel end)
 
 --// SMART GAME DETECTION
@@ -75,7 +78,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V19_Final"
+ScreenGui.Name = "AuraHub_V20_Fixed"
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -110,14 +113,38 @@ local function ClearAllESP()
     end
 end
 
--- Specific cleanup for players only (used when toggling Show Players off)
+--// SPECIFIC CLEANUP FUNCTIONS (FIXED)
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
-            for _, child in pairs(p.Character:GetChildren()) do
-                if CollectionService:HasTag(child, "AuraESP") then
-                    child:Destroy()
-                end
+            -- Clear Chams (Parented to Character)
+            local chams = p.Character:FindFirstChild("AuraChams")
+            if chams then chams:Destroy() end
+            
+            -- Clear Boxes/Tags/Tracers (Parented to RootPart)
+            local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
+            if root then
+                if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
+                if root:FindFirstChild("AuraTag") then root.AuraTag:Destroy() end
+                if root:FindFirstChild("AuraTracer") then root.AuraTracer:Destroy() end
+            end
+        end
+    end
+end
+
+local function ClearNPCESP()
+    for _, npc in pairs(NPCCache) do
+        if npc and npc.Parent then
+            -- Clear Chams
+            local chams = npc:FindFirstChild("AuraChams")
+            if chams then chams:Destroy() end
+            
+            -- Clear Root Items
+            local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
+            if root then
+                if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
+                if root:FindFirstChild("AuraTag") then root.AuraTag:Destroy() end
+                if root:FindFirstChild("AuraTracer") then root.AuraTracer:Destroy() end
             end
         end
     end
@@ -253,13 +280,12 @@ local function GetHDREffects()
 end
 
 -------------------------------------------------------------------------
---// DANGER CONFIRMATION MODAL (IMPROVED DARK THEME)
+--// DANGER CONFIRMATION MODAL
 -------------------------------------------------------------------------
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
 ConfirmModal.Size = UDim2.new(0, 260, 0, 150)
 ConfirmModal.Position = UDim2.new(0.5, -130, 0.5, -75)
--- CHANGED: Pitch black background for better contrast
 ConfirmModal.BackgroundColor3 = Color3.fromRGB(5, 5, 5) 
 ConfirmModal.BorderSizePixel = 0
 ConfirmModal.Visible = false
@@ -269,7 +295,7 @@ Instance.new("UICorner", ConfirmModal).CornerRadius = UDim.new(0, 12)
 
 local ConfirmStroke = Instance.new("UIStroke", ConfirmModal)
 ConfirmStroke.Color = Color3.fromRGB(255, 30, 30)
-ConfirmStroke.Thickness = 3 -- Thicker stroke
+ConfirmStroke.Thickness = 3
 ConfirmStroke.Transparency = 0
 
 local WarningIcon = Instance.new("TextLabel", ConfirmModal)
@@ -935,13 +961,16 @@ end
 CreateSmallToggle(EspRow1, "Show Players", true, function()
     espShowPlayers = not espShowPlayers
     if not espShowPlayers then
-        ClearPlayerESP()
+        ClearPlayerESP() -- Now calls the fixed cleanup
     end
     return espShowPlayers
 end)
 
 CreateSmallToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
+    if not espShowNPCs then
+        ClearNPCESP() -- Now calls the fixed cleanup
+    end
     return espShowNPCs
 end)
 
@@ -1046,13 +1075,12 @@ Spacer.LayoutOrder = 17
 -------------------------------------------------------------------------
 
 -- NPC CACHE SYSTEM
-local NPCCache = {}
 task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
             local newCache = {}
             for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") then
+                if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
                     if not Players:GetPlayerFromCharacter(v) then
                         table.insert(newCache, v)
                     end
@@ -1745,4 +1773,4 @@ MainCircle.MouseButton1Click:Connect(function()
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V19 (Player Toggle Added)")
+Notify("Aura Hub V20 (Cleanup Fixed)")
