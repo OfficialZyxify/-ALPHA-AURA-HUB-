@@ -43,7 +43,7 @@ local espShowBoxes = true
 local espShowTracers = true
 local espShowChams = false 
 local espWallsOnly = false 
-local dynamicChamsPulse = true -- New Dynamic State
+local dynamicChamsPulse = true 
 
 -- NPC Cache for cleanup
 local NPCCache = {}
@@ -85,7 +85,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V34_NoFreecam" 
+ScreenGui.Name = "AuraHub_V36_RevertFix" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -244,15 +244,14 @@ local function IsVisible(targetModel, ignoreList)
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     
-    -- Check multiple points. If ANY is visible, the player is considered visible.
     for _, point in ipairs(points) do
         local direction = point - origin
         local result = workspace:Raycast(origin, direction, params)
         if not result or result.Instance:IsDescendantOf(targetModel) then
-            return true -- At least one part is seen
+            return true 
         end
     end
-    return false -- All parts hidden
+    return false 
 end
 
 --// Server Hopper
@@ -1464,6 +1463,16 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
+        
+        -- TRACER ORIGIN UPDATE (THE FIX)
+        -- No Raycasts. Just lock it to the bottom of the character.
+        if LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
+            if hrp then
+                -- 3.5 studs down puts it roughly at feet level for R6/R15
+                TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0)
+            end
+        end
     end)
 end)
 
@@ -1495,8 +1504,10 @@ RunService.RenderStepped:Connect(function()
                             if not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
-                                box.Size = UDim2.new(4, 0, 5.5, 0)
+                                -- FIXED BOX SIZE: Slightly tighter than before
+                                box.Size = UDim2.new(3.5, 0, 5, 0)
                                 box.AlwaysOnTop = true 
+                                box.StudsOffset = Vector3.new(0, 0, 0) -- Centered on RootPart
                                 CollectionService:AddTag(box, "AuraESP")
                                 local frame = Instance.new("Frame", box)
                                 frame.Size = UDim2.new(1, 0, 1, 0)
@@ -1525,9 +1536,7 @@ RunService.RenderStepped:Connect(function()
                             highlight.FillTransparency = pulseTransparency
 
                             if espWallsOnly then
-                                -- SMART TOGGLE LOGIC:
-                                -- If Visible -> Disable Highlight (Looks Normal)
-                                -- If Hidden -> Enable Highlight (Looks Like Cham)
+                                -- IsVisible check (reverted to single point for speed/stability if multi was causing lag, but kept multi logic in function)
                                 local visible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
                                 if visible then
                                     highlight.Enabled = false 
@@ -1536,7 +1545,6 @@ RunService.RenderStepped:Connect(function()
                                     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                                 end
                             else
-                                -- ALWAYS ON LOGIC
                                 highlight.Enabled = true
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             end
@@ -1572,7 +1580,8 @@ RunService.RenderStepped:Connect(function()
                                 tag = Instance.new("BillboardGui", root)
                                 tag.Name = "AuraTag"
                                 tag.Size = UDim2.new(0, 200, 0, 50)
-                                tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                                -- FIXED OFFSET: Adjusted to sit nicely above the new box size
+                                tag.StudsOffset = Vector3.new(0, 4, 0) 
                                 tag.AlwaysOnTop = true 
                                 CollectionService:AddTag(tag, "AuraESP")
                                 local t = Instance.new("TextLabel", tag)
@@ -1611,7 +1620,7 @@ RunService.RenderStepped:Connect(function()
                             if not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
-                                box.Size = UDim2.new(4, 0, 5.5, 0)
+                                box.Size = UDim2.new(3.5, 0, 5, 0) -- Matched Fixed Size
                                 box.AlwaysOnTop = true 
                                 CollectionService:AddTag(box, "AuraESP")
                                 local frame = Instance.new("Frame", box)
@@ -1633,7 +1642,7 @@ RunService.RenderStepped:Connect(function()
                             highlight.FillColor = color
                             highlight.OutlineColor = Color3.new(1, 1, 1)
                             highlight.OutlineTransparency = 0
-                            highlight.FillTransparency = pulseTransparency -- Dynamic Pulse
+                            highlight.FillTransparency = pulseTransparency 
 
                             if espWallsOnly then
                                 local visible = IsVisible(npc, {LocalPlayer.Character, npc})
@@ -1672,7 +1681,7 @@ RunService.RenderStepped:Connect(function()
                                 tag = Instance.new("BillboardGui", root)
                                 tag.Name = "AuraTag"
                                 tag.Size = UDim2.new(0, 200, 0, 50)
-                                tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                                tag.StudsOffset = Vector3.new(0, 4, 0) 
                                 tag.AlwaysOnTop = true 
                                 CollectionService:AddTag(tag, "AuraESP")
                                 local t = Instance.new("TextLabel", tag)
@@ -1774,4 +1783,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V34 (Dynamic + No Freecam)")
+Notify("Aura Hub V36 (Visuals Stabilized)")
