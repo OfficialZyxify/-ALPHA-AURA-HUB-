@@ -1036,4 +1036,687 @@ task.spawn(function()
             end
             NPCCache = newCache
         else
-            NPC
+            NPCCache = {}
+        end
+        task.wait(2)
+    end
+end)
+
+RunService.RenderStepped:Connect(function()
+    -- TRACER ORIGIN
+    if LocalPlayer.Character then
+        local rootPos = nil
+        local pRoot = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
+        if pRoot then rootPos = pRoot.Position end
+        
+        if rootPos then
+            local ignoreList = {LocalPlayer.Character}
+            for _, p in pairs(Players:GetPlayers()) do
+                 if p.Character then table.insert(ignoreList, p.Character) end
+            end
+            
+            local params = RaycastParams.new()
+            params.FilterDescendantsInstances = ignoreList
+            params.FilterType = Enum.RaycastFilterType.Exclude
+             
+            local rayResult = workspace:Raycast(rootPos, Vector3.new(0, -500, 0), params)
+            if rayResult then TracerOriginAtt.Position = rayResult.Position
+            else TracerOriginAtt.Position = rootPos - Vector3.new(0, 3, 0) end
+        end
+    end
+
+    -- FOV
+    if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
+        Camera.FieldOfView = currentFOV
+    end
+
+    -- Time
+    if timeChangerEnabled then
+        if dynamicDayNightEnabled then
+            customClockTime = customClockTime + dayNightSpeed
+            if customClockTime >= 24 then customClockTime = 0 end
+            SetSliderVisualsTime(customClockTime)
+        end
+        Lighting.ClockTime = customClockTime
+    else
+        if Lighting.ClockTime ~= customClockTime then
+             customClockTime = Lighting.ClockTime
+             SetSliderVisualsTime(customClockTime)
+        end
+    end
+
+    -- Lighting/Fullbright
+    if fullbrightEnabled then
+        Lighting.Ambient = Color3.new(1, 1, 1)
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = false
+        Lighting.FogEnd = 100000
+        if not timeChangerEnabled then Lighting.ClockTime = 14 end
+    elseif shadowsDisabled then
+        Lighting.GlobalShadows = false
+    end
+
+    if noFogEnabled then
+        Lighting.FogEnd = 100000
+        Lighting.FogStart = 100000
+    end
+
+    if dynamicActivated and not fullbrightEnabled then
+        if dynamicEnabled then
+            Lighting.EnvironmentDiffuseScale = 1
+            Lighting.EnvironmentSpecularScale = 1
+        else
+            Lighting.EnvironmentDiffuseScale = 0
+            Lighting.EnvironmentSpecularScale = 0
+        end
+    end
+
+    local Bloom, ColorCorr = GetHDREffects()
+    if hdrEnabled and not fullbrightEnabled then
+        Bloom.Enabled = true
+        Bloom.Intensity = 0.4
+        Bloom.Threshold = 2.5
+        ColorCorr.Enabled = true
+        ColorCorr.Contrast = 0.05
+    else
+        Bloom.Enabled = false
+        ColorCorr.Enabled = false
+    end
+
+    -- Subtle Pursuit
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
+        
+        if hum and hrp then
+            if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
+                local speedDiff = math.max(0, subtleSpeedValue - 16)
+                local multiplier = speedDiff * 0.018 
+                if multiplier > 0 then
+                    hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
+                end
+            end
+
+            if forceThirdPerson then
+                LocalPlayer.CameraMode = Enum.CameraMode.Classic
+                LocalPlayer.CameraMaxZoomDistance = 8
+                LocalPlayer.CameraMinZoomDistance = 8
+                Camera.CFrame = Camera.CFrame * CFrame.new(2, 0.5, 0)
+            else
+                if LocalPlayer.CameraMaxZoomDistance == 8 then
+                     LocalPlayer.CameraMaxZoomDistance = 128
+                    LocalPlayer.CameraMinZoomDistance = 0.5
+                end
+            end
+
+            if shiftLockEnabled or forceThirdPerson then
+                 hum.AutoRotate = false
+                local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
+                hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
+            else
+                hum.AutoRotate = true
+            end
+        end
+    end
+end)
+
+-- ESP LOOP
+RunService.RenderStepped:Connect(function()
+    if not espEnabled then return end
+    
+    -- Player ESP Loop
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
+            
+            if root then
+                local humanoid = p.Character:FindFirstChild("Humanoid")
+                local role = GetUniversalRole(p)
+                local color = GetSmartColor(role, p)
+
+                if espShowBoxes then
+                    local box = root:FindFirstChild("AuraBox")
+                    if not box then
+                        box = Instance.new("BillboardGui", root)
+                        box.Name = "AuraBox"
+                        box.Size = UDim2.new(4, 0, 5.5, 0)
+                        box.AlwaysOnTop = true 
+                        CollectionService:AddTag(box, "AuraESP")
+                        local frame = Instance.new("Frame", box)
+                        frame.Size = UDim2.new(1, 0, 1, 0)
+                        frame.BackgroundTransparency = 1
+                        local stroke = Instance.new("UIStroke", frame)
+                        stroke.Thickness = 2
+                    end
+                    box.Frame.UIStroke.Color = color
+                end
+                
+                if espShowChams then
+                    local highlight = p.Character:FindFirstChild("AuraChams")
+                    if not highlight then
+                        highlight = Instance.new("Highlight", p.Character)
+                        highlight.Name = "AuraChams"
+                        highlight.Adornee = p.Character
+                        CollectionService:AddTag(highlight, "AuraESP")
+                    end
+                    
+                    highlight.FillColor = color
+                    highlight.OutlineColor = Color3.new(1, 1, 1)
+                    highlight.FillTransparency = 0.5
+                    highlight.OutlineTransparency = 0
+                    
+                    if not espWallsOnly then
+                        highlight.Enabled = true
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    else
+                        local visible = IsVisible(root, {LocalPlayer.Character, p.Character})
+                        if visible then
+                            highlight.Enabled = false
+                        else
+                            highlight.Enabled = true
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        end
+                    end
+                else
+                    local h = p.Character:FindFirstChild("AuraChams")
+                    if h then h:Destroy() end
+                end
+                
+                if espShowTracers then
+                    local origin = TracerOriginAtt.Position
+                    local tracer = root:FindFirstChild("AuraTracer")
+                    if not tracer then
+                        tracer = Instance.new("BoxHandleAdornment", root)
+                        tracer.Name = "AuraTracer"
+                        tracer.Adornee = workspace.Terrain 
+                        tracer.AlwaysOnTop = true 
+                        tracer.ZIndex = 5
+                        tracer.Transparency = 0.2
+                        CollectionService:AddTag(tracer, "AuraESP")
+                    end
+                    tracer.Color3 = color
+                    local targetPos = root.Position - Vector3.new(0, 3, 0)
+                    local distance = (targetPos - origin).Magnitude
+                    tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                    local midPoint = (origin + targetPos) / 2
+                    tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                end
+
+                if espShowNames then
+                    if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                    local tag = root:FindFirstChild("AuraTag")
+                    if not tag then
+                        tag = Instance.new("BillboardGui", root)
+                        tag.Name = "AuraTag"
+                        tag.Size = UDim2.new(0, 200, 0, 50)
+                        tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                        tag.AlwaysOnTop = true 
+                        CollectionService:AddTag(tag, "AuraESP")
+                        local t = Instance.new("TextLabel", tag)
+                        t.Size = UDim2.new(1, 0, 1, 0)
+                        t.BackgroundTransparency = 1
+                        t.TextStrokeTransparency = 0
+                        t.Font = Enum.Font.GothamBold
+                        t.TextSize = 13
+                    end
+                    
+                    local dist = 0
+                    if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                         dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                    else
+                         dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+                    end
+                    
+                    local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
+                    if role then txt = txt .. "\n[Role: " .. role .. "]" end
+                    txt = txt .. "\n[" .. dist .. "m]"
+                    tag.TextLabel.Text = txt
+                    tag.TextLabel.TextColor3 = color
+                else
+                    if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                end
+            end
+        end
+    end
+
+    -- NPC ESP Loop
+    if espShowNPCs then
+        for _, npc in pairs(NPCCache) do
+            if npc and npc.Parent then
+                local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
+                
+                if root then
+                    -- NPCs get Orange/Gold color to distinguish from players
+                    local color = Color3.fromRGB(255, 170, 0)
+                    
+                    if espShowBoxes then
+                        local box = root:FindFirstChild("AuraBox")
+                        if not box then
+                            box = Instance.new("BillboardGui", root)
+                            box.Name = "AuraBox"
+                            box.Size = UDim2.new(4, 0, 5.5, 0)
+                            box.AlwaysOnTop = true 
+                            CollectionService:AddTag(box, "AuraESP")
+                            local frame = Instance.new("Frame", box)
+                            frame.Size = UDim2.new(1, 0, 1, 0)
+                            frame.BackgroundTransparency = 1
+                            local stroke = Instance.new("UIStroke", frame)
+                            stroke.Thickness = 2
+                        end
+                        box.Frame.UIStroke.Color = color
+                    end
+                    
+                    if espShowChams then
+                        local highlight = npc:FindFirstChild("AuraChams")
+                        if not highlight then
+                            highlight = Instance.new("Highlight", npc)
+                            highlight.Name = "AuraChams"
+                            highlight.Adornee = npc
+                            CollectionService:AddTag(highlight, "AuraESP")
+                        end
+                        
+                        highlight.FillColor = color
+                        highlight.OutlineColor = Color3.new(1, 1, 1)
+                        highlight.FillTransparency = 0.5
+                        highlight.OutlineTransparency = 0
+                        
+                        if not espWallsOnly then
+                            highlight.Enabled = true
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        else
+                            local visible = IsVisible(root, {LocalPlayer.Character, npc})
+                            if visible then
+                                highlight.Enabled = false
+                            else
+                                highlight.Enabled = true
+                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                            end
+                        end
+                    else
+                        local h = npc:FindFirstChild("AuraChams")
+                        if h then h:Destroy() end
+                    end
+                    
+                    if espShowTracers then
+                        local origin = TracerOriginAtt.Position
+                        local tracer = root:FindFirstChild("AuraTracer")
+                        if not tracer then
+                            tracer = Instance.new("BoxHandleAdornment", root)
+                            tracer.Name = "AuraTracer"
+                            tracer.Adornee = workspace.Terrain 
+                            tracer.AlwaysOnTop = true 
+                            tracer.ZIndex = 5
+                            tracer.Transparency = 0.2
+                            CollectionService:AddTag(tracer, "AuraESP")
+                        end
+                        tracer.Color3 = color
+                        local targetPos = root.Position - Vector3.new(0, 3, 0)
+                        local distance = (targetPos - origin).Magnitude
+                        tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                        local midPoint = (origin + targetPos) / 2
+                        tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    end
+
+                    if espShowNames then
+                        local tag = root:FindFirstChild("AuraTag")
+                        if not tag then
+                            tag = Instance.new("BillboardGui", root)
+                            tag.Name = "AuraTag"
+                            tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, 4.5, 0) 
+                            tag.AlwaysOnTop = true 
+                            CollectionService:AddTag(tag, "AuraESP")
+                            local t = Instance.new("TextLabel", tag)
+                            t.Size = UDim2.new(1, 0, 1, 0)
+                            t.BackgroundTransparency = 1
+                            t.TextStrokeTransparency = 0
+                            t.Font = Enum.Font.GothamBold
+                            t.TextSize = 13
+                        end
+                        
+                        local dist = 0
+                        if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                             dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                        else
+                             dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude)
+                        end
+                        
+                        local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
+                        tag.TextLabel.Text = txt
+                        tag.TextLabel.TextColor3 = color
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--// MISC FEATURES
+CreateButton("Shiftlock: OFF", function(b)
+    shiftLockEnabled = not shiftLockEnabled
+    b.Text = "Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
+    b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
+end, 20)
+
+CreateButton("Force Shoulder View", function(b)
+    forceThirdPerson = not forceThirdPerson
+    b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
+end, 21)
+
+CreateButton("Clear Vision (Remove Fog)", function(b)
+    noFogEnabled = not noFogEnabled
+    if noFogEnabled then
+        if Lighting:FindFirstChildOfClass("Atmosphere") then Lighting:FindFirstChildOfClass("Atmosphere").Parent = nil end
+    else
+        Lighting.FogEnd = originalFogEnd
+        Lighting.FogStart = originalFogStart
+        Lighting.FogColor = originalFogColor
+    end
+    b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
+end, 22)
+
+CreateButton("Fullbright (Night Vision)", function(b)
+    fullbrightEnabled = not fullbrightEnabled
+    if not fullbrightEnabled then
+        Lighting.Ambient = originalAmbient
+        Lighting.Brightness = originalBrightness
+        Lighting.GlobalShadows = originalShadows
+    end
+    b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
+end, 23)
+
+CreateButton("Natural FPS Boost", function(b)
+    optimizationEnabled = not optimizationEnabled
+    b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
+    if optimizationEnabled then
+        Notify("Optimization Enabled")
+        pcall(function() settings().Rendering.QualityLevel = 21 end)
+        
+        local function Optimize(v)
+             if v:IsA("BasePart") then
+                if not optimizationCache[v] then
+                    optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
+                end
+                v.Material = Enum.Material.Plastic
+                v.Reflectance = 0
+            end
+        end
+        for _, v in pairs(game.Workspace:GetDescendants()) do Optimize(v) end
+        if optimizationConnection then optimizationConnection:Disconnect() end
+        optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
+    else
+        Notify("Restoring Original Quality...")
+        pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
+        if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
+        for obj, data in pairs(optimizationCache) do
+            if obj and obj.Parent then 
+                 if data.Material then obj.Material = data.Material end
+                 if data.Reflectance then obj.Reflectance = data.Reflectance end
+            end
+        end
+        table.clear(optimizationCache)
+    end
+end, 24)
+
+CreateButton("Toggle Shadows", function(b)
+    shadowsDisabled = not shadowsDisabled
+    if shadowsDisabled then
+        Lighting.GlobalShadows = false
+        b.TextColor3 = Color3.fromRGB(0, 255, 140)
+        Notify("Global Shadows Disabled")
+    else
+        Lighting.GlobalShadows = originalShadows
+        b.TextColor3 = Color3.new(1, 1, 1)
+        Notify("Global Shadows Restored")
+    end
+end, 25)
+
+CreateButton("Dynamic Lighting & Shadows", function(b)
+    dynamicActivated = true 
+    dynamicEnabled = not dynamicEnabled
+    b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
+end, 26)
+
+CreateButton("HDR Lighting", function(b)
+    hdrEnabled = not hdrEnabled
+    b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
+end, 27)
+
+CreateButton("Anti-AFK", function(b)
+    antiAfkEnabled = not antiAfkEnabled
+    b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
+end, 28)
+
+CreateButton("Server Hopper", function() StableServerHop() end, 29)
+CreateButton("Rejoin Server", function() RejoinServer() end, 30)
+CreateButton("Reset Character", function() 
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        Notify("Respawning...")
+        LocalPlayer.Character.Humanoid.Health = 0
+    end 
+end, 31)
+
+-------------------------------------------------------------------------
+--// BLATANT / RISKY SECTION
+-------------------------------------------------------------------------
+local SpacerRisky = Instance.new("Frame", ScrollContainer)
+SpacerRisky.Size = UDim2.new(1, 0, 0, 20)
+SpacerRisky.BackgroundTransparency = 1
+SpacerRisky.LayoutOrder = 32
+
+local RiskyLabel = Instance.new("TextLabel", ScrollContainer)
+RiskyLabel.Size = UDim2.new(1, 0, 0, 20)
+RiskyLabel.Text = "⚠️ RISKY FEATURES ⚠️"
+RiskyLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+RiskyLabel.BackgroundTransparency = 1
+RiskyLabel.Font = Enum.Font.GothamBold
+RiskyLabel.TextSize = 10
+RiskyLabel.LayoutOrder = 33
+
+local flyEnabled = false
+local flySpeed = 50
+local flyConnection = nil
+local Controls = nil
+local flyButtonRef = nil 
+
+local function GetControls()
+    if not Controls then
+        local PlayerModule = LocalPlayer:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 5)
+        if PlayerModule then Controls = require(PlayerModule):GetControls() end
+    end
+    return Controls
+end
+
+local function ToggleFly(state)
+    local char = LocalPlayer.Character
+    if not char then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    
+    if state then
+        Notify("🚀 Fly Enabled")
+        
+        -- FORCE STOP ANIMATIONS
+        local animator = hum:FindFirstChild("Animator")
+        if animator then
+            for _, track in pairs(animator:GetPlayingAnimationTracks()) do
+                track:Stop()
+            end
+        end
+        
+        local anim = char:FindFirstChild("Animate")
+        if anim then anim.Disabled = true end
+        
+        local att = Instance.new("Attachment", hrp)
+        att.Name = "FlyAtt"
+        
+        local lv = Instance.new("LinearVelocity", att)
+        lv.Attachment0 = att
+        lv.MaxForce = 1e6
+        lv.VectorVelocity = Vector3.zero
+        lv.RelativeTo = Enum.ActuatorRelativeTo.World
+        
+        local ao = Instance.new("AlignOrientation", att)
+        ao.Attachment0 = att
+        ao.Mode = Enum.OrientationAlignmentMode.OneAttachment
+        ao.RigidityEnabled = true
+        ao.CFrame = hrp.CFrame
+        
+        hum.PlatformStand = true 
+        
+        flyConnection = RunService.RenderStepped:Connect(function()
+            if not flyEnabled or not char.Parent or not hrp.Parent then
+                ToggleFly(false) return
+            end
+            
+            -- NOCLIP (Allows flying through walls)
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("BasePart") then v.CanCollide = false end
+            end
+            
+            local ctrl = GetControls()
+            if ctrl then
+                local moveVec = ctrl:GetMoveVector()
+                local camCF = Camera.CFrame
+                if moveVec.Magnitude > 0 then
+                    local dir = (camCF.LookVector * -moveVec.Z) + (camCF.RightVector * moveVec.X)
+                    lv.VectorVelocity = dir * flySpeed
+                else
+                    lv.VectorVelocity = Vector3.zero
+                end
+                ao.CFrame = camCF
+            end
+        end)
+    else
+        if flyConnection then flyConnection:Disconnect() flyConnection = nil end
+        if hrp then
+            local att = hrp:FindFirstChild("FlyAtt")
+            if att then att:Destroy() end
+        end
+        if hum then 
+            hum.PlatformStand = false 
+            hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+        end
+        local anim = char:FindFirstChild("Animate")
+        if anim then anim.Disabled = false end
+        if flyEnabled then Notify("Fly Disabled") end
+        flyEnabled = false
+    end
+end
+
+local function UpdateFlyButtonVisuals()
+    if flyButtonRef then
+        flyButtonRef.Text = flyEnabled and "FLY: ACTIVE ⚠️" or "FLY (RISK: HIGH)"
+        flyButtonRef.TextColor3 = flyEnabled and Color3.fromRGB(255, 50, 50) or Color3.new(1, 1, 1)
+        flyButtonRef.BackgroundColor3 = flyEnabled and Color3.fromRGB(50, 10, 10) or Color3.fromRGB(35, 35, 35)
+    end
+end
+
+ConfirmYesBtn.MouseButton1Click:Connect(function()
+    ConfirmModal.Visible = false
+    flyEnabled = true
+    ToggleFly(true)
+    UpdateFlyButtonVisuals()
+end)
+
+ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
+
+CreateButton("FLY (RISK: HIGH)", function(b)
+    flyButtonRef = b
+    if flyEnabled then
+        flyEnabled = false
+        ToggleFly(false)
+        UpdateFlyButtonVisuals()
+    else
+        ConfirmModal.Visible = true
+    end
+end, 34)
+
+-------------------------------------------------------------------------
+--// DRAG & SESSION
+-------------------------------------------------------------------------
+local SessionLabel = Instance.new("TextLabel", MainPanel)
+SessionLabel.Size = UDim2.new(1, 0, 0, 20)
+SessionLabel.Position = UDim2.new(0, 0, 1, -25)
+SessionLabel.BackgroundTransparency = 1
+SessionLabel.Text = "Session Duration: 00:00:00"
+SessionLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+SessionLabel.Font = Enum.Font.GothamMedium
+SessionLabel.TextSize = 9 
+
+local frameCount, lastUpdate, currentFPS = 0, tick(), 60
+RunService.Heartbeat:Connect(function()
+    frameCount = frameCount + 1
+    if tick() - lastUpdate >= 1 then
+        currentFPS = frameCount
+        frameCount = 0
+        lastUpdate = tick()
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do
+        local t = math.floor(time())
+        SessionLabel.Text = string.format("Session Duration: %02d:%02d:%02d", math.floor(t/3600), math.floor((t%3600)/60), t%60)
+        StatsLabel.Text = string.format("Ping: %dms | FPS: %d", math.floor(LocalPlayer:GetNetworkPing()*1000), currentFPS)
+    end
+end)
+
+local expanded = false
+local dragging = false
+local movedDuringClick = false
+local dragStart, startPos
+local dragThreshold = 5 
+
+MainCircle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        movedDuringClick = false 
+        dragStart = input.Position
+        startPos = MainCircle.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > dragThreshold then movedDuringClick = true end
+        
+        local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
+        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
+        
+        MainCircle.Position = UDim2.new(0, newX, 0, newY)
+        
+        local panelX = newX + 70
+        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
+        MainPanel.Position = UDim2.new(0, panelX, 0, newY)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+MainCircle.MouseButton1Click:Connect(function()
+    if not movedDuringClick then
+        expanded = not expanded
+        local buttonPos = MainCircle.Position
+        local panelX = buttonPos.X.Offset + 70
+        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
+        MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
+        
+        local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
+        TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+    end
+end)
+
+SetSliderVisualsTime(customClockTime)
+Notify("Aura Hub V18 (NPC ESP Added)")
