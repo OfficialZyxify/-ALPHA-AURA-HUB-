@@ -13,28 +13,12 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// 🛑 DEEP CLEANUP (Prevents Overlapping on Inject)
+--// 🛑 DEEP CLEANUP
 local function DeepClean()
-    -- Clean GUI
     for _, oldGui in pairs(PlayerGui:GetChildren()) do
-        if oldGui.Name:match("AuraHub") then
-            oldGui:Destroy()
-        end
+        if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
     end
-    -- Clean ESP from Workspace/Players
-    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-        item:Destroy()
-    end
-    -- Double Check Player Containers
-    for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then
-            for _, child in pairs(p.Character:GetDescendants()) do
-                if child.Name == "AuraBox" or child.Name == "AuraTag" or child.Name == "AuraTracer" or child.Name == "AuraChams" then
-                    child:Destroy()
-                end
-            end
-        end
-    end
+    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
 end
 DeepClean() 
 
@@ -63,7 +47,7 @@ local espShowChams = false
 local espWallsOnly = false 
 local dynamicChamsPulse = true 
 
--- Data Caches (Optimization)
+-- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {}
 
@@ -74,14 +58,13 @@ local noFogEnabled = false
 local customClockTime = Lighting.ClockTime 
 local dayNightSpeed = 0.001 
 
--- Optimization States
+-- Optimization
 local optimizationEnabled = false 
 local optimizationConnection = nil 
 local optimizationCache = {} 
 local originalQualityLevel = 1 
 pcall(function() originalQualityLevel = settings().Rendering.QualityLevel end)
 
--- Save original game lighting values
 local originalShadows = Lighting.GlobalShadows
 local originalAmbient = Lighting.Ambient
 local originalBrightness = Lighting.Brightness
@@ -97,7 +80,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V38_Fixed" 
+ScreenGui.Name = "AuraHub_V39_FixedLogic" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -108,7 +91,7 @@ local function GetNextOrder()
     return _layoutOrder
 end
 
---// Notifier System
+--// Notifier
 local function Notify(msg)
     local n = Instance.new("TextLabel")
     n.Size = UDim2.new(0, 280, 0, 45)
@@ -123,7 +106,6 @@ local function Notify(msg)
     local Stroke = Instance.new("UIStroke", n)
     Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
-    
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
     task.delay(3, function()
         n:TweenPosition(UDim2.new(0.5, -140, -0.1, 0), "In", "Quad", 0.5, true, function() n:Destroy() end)
@@ -132,9 +114,7 @@ end
 
 --// CLEANUP FUNCTIONS
 local function ClearAllESP()
-    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-        item:Destroy()
-    end
+    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
 end
 
 local function ClearPlayerESP()
@@ -167,74 +147,84 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (Logic Updated for Pick a Side)
+--// UNIVERSAL ROLE DETECTOR (FIXED: Checks Death BEFORE Team)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. PRIORITY: Team Name (Most Pick a Side games use this)
-    if player.Team then
-        local tName = player.Team.Name
-        if tName then return tName end
+    -- 1. PHYSICAL DEATH CHECK (Overrides everything)
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum and hum.Health <= 0 then
+            return "Dead"
+        end
     end
 
-    -- 2. Leaderstats Scan (Secondary check)
+    -- 2. LEADERSTATS/ATTRIBUTES CHECK (Overrides Team)
+    -- We check for "Dead" status specifically here
     local ls = player:FindFirstChild("leaderstats")
     if ls then
         for _, child in pairs(ls:GetChildren()) do
-            if child:IsA("StringValue") or child:IsA("IntValue") then
+            if child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("BoolValue") then
                 local n = child.Name:lower()
-                -- Look for common role value names
-                if n == "role" or n == "status" or n == "team" or n == "side" then
-                    if tostring(child.Value) ~= "" and tostring(child.Value) ~= "Nil" then
+                local v = tostring(child.Value):lower()
+                
+                -- Detect explicit "Dead" values
+                if v == "dead" or v == "died" or (n == "dead" and (child.Value == true or v == "true")) then
+                    return "Dead"
+                end
+                
+                -- Common Role Names
+                if n == "role" or n == "status" or n == "job" then
+                    if v ~= "" and v ~= "nil" then
                         return tostring(child.Value)
                     end
                 end
             end
         end
     end
-
-    -- 3. Attributes Scan
-    local attRole = player:GetAttribute("Role") or player:GetAttribute("Status") or player:GetAttribute("Team")
+    
+    local attRole = player:GetAttribute("Role") or player:GetAttribute("Status")
     if attRole then return tostring(attRole) end
+
+    -- 3. TEAM CHECK (Last Resort)
+    -- Only return Team Name if they aren't detected as dead above
+    if player.Team then 
+        return player.Team.Name 
+    end
 
     return "Neutral"
 end
 
---// SMART COLOR ENGINE (Updated for Red/Blue/Dead)
+--// SMART COLOR ENGINE (Logic Updated)
 local function GetSmartColor(role, player)
-    -- Default White
-    local finalColor = Color3.fromRGB(255, 255, 255)
+    local r = tostring(role):lower()
     
-    if role then
-        local r = tostring(role):lower()
-        
-        -- Explicit "Dead" Check
-        if r == "dead" or r:find("dead") or r:find("spectator") then
-            return Color3.fromRGB(120, 120, 120) -- Dark Gray
-        end
-
-        -- Red Side
-        if r == "red" or r:find("red") or r:find("murder") or r:find("traitor") or r:find("bad") then
-            return Color3.fromRGB(255, 40, 40)
-        end
-        
-        -- Blue Side
-        if r == "blue" or r:find("blue") or r:find("sheriff") or r:find("police") or r:find("good") then
-            return Color3.fromRGB(40, 100, 255)
-        end
-        
-        -- Green/Innocent Side
-        if r:find("innocent") or r:find("survivor") then
-            return Color3.fromRGB(40, 255, 100)
-        end
+    -- PRIORITY: Dead/Spectator gets Gray
+    if r == "dead" or r:find("dead") or r:find("spectator") or r:find("lobby") then
+        return Color3.fromRGB(150, 150, 150) -- Gray
     end
 
-    -- Fallback to TeamColor if role didn't match specific strings
+    -- Red Side
+    if r == "red" or r:find("red") or r:find("murder") or r:find("traitor") or r:find("bad") then
+        return Color3.fromRGB(255, 40, 40)
+    end
+    
+    -- Blue Side
+    if r == "blue" or r:find("blue") or r:find("sheriff") or r:find("police") or r:find("good") or r:find("guard") then
+        return Color3.fromRGB(40, 100, 255)
+    end
+    
+    -- Green/Innocent Side
+    if r:find("innocent") or r:find("survivor") or r:find("civilian") then
+        return Color3.fromRGB(40, 255, 100)
+    end
+    
+    -- Fallback: Use TeamColor directly if no keywords matched
     if player.TeamColor then
-        finalColor = player.TeamColor.Color
+        return player.TeamColor.Color
     end
-    
-    return finalColor
+
+    return Color3.fromRGB(255, 255, 255)
 end
 
 --// VISIBILITY CHECKER
@@ -248,7 +238,6 @@ local function IsVisible(targetModel, ignoreList)
         root.Position + Vector3.new(0, 1.5, 0),
         root.Position - Vector3.new(0, 1.5, 0)
     }
-
     local origin = Camera.CFrame.Position
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = ignoreList
@@ -296,7 +285,7 @@ local function RejoinServer()
     end
 end
 
---// HDR Effect Generator
+--// HDR Effects
 local function GetHDREffects()
     local b = Lighting:FindFirstChild("AuraBloom") or Instance.new("BloomEffect")
     b.Name = "AuraBloom"
@@ -308,7 +297,7 @@ local function GetHDREffects()
 end
 
 -------------------------------------------------------------------------
---// DANGER CONFIRMATION MODAL
+--// CONFIRMATION MODAL
 -------------------------------------------------------------------------
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
@@ -525,7 +514,6 @@ FOVNote.Font = Enum.Font.GothamBold
 FOVNote.TextSize = 9
 FOVNote.Position = UDim2.new(0, 0, 0, 15)
 
--- RE-ADDED RULER FRAME
 local RulerFrameFOV = Instance.new("Frame", FOVFrame)
 RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45)
@@ -589,7 +577,6 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function() slidingFOV = false end)
 
--- FOV Presets
 local PresetFrameFOV = Instance.new("Frame", ScrollContainer)
 PresetFrameFOV.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameFOV.BackgroundTransparency = 1
@@ -626,7 +613,6 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
--- SPACER BETWEEN FOV AND TIME
 CreateSpacer(GetNextOrder())
 
 --// TIME
@@ -653,7 +639,6 @@ TimeNote.Font = Enum.Font.GothamBold
 TimeNote.TextSize = 9
 TimeNote.Position = UDim2.new(0, 0, 0, 15)
 
--- RE-ADDED TIME RULER FRAME
 local RulerFrame = Instance.new("Frame", TimeFrame)
 RulerFrame.Size = UDim2.new(1, 0, 0, 10)
 RulerFrame.Position = UDim2.new(0, 0, 0, 45)
@@ -801,7 +786,6 @@ CreateButton("🕒 Toggle Time Changer", function(b)
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
--- NEW SPACER HERE
 CreateSpacer(GetNextOrder())
 
 CreateButton("🌫️ Clear Vision (No Fog)", function(b)
@@ -1065,7 +1049,6 @@ CreateButton("🔍 Master ESP Toggle", function(b)
     end
 end, GetNextOrder())
 
--- SPACER UNDER MASTER ESP
 CreateSpacer(GetNextOrder())
 
 CreateButton("🔒 Shiftlock: OFF", function(b)
@@ -1099,7 +1082,7 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🔴 RISKY SECTION (Physics)
+--// 🔴 RISKY SECTION
 -------------------------------------------------------------------------
 local RiskyLabel = Instance.new("TextLabel", ScrollContainer)
 RiskyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -1134,7 +1117,6 @@ SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
 SpeedNote.Position = UDim2.new(0, 0, 0, 15)
 
--- RE-ADDED SPEED RULER FRAME
 local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
 RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
@@ -1233,7 +1215,6 @@ CreateButton("⚡ Toggle Subtle Pursuit (Risk: Medium)", function(b)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
--- SPACER BETWEEN SPEED AND FLY (Requested)
 CreateSpacer(GetNextOrder())
 
 -- FLY BUTTON LOGIC
@@ -1486,8 +1467,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// 🛑 OPTIMIZED DATA LOOP (High Refresh Rate for "Instant" feel)
--- Updated to 0.1s to catch team changes instantly
+--// 🛑 DATA LOOP
 task.spawn(function()
     while true do
         if espEnabled and espShowPlayers then
@@ -1517,12 +1497,12 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.1) -- 0.1s Refresh for Snappy Color Changes
+        task.wait(0.1) 
     end
 end)
 
 
---// 🟢 VISUAL LOOP (60 FPS - No Calculation, Just Drawing)
+--// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1541,8 +1521,16 @@ RunService.RenderStepped:Connect(function()
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                     if root then
                         local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name }
-                        local color = data.Color
                         
+                        -- FORCE RE-CALCULATION OF COLOR IF DEAD
+                        -- This block forces color to Gray even if cache is lagging slightly on Team update
+                        local forcedColor = data.Color
+                        local hum = p.Character:FindFirstChild("Humanoid")
+                        if hum and hum.Health <= 0 then
+                             forcedColor = Color3.fromRGB(150, 150, 150)
+                             data.Role = "Dead"
+                        end
+
                         -- BOX ESP
                         if espShowBoxes then
                             local box = root:FindFirstChild("AuraBox")
@@ -1558,10 +1546,8 @@ RunService.RenderStepped:Connect(function()
                                 local stroke = Instance.new("UIStroke", frame)
                                 stroke.Thickness = 2
                             end
-                            -- Instant Update
-                            if box.Frame.UIStroke.Color ~= color then
-                                box.Frame.UIStroke.Color = color
-                            end
+                            -- ALWAYS UPDATE COLOR
+                            box.Frame.UIStroke.Color = forcedColor
                         end
                         
                         -- CHAMS ESP
@@ -1574,8 +1560,8 @@ RunService.RenderStepped:Connect(function()
                                 CollectionService:AddTag(highlight, "AuraESP")
                             end
                             
-                            -- Prevent Overlapping by updating properties directly
-                            highlight.FillColor = color
+                            -- ALWAYS UPDATE COLOR
+                            highlight.FillColor = forcedColor
                             highlight.OutlineColor = Color3.new(1, 1, 1)
                             highlight.FillTransparency = pulseTransparency
 
@@ -1609,7 +1595,8 @@ RunService.RenderStepped:Connect(function()
                                 tracer.Transparency = 0.2
                                 CollectionService:AddTag(tracer, "AuraESP")
                             end
-                            tracer.Color3 = color
+                            -- ALWAYS UPDATE COLOR
+                            tracer.Color3 = forcedColor
                             local targetPos = root.Position - Vector3.new(0, 3, 0)
                             local distance = (targetPos - origin).Magnitude
                             tracer.Size = Vector3.new(distance, 0.1, 0.1) 
@@ -1643,7 +1630,9 @@ RunService.RenderStepped:Connect(function()
                             end
                             txt = txt .. "\n[" .. data.Dist .. "m]"
                             tag.TextLabel.Text = txt
-                            tag.TextLabel.TextColor3 = color
+                            
+                            -- ALWAYS UPDATE COLOR
+                            tag.TextLabel.TextColor3 = forcedColor
                         else
                              local humanoid = p.Character:FindFirstChild("Humanoid")
                              if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
@@ -1653,7 +1642,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- NPC ESP (Standard Logic)
+        -- NPC ESP
         if espShowNPCs then
             for _, npc in pairs(NPCCache) do
                 if npc and npc.Parent then
@@ -1688,18 +1677,8 @@ RunService.RenderStepped:Connect(function()
                             highlight.OutlineColor = Color3.new(1, 1, 1)
                             highlight.FillTransparency = pulseTransparency 
                             highlight.OutlineTransparency = 0
-
-                            if espWallsOnly then
-                                local isVisible = IsVisible(npc, {LocalPlayer.Character, npc})
-                                if isVisible then highlight.Enabled = false 
-                                else highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
-                            else
-                                highlight.Enabled = true
-                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                            end
-                        else
-                            local h = npc:FindFirstChild("AuraChams")
-                            if h then h:Destroy() end
+                            highlight.Enabled = true
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
                         if espShowTracers then
                             local origin = TracerOriginAtt.Position
@@ -1828,4 +1807,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V38 (Color & Role Logic Fixed)")
+Notify("Aura Hub V39 (Logic Fully Patched)")
