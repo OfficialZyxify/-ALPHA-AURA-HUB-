@@ -78,7 +78,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V21_Polished"
+ScreenGui.Name = "AuraHub_V22_Refresh" -- Changed name to force fresh UI
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -422,12 +422,12 @@ ScrollContainer.Parent = MainPanel
 
 local UIList = Instance.new("UIListLayout", ScrollContainer)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
-UIList.Padding = UDim.new(0, 5) -- Reduced padding here for tighter look
+UIList.Padding = UDim.new(0, 4) -- Tightened Padding (Small Gap)
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local UIPad = Instance.new("UIPadding", ScrollContainer)
 UIPad.PaddingTop = UDim.new(0, 5)
-UIPad.PaddingBottom = UDim.new(0, 35) -- Reduced bottom spacing
+UIPad.PaddingBottom = UDim.new(0, 25) -- Reduced Bottom Spacing (Small Gap)
 
 --// HELPER FOR BUTTON CREATION
 local function CreateButton(text, callback, layoutOrder)
@@ -1067,7 +1067,7 @@ CreateButton("🔍 Master ESP Toggle", function(b)
 end, 16)
 
 local Spacer = Instance.new("Frame", ScrollContainer)
-Spacer.Size = UDim2.new(1, 0, 0, 20)
+Spacer.Size = UDim2.new(1, 0, 0, 10) -- Reduced Gap
 Spacer.BackgroundTransparency = 1
 Spacer.LayoutOrder = 17
 
@@ -1790,4 +1790,4 @@ MainCircle.MouseButton1Click:Connect(function()
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V21 (Polished UI)")
+Notify("Aura Hub V22 (Refresh)")
