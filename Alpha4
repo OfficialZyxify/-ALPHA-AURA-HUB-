@@ -80,7 +80,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V39_FixedLogic" 
+ScreenGui.Name = "AuraHub_V40_NeutralFix" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -147,11 +147,11 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (FIXED: Checks Death BEFORE Team)
+--// UNIVERSAL ROLE DETECTOR (V40: STRICT TEAM PRIORITY)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. PHYSICAL DEATH CHECK (Overrides everything)
+    -- 1. DEAD CHECK (Highest Priority)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         if hum and hum.Health <= 0 then
@@ -159,8 +159,16 @@ local function GetUniversalRole(player)
         end
     end
 
-    -- 2. LEADERSTATS/ATTRIBUTES CHECK (Overrides Team)
-    -- We check for "Dead" status specifically here
+    -- 2. NEUTRAL TEAM CHECK (This fixes the Lobby glitch)
+    -- If the team says "Neutral", we FORCE Neutral, ignoring hidden roles.
+    if player.Team then
+        local tName = player.Team.Name:lower()
+        if tName == "neutral" or tName == "lobby" or tName == "spectator" then
+            return "Neutral"
+        end
+    end
+
+    -- 3. LEADERSTATS/ATTRIBUTES CHECK (Only runs if NOT Neutral)
     local ls = player:FindFirstChild("leaderstats")
     if ls then
         for _, child in pairs(ls:GetChildren()) do
@@ -168,13 +176,13 @@ local function GetUniversalRole(player)
                 local n = child.Name:lower()
                 local v = tostring(child.Value):lower()
                 
-                -- Detect explicit "Dead" values
+                -- Check for explicit "Dead" status in leaderstats
                 if v == "dead" or v == "died" or (n == "dead" and (child.Value == true or v == "true")) then
                     return "Dead"
                 end
                 
-                -- Common Role Names
-                if n == "role" or n == "status" or n == "job" then
+                -- Role Detection
+                if n == "role" or n == "status" or n == "job" or n == "team" then
                     if v ~= "" and v ~= "nil" then
                         return tostring(child.Value)
                     end
@@ -186,8 +194,7 @@ local function GetUniversalRole(player)
     local attRole = player:GetAttribute("Role") or player:GetAttribute("Status")
     if attRole then return tostring(attRole) end
 
-    -- 3. TEAM CHECK (Last Resort)
-    -- Only return Team Name if they aren't detected as dead above
+    -- 4. TEAM NAME FALLBACK
     if player.Team then 
         return player.Team.Name 
     end
@@ -195,13 +202,18 @@ local function GetUniversalRole(player)
     return "Neutral"
 end
 
---// SMART COLOR ENGINE (Logic Updated)
+--// SMART COLOR ENGINE (V40: Explicit Neutral Handling)
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
-    -- PRIORITY: Dead/Spectator gets Gray
-    if r == "dead" or r:find("dead") or r:find("spectator") or r:find("lobby") then
-        return Color3.fromRGB(150, 150, 150) -- Gray
+    -- Neutral/Lobby -> White
+    if r == "neutral" or r == "lobby" or r == "nil" then
+        return Color3.fromRGB(255, 255, 255)
+    end
+
+    -- Dead/Spectator -> Gray
+    if r == "dead" or r:find("dead") or r:find("spectator") then
+        return Color3.fromRGB(150, 150, 150)
     end
 
     -- Red Side
@@ -219,7 +231,7 @@ local function GetSmartColor(role, player)
         return Color3.fromRGB(40, 255, 100)
     end
     
-    -- Fallback: Use TeamColor directly if no keywords matched
+    -- Fallback: Use TeamColor directly if logic fails
     if player.TeamColor then
         return player.TeamColor.Color
     end
@@ -1523,7 +1535,6 @@ RunService.RenderStepped:Connect(function()
                         local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name }
                         
                         -- FORCE RE-CALCULATION OF COLOR IF DEAD
-                        -- This block forces color to Gray even if cache is lagging slightly on Team update
                         local forcedColor = data.Color
                         local hum = p.Character:FindFirstChild("Humanoid")
                         if hum and hum.Health <= 0 then
@@ -1807,4 +1818,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V39 (Logic Fully Patched)")
+Notify("Aura Hub V40 (Neutral Team Priority Fixed)")
