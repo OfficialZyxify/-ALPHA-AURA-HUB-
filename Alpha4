@@ -13,7 +13,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// 🛑 CLEANUP OLD GUIS (Fixes "Can't Open" glitches caused by duplicates)
+--// 🛑 CLEANUP OLD GUIS
 for _, oldGui in pairs(PlayerGui:GetChildren()) do
     if oldGui.Name:match("AuraHub") then
         oldGui:Destroy()
@@ -84,7 +84,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V26_FinalFix" 
+ScreenGui.Name = "AuraHub_V27_GlobalInput" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -361,7 +361,7 @@ MainCircle.Size = UDim2.new(0, 60, 0, 60)
 MainCircle.Position = UDim2.new(0, 50, 0, 50)
 MainCircle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainCircle.Image = "rbxassetid://7059346373"
-MainCircle.ZIndex = 100 -- Boosted ZIndex to ensure it's on top
+MainCircle.ZIndex = 100 -- Boosted ZIndex
 MainCircle.Parent = ScreenGui
 Instance.new("UICorner", MainCircle).CornerRadius = UDim.new(1, 0)
 
@@ -1678,54 +1678,64 @@ task.spawn(function()
     end
 end)
 
---// FIXED DRAGGABLE LOGIC (Replaced standard Click with reliable logic)
+--// GLOBAL INPUT LOGIC (Prevents "Stuck" Click Issue)
 local expanded = false
 local dragging = false
-local movedDuringClick = false
+local moved = false
 local dragStart, startPos
-local dragThreshold = 5 
+local dragThreshold = 5
+local dragConnection, upConnection
 
 MainCircle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
-        movedDuringClick = false 
+        moved = false
         dragStart = input.Position
         startPos = MainCircle.Position
-    end
-end)
-
-MainCircle.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        if delta.Magnitude > dragThreshold then movedDuringClick = true end
         
-        local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
-        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
+        -- Connect Global Input Events (Fixes issue if mouse leaves button)
+        if dragConnection then dragConnection:Disconnect() end
+        if upConnection then upConnection:Disconnect() end
         
-        MainCircle.Position = UDim2.new(0, newX, 0, newY)
+        dragConnection = UserInputService.InputChanged:Connect(function(moveInput)
+            if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
+                local delta = moveInput.Position - dragStart
+                if delta.Magnitude > dragThreshold then moved = true end
+                
+                if moved then
+                    local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
+                    local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
+                    
+                    MainCircle.Position = UDim2.new(0, newX, 0, newY)
+                    
+                    local panelX = newX + 70
+                    if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
+                    MainPanel.Position = UDim2.new(0, panelX, 0, newY)
+                end
+            end
+        end)
         
-        local panelX = newX + 70
-        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
-        MainPanel.Position = UDim2.new(0, panelX, 0, newY)
-    end
-end)
-
-MainCircle.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-        -- This ensures click works even if standard event fails
-        if not movedDuringClick then
-            expanded = not expanded
-            local buttonPos = MainCircle.Position
-            local panelX = buttonPos.X.Offset + 70
-            if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
-            MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
-            
-            local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
-            TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
-        end
+        upConnection = UserInputService.InputEnded:Connect(function(endInput)
+            if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+                if dragConnection then dragConnection:Disconnect() end
+                if upConnection then upConnection:Disconnect() end
+                
+                -- Toggle if it was a CLICK, not a DRAG
+                if not moved then
+                    expanded = not expanded
+                    local buttonPos = MainCircle.Position
+                    local panelX = buttonPos.X.Offset + 70
+                    if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
+                    MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
+                    
+                    local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
+                    TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+                end
+            end
+        end)
     end
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V26 (Click Fixed)")
+Notify("Aura Hub V27 (Global Fix)")
