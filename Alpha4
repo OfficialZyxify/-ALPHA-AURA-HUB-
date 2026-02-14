@@ -85,7 +85,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V41_FullAdminScan" 
+ScreenGui.Name = "AuraHub_V38_Simple" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -98,33 +98,24 @@ local function GetNextOrder()
 end
 
 --// Notifier System
-local function Notify(msg, isWarning)
+local function Notify(msg)
     local n = Instance.new("TextLabel")
     n.Size = UDim2.new(0, 280, 0, 45)
     n.Position = UDim2.new(0.5, -140, -0.1, 0)
     n.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-    
-    if isWarning then
-        n.TextColor3 = Color3.fromRGB(255, 50, 50)
-        n.Text = "⚠️ " .. msg
-        n.BackgroundColor3 = Color3.fromRGB(30, 10, 10)
-    else
-        n.TextColor3 = Color3.fromRGB(0, 255, 140)
-        n.Text = "» " .. msg
-        n.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-    end
-    
+    n.TextColor3 = Color3.fromRGB(0, 255, 140)
+    n.Text = "» " .. msg
     n.Font = Enum.Font.GothamBold
     n.TextSize = 14
     n.Parent = ScreenGui
     Instance.new("UICorner", n)
     local Stroke = Instance.new("UIStroke", n)
-    Stroke.Color = isWarning and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 255, 140)
+    Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
     
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
    
-    task.delay(4, function()
+    task.delay(3, function()
         n:TweenPosition(UDim2.new(0.5, -140, -0.1, 0), "In", "Quad", 0.5, true, function() n:Destroy() end)
     end)
 end
@@ -217,79 +208,32 @@ local function GetUniversalRole(player)
     return nil
 end
 
---// ADMIN & OWNER DETECTOR
-local function GetSpecialTag(player)
-    -- 1. Check if Creator (User Game)
-    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
-        return "OWNER", Color3.fromRGB(170, 0, 170) -- Purple
-    end
-    
-    -- 2. Check Group Rank (Group Game)
-    if game.CreatorType == Enum.CreatorType.Group then
-        local success, rank = pcall(function() return player:GetRankInGroup(game.CreatorId) end)
-        if success then
-            if rank == 255 then
-                return "OWNER", Color3.fromRGB(170, 0, 170) -- Purple
-            elseif rank >= 250 then 
-                return "ADMIN", Color3.fromRGB(255, 40, 40) -- Red
-            end
-        end
-    end
-    
-    -- 3. Roblox Admin Group Check
-    local success, isInGroup = pcall(function() return player:IsInGroup(1200769) end)
-    if success and isInGroup then
-        return "ROBLOX ADMIN", Color3.fromRGB(255, 0, 0) -- Bright Red
-    end
-
-    return nil, nil
-end
-
---// NEW PLAYER DETECTOR (Notification System)
-Players.PlayerAdded:Connect(function(player)
-    task.wait(2) -- Wait for data to load
-    local tag, _ = GetSpecialTag(player)
-    if tag then
-        Notify("ALERT: " .. tag .. " [" .. player.Name .. "] JOINED!", true)
-    end
-end)
-
---// EXISTING PLAYER SCAN (Startup Check)
-task.spawn(function()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            local tag, _ = GetSpecialTag(player)
-            if tag then
-                Notify("⚠️ " .. tag .. " [" .. player.Name .. "] IS HERE!", true)
-            end
-        end
-    end
-end)
-
 --// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     if role then
         local r = role:lower()
-        if r:find("dead") or r:find("spectator") or r:find("lobby") then
-             return Color3.fromRGB(150, 150, 150) -- Gray
-        elseif r:find("murder") or r:find("beast") or r:find("monster") or r:find("traitor") or r:find("attacker") or r:find("evil") or r:find("impostor") then
+        if r:find("murder") or r:find("beast") or r:find("monster") or r:find("traitor") or r:find("attacker") or r:find("evil") or r:find("impostor") then
             return Color3.fromRGB(255, 40, 40) -- Red
         elseif r:find("sheriff") or r:find("police") or r:find("guard") or r:find("hero") or r:find("ct") then
             return Color3.fromRGB(40, 100, 255) -- Blue
         elseif r:find("innocent") or r:find("survivor") or r:find("civilian") or r:find("guest") then
             return Color3.fromRGB(40, 255, 100) -- Green
+        elseif r:find("lobby") or r:find("spectator") or r:find("dead") then
+               return Color3.fromRGB(200, 200, 200)
         end
     end
     if player.TeamColor then return player.TeamColor.Color end
     return Color3.fromRGB(255, 255, 255)
 end
 
---// VISIBILITY CHECKER
+--// VISIBILITY CHECKER (Robust Multi-Point)
 local function IsVisible(targetModel, ignoreList)
     if not targetModel then return false end
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
     if not root then return false end
     
+    -- Check 3 main points: Center, Head, Legs
+    -- If ANY of these are visible, we consider the player "Visible"
     local points = {
         root.Position,
         root.Position + Vector3.new(0, 1.5, 0),
@@ -1553,17 +1497,7 @@ RunService.RenderStepped:Connect(function()
                     if root then
                         local humanoid = p.Character:FindFirstChild("Humanoid")
                         local role = GetUniversalRole(p)
-                        
-                        -- SPECIAL TAG & COLOR DETECTION
-                        local specialTag, specialColor = GetSpecialTag(p)
-                        local color = specialColor or GetSmartColor(role, p) -- Priority Color
-
-                        -- DEAD CHECK (Instant Override)
-                        local isDead = false
-                        if humanoid and humanoid.Health <= 0 then
-                            isDead = true
-                            color = Color3.fromRGB(150, 150, 150) -- Gray
-                        end
+                        local color = GetSmartColor(role, p)
 
                         if espShowBoxes then
                             local box = root:FindFirstChild("AuraBox")
@@ -1663,16 +1597,7 @@ RunService.RenderStepped:Connect(function()
                                  dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
                             local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
-                            
-                            -- APPEND TAGS
-                            if isDead then
-                                txt = txt .. "\n[💀 DEAD]"
-                            elseif specialTag then
-                                txt = txt .. "\n[🛡️ " .. specialTag .. "]"
-                            elseif role then 
-                                txt = txt .. "\n[Role: " .. role .. "]" 
-                            end
-
+                            if role then txt = txt .. "\n[Role: " .. role .. "]" end
                             txt = txt .. "\n[" .. dist .. "m]"
                             tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
@@ -1859,4 +1784,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V40 (Dead Fix + Admin Alert)")
+Notify("Aura Hub V38 (Simplified Logic)")
