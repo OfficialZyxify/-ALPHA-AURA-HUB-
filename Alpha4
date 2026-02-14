@@ -13,12 +13,30 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// 🛑 CLEANUP OLD GUIS
-for _, oldGui in pairs(PlayerGui:GetChildren()) do
-    if oldGui.Name:match("AuraHub") then
-        oldGui:Destroy()
+--// 🛑 DEEP CLEANUP (Fixes Overlaps/Duplicates)
+local function DeepClean()
+    -- Clean GUI
+    for _, oldGui in pairs(PlayerGui:GetChildren()) do
+        if oldGui.Name:match("AuraHub") then
+            oldGui:Destroy()
+        end
+    end
+    -- Clean ESP from Workspace/Players
+    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+        item:Destroy()
+    end
+    -- Fallback: Check for stragglers
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            for _, child in pairs(p.Character:GetDescendants()) do
+                if child.Name == "AuraBox" or child.Name == "AuraTag" or child.Name == "AuraTracer" or child.Name == "AuraChams" then
+                    child:Destroy()
+                end
+            end
+        end
     end
 end
+DeepClean() -- Run immediately
 
 --// Global States
 local currentFOV = 70
@@ -45,7 +63,8 @@ local espShowChams = false
 local espWallsOnly = false 
 local dynamicChamsPulse = true 
 
--- NPC Cache for cleanup
+-- Data Caches (Optimization)
+local ESP_Data_Cache = {} -- Stores Role, Color, Distance, etc.
 local NPCCache = {}
 
 -- Time States
@@ -158,14 +177,29 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR
+--// UNIVERSAL ROLE DETECTOR (Robust & Optimized)
 local function GetUniversalRole(player)
     if not player then return nil end
+    
+    -- 1. DEAD CHECK (Fixes "Unchanged" Issue)
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum and hum.Health <= 0 then
+            return "Dead"
+        end
+    end
+
+    -- 2. Leaderstats Scan
     local ls = player:FindFirstChild("leaderstats")
     if ls then
         for _, child in pairs(ls:GetChildren()) do
-            if child:IsA("StringValue") or child:IsA("IntValue") then
+            if child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("BoolValue") then
                 local n = child.Name:lower()
+                -- Check for Dead boolean specifically
+                if (n == "dead" or n == "isdead" or n == "died") and (child.Value == true or child.Value == 1 or child.Value == "true") then
+                    return "Dead"
+                end
+                
                 if n == "role" or n == "job" or n == "class" or n == "rank" or n == "status" or n == "identity" or n == "team" then
                     if tostring(child.Value) ~= "" and tostring(child.Value) ~= "Nil" then
                         return tostring(child.Value)
@@ -175,9 +209,11 @@ local function GetUniversalRole(player)
         end
     end
 
+    -- 3. Attributes Scan
     local attRole = player:GetAttribute("Role") or player:GetAttribute("Job") or player:GetAttribute("Class") or player:GetAttribute("Status") or player:GetAttribute("Team")
     if attRole then return tostring(attRole) end
 
+    -- 4. Inventory/Equipment Scan (Aggressive)
     if aggressiveRoleScan and player.Character then
         local function scanForDangerousItems(container)
             if container then
@@ -185,13 +221,13 @@ local function GetUniversalRole(player)
                     if item:IsA("Tool") then
                         local name = item.Name:lower()
                         if name:find("hammer") or name:find("gemstone") or name:find("beast") or name:find("monster") then
-                                  return "Beast"
+                             return "Beast"
                         elseif name:find("gun") or name:find("revolver") or name:find("sheriff") or name:find("pistol") then
                             return "Sheriff" 
                         elseif name:find("knife") or name:find("dagger") or name:find("sword") or name:find("scythe") then
                              return "Murderer"
                         elseif name:find("bomb") then
-                              return "Terrorist"
+                             return "Terrorist"
                         end
                     end
                 end
@@ -212,14 +248,14 @@ end
 local function GetSmartColor(role, player)
     if role then
         local r = role:lower()
-        if r:find("murder") or r:find("beast") or r:find("monster") or r:find("traitor") or r:find("attacker") or r:find("evil") or r:find("impostor") then
+        if r == "dead" or r:find("spectator") or r:find("lobby") then
+            return Color3.fromRGB(150, 150, 150) -- Gray for Dead
+        elseif r:find("murder") or r:find("beast") or r:find("monster") or r:find("traitor") or r:find("attacker") or r:find("evil") or r:find("impostor") then
             return Color3.fromRGB(255, 40, 40) -- Red
         elseif r:find("sheriff") or r:find("police") or r:find("guard") or r:find("hero") or r:find("ct") then
             return Color3.fromRGB(40, 100, 255) -- Blue
         elseif r:find("innocent") or r:find("survivor") or r:find("civilian") or r:find("guest") then
             return Color3.fromRGB(40, 255, 100) -- Green
-        elseif r:find("lobby") or r:find("spectator") or r:find("dead") then
-               return Color3.fromRGB(200, 200, 200)
         end
     end
     if player.TeamColor then return player.TeamColor.Color end
@@ -233,7 +269,6 @@ local function IsVisible(targetModel, ignoreList)
     if not root then return false end
     
     -- Check 3 main points: Center, Head, Legs
-    -- If ANY of these are visible, we consider the player "Visible"
     local points = {
         root.Position,
         root.Position + Vector3.new(0, 1.5, 0),
@@ -266,7 +301,7 @@ local function StableServerHop()
         local PossibleServers = {}
         for _, server in pairs(Result) do
             if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                 table.insert(PossibleServers, server.id)
+                table.insert(PossibleServers, server.id)
             end
         end
         if #PossibleServers > 0 then
@@ -826,7 +861,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
-             if v:IsA("BasePart") then
+            if v:IsA("BasePart") then
                 if not optimizationCache[v] then
                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
@@ -937,6 +972,7 @@ local function CreateSmallToggle(parent, text, defaultState, callback)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 8
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
     btn.MouseButton1Click:Connect(function()
         local newState = callback()
         btn.Text = text .. ": " .. (newState and "ON" or "OFF")
@@ -1350,7 +1386,7 @@ end, GetNextOrder())
 --// LOOPS
 -------------------------------------------------------------------------
 
--- NPC CACHE
+-- NPC CACHE LOOP
 task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
@@ -1476,7 +1512,44 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
--- ESP LOOP (Protected)
+--// 🛑 OPTIMIZED ESP DATA LOOP (1-2 FPS)
+-- This loop updates Roles, Colors, and Text. It doesn't need to run 60 times a second.
+task.spawn(function()
+    while true do
+        if espEnabled and espShowPlayers then
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    -- Fetch Data
+                    local role = GetUniversalRole(p)
+                    local color = GetSmartColor(role, p)
+                    local dist = 0
+                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
+                    
+                    if root then
+                        if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                             dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                        else 
+                             dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
+                        end
+                    end
+                    
+                    -- Store in Cache
+                    ESP_Data_Cache[p] = {
+                        Role = role,
+                        Color = color,
+                        Dist = dist,
+                        Name = p.DisplayName
+                    }
+                end
+            end
+        end
+        task.wait(0.5) -- Updates twice a second (Perfect balance)
+    end
+end)
+
+
+--// 🟢 OPTIMIZED ESP VISUAL LOOP (60 FPS)
+-- This loop handles Position, Size, and Visibility only.
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1484,21 +1557,21 @@ RunService.RenderStepped:Connect(function()
         -- DYNAMIC PULSE CALCULATOR
         local pulseTransparency = 0.5 -- Default
         if dynamicChamsPulse then
-            -- Sine wave breathing effect between 0.3 and 0.7 transparency
             local tickTime = tick() * 3
             pulseTransparency = 0.5 + (math.sin(tickTime) * 0.2)
         end
 
-        -- Player ESP
+        -- Player ESP (Reads from Cache)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer and p.Character then
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                     if root then
-                        local humanoid = p.Character:FindFirstChild("Humanoid")
-                        local role = GetUniversalRole(p)
-                        local color = GetSmartColor(role, p)
-
+                        -- Retrieve Cached Data (Or fallback)
+                        local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name }
+                        local color = data.Color
+                        
+                        -- BOX ESP
                         if espShowBoxes then
                             local box = root:FindFirstChild("AuraBox")
                             if not box then
@@ -1517,7 +1590,7 @@ RunService.RenderStepped:Connect(function()
                             box.Frame.UIStroke.Color = color
                         end
                         
-                        --// SIMPLE CHAMS LOGIC (Highlight)
+                        -- CHAMS ESP
                         if espShowChams then
                             local highlight = p.Character:FindFirstChild("AuraChams")
                             if not highlight then
@@ -1530,23 +1603,17 @@ RunService.RenderStepped:Connect(function()
                             highlight.FillColor = color
                             highlight.OutlineColor = Color3.new(1, 1, 1)
                             highlight.OutlineTransparency = 0
-                            
-                            -- Apply Dynamic Pulse
                             highlight.FillTransparency = pulseTransparency
 
                             if espWallsOnly then
-                                -- Check Visibility using Robust method
                                 local isVisible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
                                 if isVisible then
-                                    -- Player is VISIBLE -> Disable Chams (Looks Normal)
                                     highlight.Enabled = false 
                                 else
-                                    -- Player is HIDDEN -> Enable Chams (Show through wall)
                                     highlight.Enabled = true
                                     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                                 end
                             else
-                                -- Always On Mode
                                 highlight.Enabled = true
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             end
@@ -1555,6 +1622,7 @@ RunService.RenderStepped:Connect(function()
                             if h then h:Destroy() end
                         end
                         
+                        -- TRACER ESP
                         if espShowTracers then
                             local origin = TracerOriginAtt.Position
                             local tracer = root:FindFirstChild("AuraTracer")
@@ -1575,7 +1643,9 @@ RunService.RenderStepped:Connect(function()
                             tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
                         end
 
+                        -- NAME ESP
                         if espShowNames then
+                            local humanoid = p.Character:FindFirstChild("Humanoid")
                             if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
                             local tag = root:FindFirstChild("AuraTag")
                             if not tag then
@@ -1592,17 +1662,15 @@ RunService.RenderStepped:Connect(function()
                                 t.Font = Enum.Font.GothamBold
                                 t.TextSize = 13
                             end
-                            local dist = 0
-                            if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
-                            else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
-                            local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
-                            if role then txt = txt .. "\n[Role: " .. role .. "]" end
-                            txt = txt .. "\n[" .. dist .. "m]"
+                            
+                            local txt = (data.Name ~= p.Name) and (data.Name .. "\n(@" .. p.Name .. ")") or p.Name
+                            if data.Role and data.Role ~= "Nil" then txt = txt .. "\n[Role: " .. data.Role .. "]" end
+                            txt = txt .. "\n[" .. data.Dist .. "m]"
                             tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
                         else
-                            if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                             local humanoid = p.Character:FindFirstChild("Humanoid")
+                             if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
                         end
                     end
                 end
@@ -1784,4 +1852,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V38 (Simplified Logic)")
+Notify("Aura Hub V38 (Optimized & Fixed)")
