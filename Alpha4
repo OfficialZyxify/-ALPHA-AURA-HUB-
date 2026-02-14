@@ -120,7 +120,7 @@ local function ClearPlayerESP()
             -- Clear Chams (Parented to Character)
             local chams = p.Character:FindFirstChild("AuraChams")
             if chams then chams:Destroy() end
-            
+             
             -- Clear Boxes/Tags/Tracers (Parented to RootPart)
             local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
             if root then
@@ -214,6 +214,7 @@ local function GetSmartColor(role, player)
                return Color3.fromRGB(200, 200, 200)
         end
     end
+ 
     if player.TeamColor then return player.TeamColor.Color end
     return Color3.fromRGB(255, 255, 255)
 end
@@ -1110,7 +1111,7 @@ RunService.RenderStepped:Connect(function()
             local params = RaycastParams.new()
             params.FilterDescendantsInstances = ignoreList
             params.FilterType = Enum.RaycastFilterType.Exclude
-             
+              
             local rayResult = workspace:Raycast(rootPos, Vector3.new(0, -500, 0), params)
             if rayResult then TracerOriginAtt.Position = rayResult.Position
             else TracerOriginAtt.Position = rootPos - Vector3.new(0, 3, 0) end
@@ -1179,7 +1180,7 @@ RunService.RenderStepped:Connect(function()
     if LocalPlayer.Character then
         local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
         local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
-        
+    
         if hum and hrp then
             if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
                 local speedDiff = math.max(0, subtleSpeedValue - 16)
@@ -1197,7 +1198,7 @@ RunService.RenderStepped:Connect(function()
             else
                 if LocalPlayer.CameraMaxZoomDistance == 8 then
                      LocalPlayer.CameraMaxZoomDistance = 128
-                    LocalPlayer.CameraMinZoomDistance = 0.5
+                     LocalPlayer.CameraMinZoomDistance = 0.5
                 end
             end
 
@@ -1496,6 +1497,7 @@ CreateButton("Natural FPS Boost", function(b)
                 if not optimizationCache[v] then
                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
+            
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
             end
