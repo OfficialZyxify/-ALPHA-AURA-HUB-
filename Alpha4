@@ -85,7 +85,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V36_RevertFix" 
+ScreenGui.Name = "AuraHub_V37_TraceFix" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -226,16 +226,20 @@ local function GetSmartColor(role, player)
     return Color3.fromRGB(255, 255, 255)
 end
 
---// VISIBILITY CHECKER (MULTI-POINT)
-local function IsVisible(targetModel, ignoreList)
+--// VISIBILITY CHECKER (MULTI-POINT PRECISE)
+local function IsVisibleDetailed(targetModel, ignoreList)
     if not targetModel then return false end
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
     if not root then return false end
     
+    -- Check 6 Key Points to determine if "Behind a Lamp" or wall
     local points = {
-        root.Position,
-        targetModel:FindFirstChild("Head") and targetModel.Head.Position or (root.Position + Vector3.new(0, 1.5, 0)),
-        root.Position - Vector3.new(0, 1, 0)
+        root.Position, -- Center
+        root.Position + Vector3.new(0, 1.5, 0), -- Head area
+        root.Position - Vector3.new(0, 1.5, 0), -- Legs area
+        root.Position + Vector3.new(1, 0, 0), -- Right Side
+        root.Position - Vector3.new(1, 0, 0), -- Left Side
+        root.Position + Vector3.new(0, 0, 0.5) -- Forward
     }
 
     local origin = Camera.CFrame.Position
@@ -244,14 +248,18 @@ local function IsVisible(targetModel, ignoreList)
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     
+    local visiblePoints = 0
     for _, point in ipairs(points) do
         local direction = point - origin
         local result = workspace:Raycast(origin, direction, params)
         if not result or result.Instance:IsDescendantOf(targetModel) then
-            return true 
+            visiblePoints = visiblePoints + 1
         end
     end
-    return false 
+    
+    -- If ALL points are visible, then the player is "Exposed"
+    -- If ANY point is hidden, the player is "Occluded" (Behind lamp/wall)
+    return visiblePoints == #points 
 end
 
 --// Server Hopper
@@ -1464,12 +1472,10 @@ RunService.RenderStepped:Connect(function()
             end
         end
         
-        -- TRACER ORIGIN UPDATE (THE FIX)
-        -- No Raycasts. Just lock it to the bottom of the character.
+        -- TRACER ORIGIN UPDATE
         if LocalPlayer.Character then
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
             if hrp then
-                -- 3.5 studs down puts it roughly at feet level for R6/R15
                 TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0)
             end
         end
@@ -1504,10 +1510,9 @@ RunService.RenderStepped:Connect(function()
                             if not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
-                                -- FIXED BOX SIZE: Slightly tighter than before
                                 box.Size = UDim2.new(3.5, 0, 5, 0)
                                 box.AlwaysOnTop = true 
-                                box.StudsOffset = Vector3.new(0, 0, 0) -- Centered on RootPart
+                                box.StudsOffset = Vector3.new(0, 0, 0) 
                                 CollectionService:AddTag(box, "AuraESP")
                                 local frame = Instance.new("Frame", box)
                                 frame.Size = UDim2.new(1, 0, 1, 0)
@@ -1518,7 +1523,7 @@ RunService.RenderStepped:Connect(function()
                             box.Frame.UIStroke.Color = color
                         end
                         
-                        --// SMOOTH DYNAMIC CHAMS (HIGHLIGHT)
+                        --// SMART TRACE CHAMS (The User Request)
                         if espShowChams then
                             local highlight = p.Character:FindFirstChild("AuraChams")
                             if not highlight then
@@ -1529,16 +1534,17 @@ RunService.RenderStepped:Connect(function()
                             end
                             
                             highlight.FillColor = color
-                            highlight.OutlineColor = Color3.new(1, 1, 1)
-                            highlight.OutlineTransparency = 0
+                            highlight.OutlineColor = Color3.new(1, 1, 1) -- Bright Outline (Trace)
                             
-                            -- Apply Dynamic Pulse
-                            highlight.FillTransparency = pulseTransparency
-
+                            -- KEY: Transparent Fill + Visible Outline = "Trace" Look
+                            highlight.FillTransparency = 1 
+                            highlight.OutlineTransparency = 0 
+                            
+                            -- Logic: Exposed players are not affected (Disabled).
+                            -- Hidden players (behind walls/lamps) are Traced.
                             if espWallsOnly then
-                                -- IsVisible check (reverted to single point for speed/stability if multi was causing lag, but kept multi logic in function)
-                                local visible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
-                                if visible then
+                                local isExposed = IsVisibleDetailed(p.Character, {LocalPlayer.Character, p.Character})
+                                if isExposed then
                                     highlight.Enabled = false 
                                 else
                                     highlight.Enabled = true
@@ -1580,7 +1586,6 @@ RunService.RenderStepped:Connect(function()
                                 tag = Instance.new("BillboardGui", root)
                                 tag.Name = "AuraTag"
                                 tag.Size = UDim2.new(0, 200, 0, 50)
-                                -- FIXED OFFSET: Adjusted to sit nicely above the new box size
                                 tag.StudsOffset = Vector3.new(0, 4, 0) 
                                 tag.AlwaysOnTop = true 
                                 CollectionService:AddTag(tag, "AuraESP")
@@ -1620,7 +1625,7 @@ RunService.RenderStepped:Connect(function()
                             if not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
-                                box.Size = UDim2.new(3.5, 0, 5, 0) -- Matched Fixed Size
+                                box.Size = UDim2.new(3.5, 0, 5, 0) 
                                 box.AlwaysOnTop = true 
                                 CollectionService:AddTag(box, "AuraESP")
                                 local frame = Instance.new("Frame", box)
@@ -1641,12 +1646,12 @@ RunService.RenderStepped:Connect(function()
                             end
                             highlight.FillColor = color
                             highlight.OutlineColor = Color3.new(1, 1, 1)
+                            highlight.FillTransparency = 1 -- Trace
                             highlight.OutlineTransparency = 0
-                            highlight.FillTransparency = pulseTransparency 
 
                             if espWallsOnly then
-                                local visible = IsVisible(npc, {LocalPlayer.Character, npc})
-                                if visible then highlight.Enabled = false 
+                                local isExposed = IsVisibleDetailed(npc, {LocalPlayer.Character, npc})
+                                if isExposed then highlight.Enabled = false 
                                 else highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
                             else
                                 highlight.Enabled = true
@@ -1783,4 +1788,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V36 (Visuals Stabilized)")
+Notify("Aura Hub V37 (Perfect Trace Chams)")
