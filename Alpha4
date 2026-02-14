@@ -9,10 +9,16 @@ local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService") 
 
 local LocalPlayer = Players.LocalPlayer
--- Wait for PlayerGui to ensure UI can be created
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10) 
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
+
+--// 🛑 CLEANUP OLD GUIS (Fixes "Can't Open" glitches caused by duplicates)
+for _, oldGui in pairs(PlayerGui:GetChildren()) do
+    if oldGui.Name:match("AuraHub") then
+        oldGui:Destroy()
+    end
+end
 
 --// Global States
 local currentFOV = 70
@@ -78,7 +84,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V25_Restored" 
+ScreenGui.Name = "AuraHub_V26_FinalFix" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -355,7 +361,7 @@ MainCircle.Size = UDim2.new(0, 60, 0, 60)
 MainCircle.Position = UDim2.new(0, 50, 0, 50)
 MainCircle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainCircle.Image = "rbxassetid://7059346373"
-MainCircle.ZIndex = 10
+MainCircle.ZIndex = 100 -- Boosted ZIndex to ensure it's on top
 MainCircle.Parent = ScreenGui
 Instance.new("UICorner", MainCircle).CornerRadius = UDim.new(1, 0)
 
@@ -366,6 +372,7 @@ MainPanel.Position = UDim2.new(0, 120, 0, 50)
 MainPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 MainPanel.ClipsDescendants = true
 MainPanel.Active = true 
+MainPanel.ZIndex = 1
 MainPanel.Parent = ScreenGui
 Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 15)
 
@@ -402,7 +409,6 @@ StatsLabel.TextSize = 9
 StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatsLabel.Parent = MainPanel
 
--- RE-ADDED SESSION LABEL
 local SessionLabel = Instance.new("TextLabel")
 SessionLabel.Size = UDim2.new(1, 0, 0, 20)
 SessionLabel.Position = UDim2.new(0, 0, 1, -25)
@@ -500,7 +506,6 @@ RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45)
 RulerFrameFOV.BackgroundTransparency = 1
 
--- RE-ADDED RULER FUNCTION
 local function CreateFOVRulerMark(posScale, text)
     local mark = Instance.new("TextLabel", RulerFrameFOV)
     mark.Size = UDim2.new(0, 20, 1, 0)
@@ -596,7 +601,7 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
--- SPACER BETWEEN FOV AND TIME (Requested)
+-- SPACER BETWEEN FOV AND TIME
 CreateSpacer(GetNextOrder())
 
 --// TIME
@@ -1673,5 +1678,54 @@ task.spawn(function()
     end
 end)
 
+--// FIXED DRAGGABLE LOGIC (Replaced standard Click with reliable logic)
+local expanded = false
+local dragging = false
+local movedDuringClick = false
+local dragStart, startPos
+local dragThreshold = 5 
+
+MainCircle.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        movedDuringClick = false 
+        dragStart = input.Position
+        startPos = MainCircle.Position
+    end
+end)
+
+MainCircle.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        if delta.Magnitude > dragThreshold then movedDuringClick = true end
+        
+        local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
+        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
+        
+        MainCircle.Position = UDim2.new(0, newX, 0, newY)
+        
+        local panelX = newX + 70
+        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
+        MainPanel.Position = UDim2.new(0, panelX, 0, newY)
+    end
+end)
+
+MainCircle.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+        -- This ensures click works even if standard event fails
+        if not movedDuringClick then
+            expanded = not expanded
+            local buttonPos = MainCircle.Position
+            local panelX = buttonPos.X.Offset + 70
+            if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
+            MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
+            
+            local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
+            TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
+        end
+    end
+end)
+
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V25 (Restored Content)")
+Notify("Aura Hub V26 (Click Fixed)")
