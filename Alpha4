@@ -13,14 +13,30 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// 🛑 DEEP CLEANUP
+--// 🛑 DEEP CLEANUP (Fixes Overlaps/Duplicates)
 local function DeepClean()
+    -- Clean GUI
     for _, oldGui in pairs(PlayerGui:GetChildren()) do
-        if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
+        if oldGui.Name:match("AuraHub") then
+            oldGui:Destroy()
+        end
     end
-    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
+    -- Clean ESP from Workspace/Players
+    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+        item:Destroy()
+    end
+    -- Fallback: Check for stragglers
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            for _, child in pairs(p.Character:GetDescendants()) do
+                if child.Name == "AuraBox" or child.Name == "AuraTag" or child.Name == "AuraTracer" or child.Name == "AuraChams" then
+                    child:Destroy()
+                end
+            end
+        end
+    end
 end
-DeepClean() 
+DeepClean() -- Run immediately
 
 --// Global States
 local currentFOV = 70
@@ -47,7 +63,7 @@ local espShowChams = false
 local espWallsOnly = false 
 local dynamicChamsPulse = true 
 
--- Data Caches
+-- Data Caches (Optimization)
 local ESP_Data_Cache = {} 
 local NPCCache = {}
 
@@ -58,13 +74,14 @@ local noFogEnabled = false
 local customClockTime = Lighting.ClockTime 
 local dayNightSpeed = 0.001 
 
--- Optimization
+-- Optimization States
 local optimizationEnabled = false 
 local optimizationConnection = nil 
 local optimizationCache = {} 
 local originalQualityLevel = 1 
 pcall(function() originalQualityLevel = settings().Rendering.QualityLevel end)
 
+-- Save original game lighting values
 local originalShadows = Lighting.GlobalShadows
 local originalAmbient = Lighting.Ambient
 local originalBrightness = Lighting.Brightness
@@ -80,7 +97,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V40_NeutralFix" 
+ScreenGui.Name = "AuraHub_V41_Perfected" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -91,7 +108,7 @@ local function GetNextOrder()
     return _layoutOrder
 end
 
---// Notifier
+--// Notifier System
 local function Notify(msg)
     local n = Instance.new("TextLabel")
     n.Size = UDim2.new(0, 280, 0, 45)
@@ -106,17 +123,23 @@ local function Notify(msg)
     local Stroke = Instance.new("UIStroke", n)
     Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
+    
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
+   
     task.delay(3, function()
         n:TweenPosition(UDim2.new(0.5, -140, -0.1, 0), "In", "Quad", 0.5, true, function() n:Destroy() end)
     end)
 end
 
---// CLEANUP FUNCTIONS
+--// GLOBAL ESP CLEANUP
 local function ClearAllESP()
-    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
+    for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+        item:Destroy()
+    end
+    table.clear(ESP_Data_Cache)
 end
 
+--// SPECIFIC CLEANUP FUNCTIONS
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
@@ -147,86 +170,100 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (V40: STRICT TEAM PRIORITY)
+--// HELPER: Weapon Scanner (For MM2)
+local function ScanForWeapons(player)
+    if not player then return nil end
+    
+    local function check(container)
+        if not container then return nil end
+        for _, item in pairs(container:GetChildren()) do
+            if item:IsA("Tool") then
+                local n = item.Name:lower()
+                -- Murderer Weapons
+                if n:find("knife") or n:find("dagger") or n:find("scythe") or n:find("blade") then
+                    return "Murderer"
+                end
+                -- Sheriff Weapons
+                if n:find("gun") or n:find("revolver") or n:find("pistol") or n:find("sheriff") then
+                    return "Sheriff"
+                end
+            end
+        end
+        return nil
+    end
+
+    -- Check Character first (Holding it)
+    local role = check(player.Character)
+    -- Check Backpack (Hidden)
+    if not role then role = check(player.Backpack) end
+    
+    return role
+end
+
+--// UNIVERSAL ROLE DETECTOR (V41: The "Perfect" Logic)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. DEAD CHECK (Highest Priority)
+    -- 1. DEAD CHECK (Highest Priority - Overrides everything)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         if hum and hum.Health <= 0 then
             return "Dead"
         end
     end
-
-    -- 2. NEUTRAL TEAM CHECK (This fixes the Lobby glitch)
-    -- If the team says "Neutral", we FORCE Neutral, ignoring hidden roles.
-    if player.Team then
-        local tName = player.Team.Name:lower()
-        if tName == "neutral" or tName == "lobby" or tName == "spectator" then
-            return "Neutral"
-        end
-    end
-
-    -- 3. LEADERSTATS/ATTRIBUTES CHECK (Only runs if NOT Neutral)
+    
+    -- Also check Leaderstats for "Dead" (Some games don't set Health to 0)
     local ls = player:FindFirstChild("leaderstats")
     if ls then
-        for _, child in pairs(ls:GetChildren()) do
-            if child:IsA("StringValue") or child:IsA("IntValue") or child:IsA("BoolValue") then
-                local n = child.Name:lower()
-                local v = tostring(child.Value):lower()
-                
-                -- Check for explicit "Dead" status in leaderstats
-                if v == "dead" or v == "died" or (n == "dead" and (child.Value == true or v == "true")) then
-                    return "Dead"
-                end
-                
-                -- Role Detection
-                if n == "role" or n == "status" or n == "job" or n == "team" then
-                    if v ~= "" and v ~= "nil" then
-                        return tostring(child.Value)
-                    end
-                end
-            end
+        local deadVal = ls:FindFirstChild("Dead") or ls:FindFirstChild("Status")
+        if deadVal and (tostring(deadVal.Value):lower() == "dead" or deadVal.Value == true) then
+            return "Dead"
         end
     end
-    
+
+    -- 2. INVENTORY SCAN (MM2 Priority)
+    -- If they have a weapon, they are NOT Neutral, even if the Team says so.
+    local weaponRole = ScanForWeapons(player)
+    if weaponRole then return weaponRole end
+
+    -- 3. TEAM NAME (Pick a Side Priority)
+    -- If they don't have a weapon, check their team.
+    if player.Team then 
+        local tName = player.Team.Name
+        -- Only return Team Name if it's meaningful
+        if tName ~= "Neutral" and tName ~= "Innocent" and tName ~= "Lobby" then
+             return tName
+        end
+    end
+
+    -- 4. ATTRIBUTES/LEADERSTATS FALLBACK
     local attRole = player:GetAttribute("Role") or player:GetAttribute("Status")
     if attRole then return tostring(attRole) end
 
-    -- 4. TEAM NAME FALLBACK
-    if player.Team then 
-        return player.Team.Name 
-    end
-
+    -- 5. FINAL FALLBACK
     return "Neutral"
 end
 
---// SMART COLOR ENGINE (V40: Explicit Neutral Handling)
+--// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
-    -- Neutral/Lobby -> White
-    if r == "neutral" or r == "lobby" or r == "nil" then
-        return Color3.fromRGB(255, 255, 255)
-    end
-
-    -- Dead/Spectator -> Gray
+    -- Dead -> Gray
     if r == "dead" or r:find("dead") or r:find("spectator") then
         return Color3.fromRGB(150, 150, 150)
     end
 
-    -- Red Side
-    if r == "red" or r:find("red") or r:find("murder") or r:find("traitor") or r:find("bad") then
+    -- Red Side / Murderer
+    if r == "red" or r:find("red") or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") then
         return Color3.fromRGB(255, 40, 40)
     end
     
-    -- Blue Side
-    if r == "blue" or r:find("blue") or r:find("sheriff") or r:find("police") or r:find("good") or r:find("guard") then
+    -- Blue Side / Sheriff
+    if r == "blue" or r:find("blue") or r == "sheriff" or r:find("police") or r:find("good") or r:find("guard") then
         return Color3.fromRGB(40, 100, 255)
     end
     
-    -- Green/Innocent Side
+    -- Green / Innocent
     if r:find("innocent") or r:find("survivor") or r:find("civilian") then
         return Color3.fromRGB(40, 255, 100)
     end
@@ -239,17 +276,19 @@ local function GetSmartColor(role, player)
     return Color3.fromRGB(255, 255, 255)
 end
 
---// VISIBILITY CHECKER
+--// VISIBILITY CHECKER (Robust Multi-Point)
 local function IsVisible(targetModel, ignoreList)
     if not targetModel then return false end
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
     if not root then return false end
     
+    -- Check 3 main points: Center, Head, Legs
     local points = {
         root.Position,
         root.Position + Vector3.new(0, 1.5, 0),
         root.Position - Vector3.new(0, 1.5, 0)
     }
+
     local origin = Camera.CFrame.Position
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = ignoreList
@@ -260,10 +299,10 @@ local function IsVisible(targetModel, ignoreList)
         local direction = point - origin
         local result = workspace:Raycast(origin, direction, params)
         if not result or result.Instance:IsDescendantOf(targetModel) then
-            return true 
+            return true -- At least one part is seen
         end
     end
-    return false 
+    return false -- Completely hidden
 end
 
 --// Server Hopper
@@ -297,7 +336,7 @@ local function RejoinServer()
     end
 end
 
---// HDR Effects
+--// HDR Effect Generator
 local function GetHDREffects()
     local b = Lighting:FindFirstChild("AuraBloom") or Instance.new("BloomEffect")
     b.Name = "AuraBloom"
@@ -309,7 +348,7 @@ local function GetHDREffects()
 end
 
 -------------------------------------------------------------------------
---// CONFIRMATION MODAL
+--// DANGER CONFIRMATION MODAL
 -------------------------------------------------------------------------
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
@@ -379,7 +418,7 @@ Instance.new("UICorner", ConfirmNoBtn).CornerRadius = UDim.new(0, 6)
 ConfirmNoBtn.Parent = ConfirmModal
 
 -------------------------------------------------------------------------
---// UI BASE
+--// UI BASE (Draggable Main Menu)
 -------------------------------------------------------------------------
 local MainCircle = Instance.new("ImageButton")
 MainCircle.Name = "MainCircle"
@@ -387,7 +426,7 @@ MainCircle.Size = UDim2.new(0, 60, 0, 60)
 MainCircle.Position = UDim2.new(0, 50, 0, 50)
 MainCircle.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainCircle.Image = "rbxassetid://7059346373"
-MainCircle.ZIndex = 100 
+MainCircle.ZIndex = 100 -- Boosted ZIndex
 MainCircle.Parent = ScreenGui
 Instance.new("UICorner", MainCircle).CornerRadius = UDim.new(1, 0)
 
@@ -526,6 +565,7 @@ FOVNote.Font = Enum.Font.GothamBold
 FOVNote.TextSize = 9
 FOVNote.Position = UDim2.new(0, 0, 0, 15)
 
+-- RE-ADDED RULER FRAME
 local RulerFrameFOV = Instance.new("Frame", FOVFrame)
 RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45)
@@ -589,6 +629,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function() slidingFOV = false end)
 
+-- FOV Presets
 local PresetFrameFOV = Instance.new("Frame", ScrollContainer)
 PresetFrameFOV.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameFOV.BackgroundTransparency = 1
@@ -625,6 +666,7 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
+-- SPACER BETWEEN FOV AND TIME
 CreateSpacer(GetNextOrder())
 
 --// TIME
@@ -651,6 +693,7 @@ TimeNote.Font = Enum.Font.GothamBold
 TimeNote.TextSize = 9
 TimeNote.Position = UDim2.new(0, 0, 0, 15)
 
+-- RE-ADDED TIME RULER FRAME
 local RulerFrame = Instance.new("Frame", TimeFrame)
 RulerFrame.Size = UDim2.new(1, 0, 0, 10)
 RulerFrame.Position = UDim2.new(0, 0, 0, 45)
@@ -798,6 +841,7 @@ CreateButton("🕒 Toggle Time Changer", function(b)
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
+-- NEW SPACER HERE
 CreateSpacer(GetNextOrder())
 
 CreateButton("🌫️ Clear Vision (No Fog)", function(b)
@@ -1061,6 +1105,7 @@ CreateButton("🔍 Master ESP Toggle", function(b)
     end
 end, GetNextOrder())
 
+-- SPACER UNDER MASTER ESP (Requested)
 CreateSpacer(GetNextOrder())
 
 CreateButton("🔒 Shiftlock: OFF", function(b)
@@ -1094,7 +1139,7 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🔴 RISKY SECTION
+--// 🔴 RISKY SECTION (Physics)
 -------------------------------------------------------------------------
 local RiskyLabel = Instance.new("TextLabel", ScrollContainer)
 RiskyLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -1129,6 +1174,7 @@ SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
 SpeedNote.Position = UDim2.new(0, 0, 0, 15)
 
+-- RE-ADDED SPEED RULER FRAME
 local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
 RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
@@ -1227,6 +1273,7 @@ CreateButton("⚡ Toggle Subtle Pursuit (Risk: Medium)", function(b)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
+-- SPACER BETWEEN SPEED AND FLY (Requested)
 CreateSpacer(GetNextOrder())
 
 -- FLY BUTTON LOGIC
@@ -1349,137 +1396,33 @@ CreateButton("FLY (RISK: HIGH)", function(b)
     end
 end, GetNextOrder())
 
--------------------------------------------------------------------------
---// LOOPS
--------------------------------------------------------------------------
-
--- NPC CACHE LOOP
-task.spawn(function()
-    while true do
-        if espEnabled and espShowNPCs then
-            local newCache = {}
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
-                    if not Players:GetPlayerFromCharacter(v) then
-                        table.insert(newCache, v)
-                    end
-                end
-            end
-            NPCCache = newCache
-        else
-            NPCCache = {}
+--// PLAYER REMOVING CLEANUP (Fixes Ghost Tracers)
+Players.PlayerRemoving:Connect(function(player)
+    ESP_Data_Cache[player] = nil
+    if player.Character then
+        for _, child in pairs(player.Character:GetDescendants()) do
+             if child.Name:match("Aura") then child:Destroy() end
         end
-        task.wait(2)
     end
 end)
 
--- LOGIC LOOP (Protected)
-RunService.RenderStepped:Connect(function()
-    pcall(function()
-        -- FOV
-        if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
-            Camera.FieldOfView = currentFOV
-        end
-
-        -- Time
-        if timeChangerEnabled then
-            if dynamicDayNightEnabled then
-                customClockTime = customClockTime + dayNightSpeed
-                if customClockTime >= 24 then customClockTime = 0 end
-                SetSliderVisualsTime(customClockTime)
-            end
-            Lighting.ClockTime = customClockTime
-        else
-            if Lighting.ClockTime ~= customClockTime then
-                 customClockTime = Lighting.ClockTime
-                 SetSliderVisualsTime(customClockTime)
-            end
-        end
-
-        -- Lighting
-        if fullbrightEnabled then
-            Lighting.Ambient = Color3.new(1, 1, 1)
-            Lighting.Brightness = 2
-            Lighting.GlobalShadows = false
-            Lighting.FogEnd = 100000
-            if not timeChangerEnabled then Lighting.ClockTime = 14 end
-        elseif shadowsDisabled then
-            Lighting.GlobalShadows = false
-        end
-        if noFogEnabled then
-            Lighting.FogEnd = 100000
-            Lighting.FogStart = 100000
-        end
-
-        if dynamicActivated and not fullbrightEnabled then
-            if dynamicEnabled then
-                Lighting.EnvironmentDiffuseScale = 1
-                Lighting.EnvironmentSpecularScale = 1
-            else
-                Lighting.EnvironmentDiffuseScale = 0
-                Lighting.EnvironmentSpecularScale = 0
-            end
-        end
-
-        local Bloom, ColorCorr = GetHDREffects()
-        if hdrEnabled and not fullbrightEnabled then
-            Bloom.Enabled = true
-            Bloom.Intensity = 0.4
-            Bloom.Threshold = 2.5
-            ColorCorr.Enabled = true
-            ColorCorr.Contrast = 0.05
-        else
-            Bloom.Enabled = false
-            ColorCorr.Enabled = false
-        end
-
-        -- Subtle Pursuit
-        if LocalPlayer.Character then
-            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
-        
-            if hum and hrp then
-                if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
-                    local speedDiff = math.max(0, subtleSpeedValue - 16)
-                    local multiplier = speedDiff * 0.018 
-                    if multiplier > 0 then
-                        hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
-                    end
-                end
-
-                if forceThirdPerson then
-                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-                    LocalPlayer.CameraMaxZoomDistance = 8
-                    LocalPlayer.CameraMinZoomDistance = 8
-                    Camera.CFrame = Camera.CFrame * CFrame.new(2, 0.5, 0)
-                else
-                    if LocalPlayer.CameraMaxZoomDistance == 8 then
-                         LocalPlayer.CameraMaxZoomDistance = 128
-                         LocalPlayer.CameraMinZoomDistance = 0.5
-                    end
-                end
-
-                if shiftLockEnabled or forceThirdPerson then
-                     hum.AutoRotate = false
-                    local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
-                    hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
-                else
-                    hum.AutoRotate = true
-                end
-            end
-        end
-        
-        -- TRACER ORIGIN UPDATE
-        if LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
-            if hrp then
-                TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0)
-            end
-        end
+--// CHARACTER ADDED HANDLER (Immediate Refresh)
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(char)
+        -- Clear old cache entry to force refresh
+        ESP_Data_Cache[player] = nil
     end)
 end)
 
---// 🛑 DATA LOOP
+-- Hook for existing players
+for _, player in pairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function(char)
+        ESP_Data_Cache[player] = nil
+    end)
+end
+
+--// 🛑 DATA LOOP (High Speed Logic)
+-- Runs at 10Hz (every 0.1s) to catch weapon swaps and role changes instantly
 task.spawn(function()
     while true do
         if espEnabled and espShowPlayers then
@@ -1513,8 +1456,7 @@ task.spawn(function()
     end
 end)
 
-
---// 🟢 VISUAL LOOP (60 FPS)
+--// 🟢 VISUAL LOOP (60 FPS Rendering)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1741,7 +1683,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// FPS & PING
+--// FPS & PING & SESSION LOOP
 local frameCount, lastUpdate, currentFPS = 0, tick(), 60
 RunService.Heartbeat:Connect(function()
     frameCount = frameCount + 1
@@ -1760,7 +1702,7 @@ task.spawn(function()
     end
 end)
 
---// INPUT
+--// GLOBAL INPUT LOGIC
 local expanded = false
 local dragging = false
 local moved = false
@@ -1818,4 +1760,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V40 (Neutral Team Priority Fixed)")
+Notify("Aura Hub V41 (Perfected Logic)")
