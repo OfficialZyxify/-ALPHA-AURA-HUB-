@@ -85,7 +85,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V38_Simple" 
+ScreenGui.Name = "AuraHub_V39_AdminDetect" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -208,6 +208,34 @@ local function GetUniversalRole(player)
     return nil
 end
 
+--// ADMIN & OWNER DETECTOR
+local function GetSpecialTag(player)
+    -- 1. Check if Creator (User Game)
+    if game.CreatorType == Enum.CreatorType.User and player.UserId == game.CreatorId then
+        return "OWNER", Color3.fromRGB(170, 0, 170) -- Purple
+    end
+    
+    -- 2. Check Group Rank (Group Game)
+    if game.CreatorType == Enum.CreatorType.Group then
+        local success, rank = pcall(function() return player:GetRankInGroup(game.CreatorId) end)
+        if success then
+            if rank == 255 then
+                return "OWNER", Color3.fromRGB(170, 0, 170) -- Purple
+            elseif rank >= 250 then 
+                return "ADMIN", Color3.fromRGB(255, 40, 40) -- Red
+            end
+        end
+    end
+    
+    -- 3. Roblox Admin Group Check (Rare but possible)
+    local success, isInGroup = pcall(function() return player:IsInGroup(1200769) end)
+    if success and isInGroup then
+        return "ROBLOX ADMIN", Color3.fromRGB(255, 0, 0) -- Bright Red
+    end
+
+    return nil, nil
+end
+
 --// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     if role then
@@ -232,8 +260,6 @@ local function IsVisible(targetModel, ignoreList)
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
     if not root then return false end
     
-    -- Check 3 main points: Center, Head, Legs
-    -- If ANY of these are visible, we consider the player "Visible"
     local points = {
         root.Position,
         root.Position + Vector3.new(0, 1.5, 0),
@@ -1497,7 +1523,10 @@ RunService.RenderStepped:Connect(function()
                     if root then
                         local humanoid = p.Character:FindFirstChild("Humanoid")
                         local role = GetUniversalRole(p)
-                        local color = GetSmartColor(role, p)
+                        
+                        -- SPECIAL TAG & COLOR DETECTION
+                        local specialTag, specialColor = GetSpecialTag(p)
+                        local color = specialColor or GetSmartColor(role, p) -- Priority Color
 
                         if espShowBoxes then
                             local box = root:FindFirstChild("AuraBox")
@@ -1597,7 +1626,14 @@ RunService.RenderStepped:Connect(function()
                                  dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
                             local txt = (p.DisplayName ~= p.Name) and (p.DisplayName .. "\n(@" .. p.Name .. ")") or p.Name
-                            if role then txt = txt .. "\n[Role: " .. role .. "]" end
+                            
+                            -- APPEND ADMIN TAG IF EXISTS
+                            if specialTag then
+                                txt = txt .. "\n[🛡️ " .. specialTag .. "]"
+                            elseif role then 
+                                txt = txt .. "\n[Role: " .. role .. "]" 
+                            end
+
                             txt = txt .. "\n[" .. dist .. "m]"
                             tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
@@ -1784,4 +1820,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V38 (Simplified Logic)")
+Notify("Aura Hub V39 (Admin & Owner Detect)")
