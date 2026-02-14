@@ -78,12 +78,12 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V24_FixedLayout" 
+ScreenGui.Name = "AuraHub_V25_Restored" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
--- Layout Order Helper (To fix sorting issues)
+-- Layout Order Helper
 local _layoutOrder = 0
 local function GetNextOrder()
     _layoutOrder = _layoutOrder + 1
@@ -124,11 +124,8 @@ end
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then
-            -- Clear Chams
             local chams = p.Character:FindFirstChild("AuraChams")
             if chams then chams:Destroy() end
-             
-            -- Clear Root Items
             local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
             if root then
                 if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
@@ -144,7 +141,6 @@ local function ClearNPCESP()
         if npc and npc.Parent then
             local chams = npc:FindFirstChild("AuraChams")
             if chams then chams:Destroy() end
-            
             local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
             if root then
                 if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
@@ -406,6 +402,17 @@ StatsLabel.TextSize = 9
 StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatsLabel.Parent = MainPanel
 
+-- RE-ADDED SESSION LABEL
+local SessionLabel = Instance.new("TextLabel")
+SessionLabel.Size = UDim2.new(1, 0, 0, 20)
+SessionLabel.Position = UDim2.new(0, 0, 1, -25)
+SessionLabel.BackgroundTransparency = 1
+SessionLabel.Text = "Session Duration: 00:00:00"
+SessionLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+SessionLabel.Font = Enum.Font.GothamMedium
+SessionLabel.TextSize = 9
+SessionLabel.Parent = MainPanel
+
 --// SCROLLABLE CONTAINER
 local ScrollContainer = Instance.new("ScrollingFrame")
 ScrollContainer.Name = "Content"
@@ -445,7 +452,7 @@ end
 
 local function CreateSpacer(layoutOrder)
     local sp = Instance.new("Frame", ScrollContainer)
-    sp.Size = UDim2.new(1, 0, 0, 12) -- 12px visible gap
+    sp.Size = UDim2.new(1, 0, 0, 12) 
     sp.BackgroundTransparency = 1
     sp.LayoutOrder = layoutOrder
     return sp
@@ -486,6 +493,30 @@ FOVNote.BackgroundTransparency = 1
 FOVNote.Font = Enum.Font.GothamBold
 FOVNote.TextSize = 9
 FOVNote.Position = UDim2.new(0, 0, 0, 15)
+
+-- RE-ADDED RULER FRAME
+local RulerFrameFOV = Instance.new("Frame", FOVFrame)
+RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
+RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45)
+RulerFrameFOV.BackgroundTransparency = 1
+
+-- RE-ADDED RULER FUNCTION
+local function CreateFOVRulerMark(posScale, text)
+    local mark = Instance.new("TextLabel", RulerFrameFOV)
+    mark.Size = UDim2.new(0, 20, 1, 0)
+    mark.Position = UDim2.new(posScale, -10, 0, 0)
+    mark.BackgroundTransparency = 1
+    mark.Text = text
+    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
+    mark.Font = Enum.Font.Gotham
+    mark.TextSize = 8
+end
+CreateFOVRulerMark(0, "70")
+CreateFOVRulerMark(0.2, "80")
+CreateFOVRulerMark(0.4, "90")
+CreateFOVRulerMark(0.6, "100")
+CreateFOVRulerMark(0.8, "110")
+CreateFOVRulerMark(1, "120")
 
 local SliderBarFOV = Instance.new("TextButton", FOVFrame)
 SliderBarFOV.Size = UDim2.new(1, 0, 0, 6)
@@ -565,6 +596,9 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
+-- SPACER BETWEEN FOV AND TIME (Requested)
+CreateSpacer(GetNextOrder())
+
 --// TIME
 local TimeFrame = Instance.new("Frame", ScrollContainer)
 TimeFrame.Size = UDim2.new(0.9, 0, 0, 65) 
@@ -588,6 +622,28 @@ TimeNote.BackgroundTransparency = 1
 TimeNote.Font = Enum.Font.GothamBold
 TimeNote.TextSize = 9
 TimeNote.Position = UDim2.new(0, 0, 0, 15)
+
+-- RE-ADDED TIME RULER FRAME
+local RulerFrame = Instance.new("Frame", TimeFrame)
+RulerFrame.Size = UDim2.new(1, 0, 0, 10)
+RulerFrame.Position = UDim2.new(0, 0, 0, 45)
+RulerFrame.BackgroundTransparency = 1
+
+local function CreateRulerMark(posScale, text)
+    local mark = Instance.new("TextLabel", RulerFrame)
+    mark.Size = UDim2.new(0, 20, 1, 0)
+    mark.Position = UDim2.new(posScale, -10, 0, 0)
+    mark.BackgroundTransparency = 1
+    mark.Text = text
+    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
+    mark.Font = Enum.Font.Gotham
+    mark.TextSize = 8
+end
+CreateRulerMark(0, "12am")
+CreateRulerMark(0.25, "6am")
+CreateRulerMark(0.5, "12pm")
+CreateRulerMark(0.75, "6pm")
+CreateRulerMark(1, "12am")
 
 local SliderBarTime = Instance.new("TextButton", TimeFrame)
 SliderBarTime.Size = UDim2.new(1, 0, 0, 6)
@@ -1028,6 +1084,28 @@ SpeedNote.BackgroundTransparency = 1
 SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
 SpeedNote.Position = UDim2.new(0, 0, 0, 15)
+
+-- RE-ADDED SPEED RULER FRAME
+local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
+RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
+RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
+RulerFrameSpeed.BackgroundTransparency = 1
+
+local function CreateSpeedRulerMark(posScale, text)
+    local mark = Instance.new("TextLabel", RulerFrameSpeed)
+    mark.Size = UDim2.new(0, 20, 1, 0)
+    mark.Position = UDim2.new(posScale, -10, 0, 0)
+    mark.BackgroundTransparency = 1
+    mark.Text = text
+    mark.TextColor3 = Color3.fromRGB(100, 100, 100)
+    mark.Font = Enum.Font.Gotham
+    mark.TextSize = 8
+end
+CreateSpeedRulerMark(0.047, "20") 
+CreateSpeedRulerMark(0.28, "40")
+CreateSpeedRulerMark(0.52, "60")
+CreateSpeedRulerMark(0.76, "80")
+CreateSpeedRulerMark(1, "100")
 
 local SliderBarSpeed = Instance.new("TextButton", SpeedFrame)
 SliderBarSpeed.Size = UDim2.new(1, 0, 0, 6)
@@ -1576,55 +1654,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// DRAGGABLE LOGIC
-local expanded = false
-local dragging = false
-local movedDuringClick = false
-local dragStart, startPos
-local dragThreshold = 5 
-
-MainCircle.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        movedDuringClick = false 
-        dragStart = input.Position
-        startPos = MainCircle.Position
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        if delta.Magnitude > dragThreshold then movedDuringClick = true end
-        
-        local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
-        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
-        
-        MainCircle.Position = UDim2.new(0, newX, 0, newY)
-        
-        local panelX = newX + 70
-        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
-        MainPanel.Position = UDim2.new(0, panelX, 0, newY)
-    end
-end)
-
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
-end)
-
-MainCircle.MouseButton1Click:Connect(function()
-    if not movedDuringClick then
-        expanded = not expanded
-        local buttonPos = MainCircle.Position
-        local panelX = buttonPos.X.Offset + 70
-        if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
-        MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
-        
-        local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
-        TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
-    end
-end)
-
+--// FPS & PING & SESSION LOOP (RESTORED)
 local frameCount, lastUpdate, currentFPS = 0, tick(), 60
 RunService.Heartbeat:Connect(function()
     frameCount = frameCount + 1
@@ -1644,4 +1674,4 @@ task.spawn(function()
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V24 (Fixed & Spaced)")
+Notify("Aura Hub V25 (Restored Content)")
