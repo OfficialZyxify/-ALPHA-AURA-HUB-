@@ -488,7 +488,7 @@ local function CreateSpacer(layoutOrder)
 end
 
 -------------------------------------------------------------------------
---// 📸 FREECAM SEPARATE GUI
+--// 📸 FREECAM SEPARATE GUI (The New Window)
 -------------------------------------------------------------------------
 local FreecamGUI = Instance.new("Frame")
 FreecamGUI.Name = "FreecamTools"
