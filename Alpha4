@@ -1,3 +1,4 @@
+--// AuraHub V41: Gear Analysis & Ghost Fix
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -80,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V40_NeutralFix" 
+ScreenGui.Name = "AuraHub_V41_Fixed" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -112,63 +113,62 @@ local function Notify(msg)
     end)
 end
 
---// CLEANUP FUNCTIONS
+--// CLEANUP FUNCTIONS (Improved Ghost Handling)
+local function RemoveESP(model)
+    if not model then return end
+    local items = {"AuraBox", "AuraTag", "AuraTracer", "AuraChams"}
+    for _, name in pairs(items) do
+        local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
+        if i then i:Destroy() end
+    end
+end
+
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
+    table.clear(ESP_Data_Cache)
 end
 
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then
-            local chams = p.Character:FindFirstChild("AuraChams")
-            if chams then chams:Destroy() end
-            local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
-            if root then
-                if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
-                if root:FindFirstChild("AuraTag") then root.AuraTag:Destroy() end
-                if root:FindFirstChild("AuraTracer") then root.AuraTracer:Destroy() end
-            end
-        end
+        if p.Character then RemoveESP(p.Character) end
     end
 end
 
 local function ClearNPCESP()
     for _, npc in pairs(NPCCache) do
-        if npc and npc.Parent then
-            local chams = npc:FindFirstChild("AuraChams")
-            if chams then chams:Destroy() end
-            local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
-            if root then
-                if root:FindFirstChild("AuraBox") then root.AuraBox:Destroy() end
-                if root:FindFirstChild("AuraTag") then root.AuraTag:Destroy() end
-                if root:FindFirstChild("AuraTracer") then root.AuraTracer:Destroy() end
-            end
-        end
+        if npc then RemoveESP(npc) end
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (V40: STRICT TEAM PRIORITY)
+--// UNIVERSAL ROLE DETECTOR (V41: Gear Analysis)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
     -- 1. DEAD CHECK (Highest Priority)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
-        if hum and hum.Health <= 0 then
-            return "Dead"
-        end
+        if hum and hum.Health <= 0 then return "Dead" end
     end
 
-    -- 2. NEUTRAL TEAM CHECK (This fixes the Lobby glitch)
-    -- If the team says "Neutral", we FORCE Neutral, ignoring hidden roles.
-    if player.Team then
-        local tName = player.Team.Name:lower()
-        if tName == "neutral" or tName == "lobby" or tName == "spectator" then
-            return "Neutral"
-        end
+    -- 2. GEAR ANALYSIS (MM2 & Weapon Games Override)
+    -- Scans Backpack and Character for specific tools
+    local inventory = {}
+    if player.Backpack then 
+        for _, t in pairs(player.Backpack:GetChildren()) do table.insert(inventory, t.Name:lower()) end 
+    end
+    if player.Character then 
+        for _, t in pairs(player.Character:GetChildren()) do 
+            if t:IsA("Tool") then table.insert(inventory, t.Name:lower()) end
+        end 
     end
 
-    -- 3. LEADERSTATS/ATTRIBUTES CHECK (Only runs if NOT Neutral)
+    for _, item in pairs(inventory) do
+        if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
+        if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
+        if item == "bomb" then return "Traitor" end
+    end
+
+    -- 3. LEADERSTATS/ATTRIBUTES CHECK
     local ls = player:FindFirstChild("leaderstats")
     if ls then
         for _, child in pairs(ls:GetChildren()) do
@@ -176,16 +176,12 @@ local function GetUniversalRole(player)
                 local n = child.Name:lower()
                 local v = tostring(child.Value):lower()
                 
-                -- Check for explicit "Dead" status in leaderstats
                 if v == "dead" or v == "died" or (n == "dead" and (child.Value == true or v == "true")) then
                     return "Dead"
                 end
                 
-                -- Role Detection
                 if n == "role" or n == "status" or n == "job" or n == "team" then
-                    if v ~= "" and v ~= "nil" then
-                        return tostring(child.Value)
-                    end
+                    if v ~= "" and v ~= "nil" then return tostring(child.Value) end
                 end
             end
         end
@@ -194,7 +190,7 @@ local function GetUniversalRole(player)
     local attRole = player:GetAttribute("Role") or player:GetAttribute("Status")
     if attRole then return tostring(attRole) end
 
-    -- 4. TEAM NAME FALLBACK
+    -- 4. TEAM NAME FALLBACK (Lowest Priority now)
     if player.Team then 
         return player.Team.Name 
     end
@@ -202,28 +198,23 @@ local function GetUniversalRole(player)
     return "Neutral"
 end
 
---// SMART COLOR ENGINE (V40: Explicit Neutral Handling)
+--// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
-    -- Neutral/Lobby -> White
-    if r == "neutral" or r == "lobby" or r == "nil" then
-        return Color3.fromRGB(255, 255, 255)
-    end
-
-    -- Dead/Spectator -> Gray
-    if r == "dead" or r:find("dead") or r:find("spectator") then
-        return Color3.fromRGB(150, 150, 150)
-    end
-
-    -- Red Side
-    if r == "red" or r:find("red") or r:find("murder") or r:find("traitor") or r:find("bad") then
+    -- Murderer/Bad Side -> Red
+    if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r:find("enemy") then
         return Color3.fromRGB(255, 40, 40)
     end
     
-    -- Blue Side
-    if r == "blue" or r:find("blue") or r:find("sheriff") or r:find("police") or r:find("good") or r:find("guard") then
+    -- Sheriff/Good Side -> Blue
+    if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("gun") or r:find("hero") then
         return Color3.fromRGB(40, 100, 255)
+    end
+    
+    -- Dead/Spectator -> Gray
+    if r == "dead" or r:find("dead") or r:find("spectator") then
+        return Color3.fromRGB(150, 150, 150)
     end
     
     -- Green/Innocent Side
@@ -1464,7 +1455,7 @@ RunService.RenderStepped:Connect(function()
                     local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
                     hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
                 else
-                    hum.AutoRotate = true
+                     hum.AutoRotate = true
                 end
             end
         end
@@ -1484,33 +1475,43 @@ task.spawn(function()
     while true do
         if espEnabled and espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    -- Fetch Data
-                    local role = GetUniversalRole(p)
-                    local color = GetSmartColor(role, p)
-                    local dist = 0
-                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
-                    
-                    if root then
-                        if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                             dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
-                        else 
-                             dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
+                if p ~= LocalPlayer then
+                    if p.Character then
+                        -- Fetch Data
+                        local role = GetUniversalRole(p)
+                        local color = GetSmartColor(role, p)
+                        local dist = 0
+                        local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
+                        
+                        if root then
+                            if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                            else 
+                                 dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
+                            end
                         end
+                        
+                        -- Store in Cache
+                        ESP_Data_Cache[p] = {
+                            Role = role,
+                            Color = color,
+                            Dist = dist,
+                            Name = p.DisplayName
+                        }
+                    else
+                        -- Remove from Cache if character missing
+                        ESP_Data_Cache[p] = nil
                     end
-                    
-                    -- Store in Cache
-                    ESP_Data_Cache[p] = {
-                        Role = role,
-                        Color = color,
-                        Dist = dist,
-                        Name = p.DisplayName
-                    }
                 end
             end
         end
         task.wait(0.1) 
     end
+end)
+
+-- Clear Cache on Player Leave
+Players.PlayerRemoving:Connect(function(p)
+    ESP_Data_Cache[p] = nil
 end)
 
 
@@ -1529,125 +1530,134 @@ RunService.RenderStepped:Connect(function()
         -- Player ESP (Reads from Cache)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
+                if p ~= LocalPlayer then
+                    -- VALIDITY CHECK (Prevents Ghosting)
+                    if not p.Character or not p.Character.Parent then
+                        RemoveESP(p.Character)
+                        continue 
+                    end
+
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
-                    if root then
-                        local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name }
-                        
-                        -- FORCE RE-CALCULATION OF COLOR IF DEAD
-                        local forcedColor = data.Color
-                        local hum = p.Character:FindFirstChild("Humanoid")
-                        if hum and hum.Health <= 0 then
-                             forcedColor = Color3.fromRGB(150, 150, 150)
-                             data.Role = "Dead"
-                        end
+                    if not root then
+                        RemoveESP(p.Character)
+                        continue
+                    end
 
-                        -- BOX ESP
-                        if espShowBoxes then
-                            local box = root:FindFirstChild("AuraBox")
-                            if not box then
-                                box = Instance.new("BillboardGui", root)
-                                box.Name = "AuraBox"
-                                box.Size = UDim2.new(3.5, 0, 5, 0)
-                                box.AlwaysOnTop = true 
-                                CollectionService:AddTag(box, "AuraESP")
-                                local frame = Instance.new("Frame", box)
-                                frame.Size = UDim2.new(1, 0, 1, 0)
-                                frame.BackgroundTransparency = 1
-                                local stroke = Instance.new("UIStroke", frame)
-                                stroke.Thickness = 2
-                            end
-                            -- ALWAYS UPDATE COLOR
-                            box.Frame.UIStroke.Color = forcedColor
+                    local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name }
+                    
+                    -- FORCE RE-CALCULATION OF COLOR IF DEAD
+                    local forcedColor = data.Color
+                    local hum = p.Character:FindFirstChild("Humanoid")
+                    if hum and hum.Health <= 0 then
+                         forcedColor = Color3.fromRGB(150, 150, 150)
+                         data.Role = "Dead"
+                    end
+
+                    -- BOX ESP
+                    if espShowBoxes then
+                        local box = root:FindFirstChild("AuraBox")
+                        if not box then
+                            box = Instance.new("BillboardGui", root)
+                            box.Name = "AuraBox"
+                            box.Size = UDim2.new(3.5, 0, 5, 0)
+                            box.AlwaysOnTop = true 
+                            CollectionService:AddTag(box, "AuraESP")
+                            local frame = Instance.new("Frame", box)
+                            frame.Size = UDim2.new(1, 0, 1, 0)
+                            frame.BackgroundTransparency = 1
+                            local stroke = Instance.new("UIStroke", frame)
+                            stroke.Thickness = 2
+                        end
+                        -- ALWAYS UPDATE COLOR
+                        box.Frame.UIStroke.Color = forcedColor
+                    end
+                    
+                    -- CHAMS ESP
+                    if espShowChams then
+                        local highlight = p.Character:FindFirstChild("AuraChams")
+                        if not highlight then
+                            highlight = Instance.new("Highlight", p.Character)
+                            highlight.Name = "AuraChams"
+                            highlight.Adornee = p.Character
+                            CollectionService:AddTag(highlight, "AuraESP")
                         end
                         
-                        -- CHAMS ESP
-                        if espShowChams then
-                            local highlight = p.Character:FindFirstChild("AuraChams")
-                            if not highlight then
-                                highlight = Instance.new("Highlight", p.Character)
-                                highlight.Name = "AuraChams"
-                                highlight.Adornee = p.Character
-                                CollectionService:AddTag(highlight, "AuraESP")
-                            end
-                            
-                            -- ALWAYS UPDATE COLOR
-                            highlight.FillColor = forcedColor
-                            highlight.OutlineColor = Color3.new(1, 1, 1)
-                            highlight.FillTransparency = pulseTransparency
+                        -- ALWAYS UPDATE COLOR
+                        highlight.FillColor = forcedColor
+                        highlight.OutlineColor = Color3.new(1, 1, 1)
+                        highlight.FillTransparency = pulseTransparency
 
-                            if espWallsOnly then
-                                local isVisible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
-                                if isVisible then
-                                    highlight.Enabled = false 
-                                else
-                                    highlight.Enabled = true
-                                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                                end
+                        if espWallsOnly then
+                            local isVisible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
+                            if isVisible then
+                                highlight.Enabled = false 
                             else
                                 highlight.Enabled = true
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             end
                         else
-                            local h = p.Character:FindFirstChild("AuraChams")
-                            if h then h:Destroy() end
+                            highlight.Enabled = true
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        end
+                    else
+                        local h = p.Character:FindFirstChild("AuraChams")
+                        if h then h:Destroy() end
+                    end
+                    
+                    -- TRACER ESP
+                    if espShowTracers then
+                        local origin = TracerOriginAtt.Position
+                        local tracer = root:FindFirstChild("AuraTracer")
+                        if not tracer then
+                            tracer = Instance.new("BoxHandleAdornment", root)
+                            tracer.Name = "AuraTracer"
+                            tracer.Adornee = workspace.Terrain 
+                            tracer.AlwaysOnTop = true 
+                            tracer.ZIndex = 5
+                            tracer.Transparency = 0.2
+                            CollectionService:AddTag(tracer, "AuraESP")
+                        end
+                        -- ALWAYS UPDATE COLOR
+                        tracer.Color3 = forcedColor
+                        local targetPos = root.Position - Vector3.new(0, 3, 0)
+                        local distance = (targetPos - origin).Magnitude
+                        tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                        local midPoint = (origin + targetPos) / 2
+                        tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    end
+
+                    -- NAME ESP
+                    if espShowNames then
+                        local humanoid = p.Character:FindFirstChild("Humanoid")
+                        if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                        local tag = root:FindFirstChild("AuraTag")
+                        if not tag then
+                            tag = Instance.new("BillboardGui", root)
+                            tag.Name = "AuraTag"
+                            tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, 4, 0) 
+                            tag.AlwaysOnTop = true 
+                            CollectionService:AddTag(tag, "AuraESP")
+                            local t = Instance.new("TextLabel", tag)
+                            t.Size = UDim2.new(1, 0, 1, 0)
+                            t.BackgroundTransparency = 1
+                            t.TextStrokeTransparency = 0
+                            t.Font = Enum.Font.GothamBold
+                            t.TextSize = 13
                         end
                         
-                        -- TRACER ESP
-                        if espShowTracers then
-                            local origin = TracerOriginAtt.Position
-                            local tracer = root:FindFirstChild("AuraTracer")
-                            if not tracer then
-                                tracer = Instance.new("BoxHandleAdornment", root)
-                                tracer.Name = "AuraTracer"
-                                tracer.Adornee = workspace.Terrain 
-                                tracer.AlwaysOnTop = true 
-                                tracer.ZIndex = 5
-                                tracer.Transparency = 0.2
-                                CollectionService:AddTag(tracer, "AuraESP")
-                            end
-                            -- ALWAYS UPDATE COLOR
-                            tracer.Color3 = forcedColor
-                            local targetPos = root.Position - Vector3.new(0, 3, 0)
-                            local distance = (targetPos - origin).Magnitude
-                            tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                            local midPoint = (origin + targetPos) / 2
-                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                        local txt = (data.Name ~= p.Name) and (data.Name .. "\n(@" .. p.Name .. ")") or p.Name
+                        if data.Role and data.Role ~= "Nil" and data.Role ~= "Neutral" then 
+                            txt = txt .. "\n[Role: " .. data.Role .. "]" 
                         end
-
-                        -- NAME ESP
-                        if espShowNames then
-                            local humanoid = p.Character:FindFirstChild("Humanoid")
-                            if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-                            local tag = root:FindFirstChild("AuraTag")
-                            if not tag then
-                                tag = Instance.new("BillboardGui", root)
-                                tag.Name = "AuraTag"
-                                tag.Size = UDim2.new(0, 200, 0, 50)
-                                tag.StudsOffset = Vector3.new(0, 4, 0) 
-                                tag.AlwaysOnTop = true 
-                                CollectionService:AddTag(tag, "AuraESP")
-                                local t = Instance.new("TextLabel", tag)
-                                t.Size = UDim2.new(1, 0, 1, 0)
-                                t.BackgroundTransparency = 1
-                                t.TextStrokeTransparency = 0
-                                t.Font = Enum.Font.GothamBold
-                                t.TextSize = 13
-                            end
-                            
-                            local txt = (data.Name ~= p.Name) and (data.Name .. "\n(@" .. p.Name .. ")") or p.Name
-                            if data.Role and data.Role ~= "Nil" and data.Role ~= "Neutral" then 
-                                txt = txt .. "\n[Role: " .. data.Role .. "]" 
-                            end
-                            txt = txt .. "\n[" .. data.Dist .. "m]"
-                            tag.TextLabel.Text = txt
-                            
-                            -- ALWAYS UPDATE COLOR
-                            tag.TextLabel.TextColor3 = forcedColor
-                        else
-                             local humanoid = p.Character:FindFirstChild("Humanoid")
-                             if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
-                        end
+                        txt = txt .. "\n[" .. data.Dist .. "m]"
+                        tag.TextLabel.Text = txt
+                        
+                        -- ALWAYS UPDATE COLOR
+                        tag.TextLabel.TextColor3 = forcedColor
+                    else
+                         local humanoid = p.Character:FindFirstChild("Humanoid")
+                         if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
                     end
                 end
             end
@@ -1818,4 +1828,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V40 (Neutral Team Priority Fixed)")
+Notify("Aura Hub V41 (Gear Analysis & Ghost Fix)")
