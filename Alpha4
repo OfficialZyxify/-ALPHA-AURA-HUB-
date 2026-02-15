@@ -1,4 +1,4 @@
---// AuraHub V47: Pro UI & Strict Dependency
+--// AuraHub V48: Evade Fix & UI Reorder
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V47_Pro" 
+ScreenGui.Name = "AuraHub_V48_Fixed" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -140,18 +140,31 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR
+--// UNIVERSAL ROLE DETECTOR (Fixed Priority for Evade)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. DEAD CHECK (Highest Priority)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
-        if hum and hum.Health <= 0 then return "Dead" end
-        if player.Character:GetAttribute("Downed") or player.Character:FindFirstChild("Revive") then return "Downed" end
+        
+        -- 1. DOWNED CHECK (Priority HIGH - Fixes Evade "Dead" Glitch)
+        -- Checks attributes common in Evade and other DB games
+        local attrDown = player.Character:GetAttribute("Downed")
+        local attrRev = player.Character:GetAttribute("Revive")
+        local attrState = player.Character:GetAttribute("State") -- Some games use State string
+        local findRev = player.Character:FindFirstChild("Revive")
+        
+        if attrDown == true or attrRev == true or (type(attrState) == "string" and attrState:lower():find("down")) or findRev then
+            return "Downed"
+        end
+
+        -- 2. DEAD CHECK (Secondary)
+        if hum and hum.Health <= 0 then
+            return "Dead"
+        end
     end
 
-    -- 2. INVENTORY SCAN
+    -- 3. INVENTORY SCAN (MM2)
     local inventory = {}
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do table.insert(inventory, t.Name:lower()) end 
@@ -167,7 +180,7 @@ local function GetUniversalRole(player)
         if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
     end
 
-    -- 3. TEAM CHECK
+    -- 4. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
@@ -181,11 +194,14 @@ end
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
+    if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end -- Orange for Downed
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
-    if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
+    
     if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
+    
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
+    
     if player.TeamColor then return player.TeamColor.Color end
 
     return Color3.fromRGB(255, 255, 255)
@@ -837,7 +853,7 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🟡 UTILITY SECTION
+--// 🟡 UTILITY SECTION (Reordered)
 -------------------------------------------------------------------------
 local UtilLabel = Instance.new("TextLabel", ScrollContainer)
 UtilLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -848,7 +864,61 @@ UtilLabel.Font = Enum.Font.GothamBold
 UtilLabel.TextSize = 10
 UtilLabel.LayoutOrder = GetNextOrder()
 
--- ESP Rows
+-- CHAMS SECTION (Now First)
+local ChamsFrame = Instance.new("Frame", ScrollContainer)
+ChamsFrame.Size = UDim2.new(0.9, 0, 0, 105) 
+ChamsFrame.BackgroundTransparency = 1
+ChamsFrame.LayoutOrder = GetNextOrder()
+
+local ChamsLabel = Instance.new("TextLabel", ChamsFrame)
+ChamsLabel.Size = UDim2.new(1, 0, 0, 15)
+ChamsLabel.Text = "Chams Visuals"
+ChamsLabel.TextColor3 = Color3.new(1, 1, 1)
+ChamsLabel.BackgroundTransparency = 1
+ChamsLabel.Font = Enum.Font.Gotham
+ChamsLabel.TextSize = 10
+ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
+
+local ChamsNote = Instance.new("TextLabel", ChamsFrame)
+ChamsNote.Size = UDim2.new(1, 0, 0, 10)
+ChamsNote.Text = "⚠️ Enable Chams First"
+ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+ChamsNote.BackgroundTransparency = 1
+ChamsNote.Font = Enum.Font.GothamBold
+ChamsNote.TextSize = 9
+ChamsNote.Position = UDim2.new(0, 0, 0, 15)
+
+local ChamsMainBtn = Instance.new("TextButton", ChamsFrame)
+ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
+ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
+ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ChamsMainBtn.Text = "Toggle Chams: OFF"
+ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+ChamsMainBtn.Font = Enum.Font.GothamSemibold
+ChamsMainBtn.TextSize = 11
+Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
+
+local WallsBtn = Instance.new("TextButton", ChamsFrame)
+WallsBtn.Size = UDim2.new(0.48, 0, 0, 25)
+WallsBtn.Position = UDim2.new(0, 0, 0, 60)
+WallsBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+WallsBtn.Text = "Walls Only: OFF"
+WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
+WallsBtn.Font = Enum.Font.GothamSemibold
+WallsBtn.TextSize = 10
+Instance.new("UICorner", WallsBtn).CornerRadius = UDim.new(0, 6)
+
+local PulseBtn = Instance.new("TextButton", ChamsFrame)
+PulseBtn.Size = UDim2.new(0.48, 0, 0, 25)
+PulseBtn.Position = UDim2.new(0.52, 0, 0, 60)
+PulseBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+PulseBtn.Text = "Dynamic Pulse: OFF"
+PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
+PulseBtn.Font = Enum.Font.GothamSemibold
+PulseBtn.TextSize = 10
+Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
+
+-- ESP Rows (Now below Chams)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
 EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow1.BackgroundTransparency = 1
@@ -894,7 +964,36 @@ local function CreateSmallToggle(parent, text, defaultState, callback)
     return btn
 end
 
--- ESP Toggles
+-- Update Chams Logic
+local function UpdateChamsVisuals()
+    if espShowChams then
+        ChamsNote.Text = "Status: Active"
+        ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+        ChamsMainBtn.Text = "Toggle Chams: ON"
+        ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+        WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+        PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    else
+        ChamsNote.Text = "⚠️ Enable Chams First"
+        ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+        ChamsMainBtn.Text = "Toggle Chams: OFF"
+        ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+        WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+        PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+    end
+    WallsBtn.Text = "Walls Only: " .. (espWallsOnly and "ON" or "OFF")
+    PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
+end
+
+ChamsMainBtn.MouseButton1Click:Connect(function()
+    espShowChams = not espShowChams
+    if not espShowChams then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraChams" then item:Destroy() end end end
+    UpdateChamsVisuals()
+end)
+WallsBtn.MouseButton1Click:Connect(function() if espShowChams then espWallsOnly = not espWallsOnly UpdateChamsVisuals() end end)
+PulseBtn.MouseButton1Click:Connect(function() if espShowChams then dynamicChamsPulse = not dynamicChamsPulse UpdateChamsVisuals() end end)
+
+-- Other Toggles
 CreateSmallToggle(EspRow1, "Show Players", true, function()
     espShowPlayers = not espShowPlayers
     if not espShowPlayers then ClearPlayerESP() end
@@ -907,24 +1006,14 @@ CreateSmallToggle(EspRow1, "Show NPCs", false, function()
 end)
 CreateSmallToggle(EspRow2, "Boxes", true, function()
     espShowBoxes = not espShowBoxes
-    if not espShowBoxes then
-        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-            if item.Name == "AuraBox" then item:Destroy() end
-        end
-    end
+    if not espShowBoxes then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraBox" then item:Destroy() end end end
     return espShowBoxes
 end)
 CreateSmallToggle(EspRow2, "Name & Dist", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
-        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-            if item.Name == "AuraTag" then item:Destroy() end
-        end
-        for _, p in pairs(Players:GetPlayers()) do
-            if p.Character and p.Character:FindFirstChild("Humanoid") then
-                p.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-            end
-        end
+        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTag" then item:Destroy() end end 
+        for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("Humanoid") then p.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end end
     end
     return espShowNames
 end)
@@ -940,131 +1029,13 @@ TracerBtn.MouseButton1Click:Connect(function()
     espShowTracers = not espShowTracers
     TracerBtn.Text = "Tracers: " .. (espShowTracers and "ON" or "OFF")
     TracerBtn.TextColor3 = espShowTracers and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
-    if not espShowTracers then
-        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-            if item.Name == "AuraTracer" then item:Destroy() end
-        end
-    end
+    if not espShowTracers then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTracer" then item:Destroy() end end end
 end)
-
--------------------------------------------------------------------------
---// CHAMS SECTION (Refactored to look like FOV)
--------------------------------------------------------------------------
-local ChamsFrame = Instance.new("Frame", ScrollContainer)
-ChamsFrame.Size = UDim2.new(0.9, 0, 0, 105) -- Taller to fit buttons
-ChamsFrame.BackgroundTransparency = 1
-ChamsFrame.LayoutOrder = GetNextOrder()
-
-local ChamsLabel = Instance.new("TextLabel", ChamsFrame)
-ChamsLabel.Size = UDim2.new(1, 0, 0, 15)
-ChamsLabel.Text = "Chams Visuals"
-ChamsLabel.TextColor3 = Color3.new(1, 1, 1)
-ChamsLabel.BackgroundTransparency = 1
-ChamsLabel.Font = Enum.Font.Gotham
-ChamsLabel.TextSize = 10
-ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
-
-local ChamsNote = Instance.new("TextLabel", ChamsFrame)
-ChamsNote.Size = UDim2.new(1, 0, 0, 10)
-ChamsNote.Text = "⚠️ Enable Chams First"
-ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-ChamsNote.BackgroundTransparency = 1
-ChamsNote.Font = Enum.Font.GothamBold
-ChamsNote.TextSize = 9
-ChamsNote.Position = UDim2.new(0, 0, 0, 15)
-
--- Main Toggle
-local ChamsMainBtn = Instance.new("TextButton", ChamsFrame)
-ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
-ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
-ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-ChamsMainBtn.Text = "Toggle Chams: OFF"
-ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-ChamsMainBtn.Font = Enum.Font.GothamSemibold
-ChamsMainBtn.TextSize = 11
-Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
-
--- Walls Only
-local WallsBtn = Instance.new("TextButton", ChamsFrame)
-WallsBtn.Size = UDim2.new(0.48, 0, 0, 25)
-WallsBtn.Position = UDim2.new(0, 0, 0, 60)
-WallsBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-WallsBtn.Text = "Walls Only: OFF"
-WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Grayed out
-WallsBtn.Font = Enum.Font.GothamSemibold
-WallsBtn.TextSize = 10
-Instance.new("UICorner", WallsBtn).CornerRadius = UDim.new(0, 6)
-
--- Pulse
-local PulseBtn = Instance.new("TextButton", ChamsFrame)
-PulseBtn.Size = UDim2.new(0.48, 0, 0, 25)
-PulseBtn.Position = UDim2.new(0.52, 0, 0, 60)
-PulseBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-PulseBtn.Text = "Dynamic Pulse: OFF"
-PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Grayed out
-PulseBtn.Font = Enum.Font.GothamSemibold
-PulseBtn.TextSize = 10
-Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
-
--- Logic
-local function UpdateChamsVisuals()
-    if espShowChams then
-        ChamsNote.Text = "Status: Active"
-        ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
-        ChamsMainBtn.Text = "Toggle Chams: ON"
-        ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
-        
-        -- Update sub-buttons to look active/clickable
-        WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-        PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    else
-        ChamsNote.Text = "Enable Chams First"
-        ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-        ChamsMainBtn.Text = "Toggle Chams: OFF"
-        ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-        
-        -- Gray out sub-buttons
-        WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
-        PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
-    end
-    
-    WallsBtn.Text = "Walls Only: " .. (espWallsOnly and "ON" or "OFF")
-    PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
-end
-
-ChamsMainBtn.MouseButton1Click:Connect(function()
-    espShowChams = not espShowChams
-    if not espShowChams then
-        -- Clear existing chams
-        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
-            if item.Name == "AuraChams" then item:Destroy() end
-        end
-    end
-    UpdateChamsVisuals()
-end)
-
-WallsBtn.MouseButton1Click:Connect(function()
-    if not espShowChams then return end -- Strict dependency
-    espWallsOnly = not espWallsOnly
-    UpdateChamsVisuals()
-end)
-
-PulseBtn.MouseButton1Click:Connect(function()
-    if not espShowChams then return end -- Strict dependency
-    dynamicChamsPulse = not dynamicChamsPulse
-    UpdateChamsVisuals()
-end)
--------------------------------------------------------------------------
 
 CreateButton("🔍 Master ESP Toggle", function(b)
     espEnabled = not espEnabled
     b.TextColor3 = espEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    if not espEnabled then
-        Notify("ESP Disabled (Clearing...)")
-        ClearAllESP()
-    else
-        Notify("ESP Master Active")
-    end
+    if not espEnabled then Notify("ESP Disabled (Clearing...)") ClearAllESP() else Notify("ESP Master Active") end
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1366,7 +1337,8 @@ task.spawn(function()
             local newCache = {}
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
-                    if not Players:GetPlayerFromCharacter(v) then
+                    -- Fix NPC Detection: Ignore if name matches a Player or is LocalPlayer
+                    if not Players:GetPlayerFromCharacter(v) and not Players:FindFirstChild(v.Name) then
                         table.insert(newCache, v)
                     end
                 end
@@ -1562,7 +1534,11 @@ RunService.RenderStepped:Connect(function()
                     -- FORCE RE-CALCULATION OF COLOR IF DEAD
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
-                    if hum and hum.Health <= 0 then
+                    
+                    -- Status Priority in Rendering
+                    if data.Role == "Downed" then
+                        forcedColor = Color3.fromRGB(255, 170, 0)
+                    elseif data.Role == "Dead" or (hum and hum.Health <= 0) then
                          forcedColor = Color3.fromRGB(150, 150, 150)
                          data.Role = "Dead"
                     end
@@ -1662,10 +1638,10 @@ RunService.RenderStepped:Connect(function()
                         
                         -- TOP STATUS TEXT
                         local topText = ""
-                        if data.Role == "Dead" then 
-                            topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
-                        elseif data.Role == "Downed" then 
+                        if data.Role == "Downed" then 
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
+                        elseif data.Role == "Dead" then 
+                            topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
                         elseif data.Role == "Murderer" then 
                             topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                         elseif data.Role == "Sheriff" then 
@@ -1851,4 +1827,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V47 (Pro UI)")
+Notify("Aura Hub V48 (Evade Fix)")
