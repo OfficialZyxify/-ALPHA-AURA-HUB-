@@ -1,4 +1,4 @@
---// AuraHub V53: UI Perfection (Spacing Fix & Bright Headers)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V53_Perfect" 
+ScreenGui.Name = "AuraHub_V54_Balanced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -477,7 +477,7 @@ FOVFrame.LayoutOrder = GetNextOrder()
 local FOVLabel = Instance.new("TextLabel", FOVFrame)
 FOVLabel.Size = UDim2.new(1, 0, 0, 15)
 FOVLabel.Text = "Field of View: 70 (Default)"
-FOVLabel.TextColor3 = Color3.new(1, 1, 1) -- UPDATED: Bright White
+FOVLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
 FOVLabel.BackgroundTransparency = 1
 FOVLabel.Font = Enum.Font.Gotham
 FOVLabel.TextSize = 10
@@ -504,7 +504,7 @@ local function CreateFOVRulerMark(posScale, text)
     mark.Position = UDim2.new(posScale, -10, 0, 0)
     mark.BackgroundTransparency = 1
     mark.Text = text
-    mark.TextColor3 = Color3.fromRGB(180, 180, 180) -- Lighter Grey
+    mark.TextColor3 = Color3.fromRGB(180, 180, 180) 
     mark.Font = Enum.Font.Gotham
     mark.TextSize = 8
     table.insert(FOVVisuals.ActiveItems, mark)
@@ -526,7 +526,7 @@ Instance.new("UICorner", SliderBarFOV)
 local SliderDotFOV = Instance.new("Frame", SliderBarFOV)
 SliderDotFOV.Size = UDim2.new(0, 16, 0, 16)
 SliderDotFOV.Position = UDim2.new(0, -8, 0.5, -8)
-SliderDotFOV.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3) -- Dimmed Dot
+SliderDotFOV.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 Instance.new("UICorner", SliderDotFOV).CornerRadius = UDim.new(1, 0)
 FOVVisuals.SliderDot = SliderDotFOV
 
@@ -573,9 +573,9 @@ local function CreatePresetFOV(val, label)
     local btn = Instance.new("TextButton", PresetFrameFOV)
     btn.Size = UDim2.new(0.31, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.BackgroundTransparency = 0.7 -- Dim
+    btn.BackgroundTransparency = 0.7 
     btn.Text = label
-    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6) -- Visible but not bright
+    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6) 
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 10
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -592,17 +592,18 @@ CreatePresetFOV(70, "Default (70)")
 CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
 
-CreateButton("👁️ Toggle FOV Modifier", function(b)
+-- UPDATED BUTTON WITH : OFF
+CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then Camera.FieldOfView = 70 end
     
+    b.Text = "👁️ Toggle FOV Modifier: " .. (fovEnabled and "ON" or "OFF")
     b.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
     -- Visual Update
     FOVNote.Text = fovEnabled and "Status: Active" or "⚠️ Enable FOV First"
     FOVNote.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     
-    -- Just enable/disable dimming, text color stays constant for header
     for _, item in pairs(FOVVisuals.DimItems) do
         item.BackgroundTransparency = fovEnabled and 0 or 0.7
     end
@@ -624,7 +625,7 @@ TimeFrame.LayoutOrder = GetNextOrder()
 local TimeLabel = Instance.new("TextLabel", TimeFrame)
 TimeLabel.Size = UDim2.new(1, 0, 0, 15)
 TimeLabel.Text = "Time Changer: --"
-TimeLabel.TextColor3 = Color3.new(1, 1, 1) -- UPDATED: Bright White
+TimeLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
 TimeLabel.BackgroundTransparency = 1
 TimeLabel.Font = Enum.Font.Gotham
 TimeLabel.TextSize = 10
@@ -766,7 +767,6 @@ local function UpdateTimeStatusVisuals()
         TimeNote.TextColor3 = Color3.fromRGB(0, 255, 140)
     end
     
-    -- Visual Update
     for _, item in pairs(TimeVisuals.DimItems) do
         if item:IsA("TextButton") and item.Name == "DynamicBtn" then
              item.TextColor3 = timeChangerEnabled and Color3.new(1,1,1) or Color3.new(0.6, 0.6, 0.6)
@@ -802,8 +802,11 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
     Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
-CreateButton("🕒 Toggle Time Changer", function(b)
+-- UPDATED BUTTON WITH : OFF
+CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     timeChangerEnabled = not timeChangerEnabled
+    
+    b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
     UpdateTimeStatusVisuals()
@@ -910,7 +913,7 @@ UtilLabel.LayoutOrder = GetNextOrder()
 
 --// MASTER ESP VISUALS
 local MasterFrame = Instance.new("Frame", ScrollContainer)
-MasterFrame.Size = UDim2.new(0.9, 0, 0, 65) -- INCREASED HEIGHT FOR SPACING
+MasterFrame.Size = UDim2.new(0.9, 0, 0, 55) -- REDUCED HEIGHT (Balanced)
 MasterFrame.BackgroundTransparency = 1
 MasterFrame.LayoutOrder = GetNextOrder()
 
@@ -934,7 +937,7 @@ MasterNote.Position = UDim2.new(0, 0, 0, 15)
 
 local MasterBtn = Instance.new("TextButton", MasterFrame)
 MasterBtn.Size = UDim2.new(1, 0, 0, 25)
-MasterBtn.Position = UDim2.new(0, 0, 0, 35) -- PUSHED DOWN
+MasterBtn.Position = UDim2.new(0, 0, 0, 28) -- TIGHTENED UP
 MasterBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MasterBtn.Text = "Toggle Master ESP: OFF"
 MasterBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -942,8 +945,7 @@ MasterBtn.Font = Enum.Font.GothamSemibold
 MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
 
--- SPACER TO FIX CRAMPING
-CreateSpacer(GetNextOrder())
+-- SPACER REMOVED to fix huge gap
 
 -- ESP SUB-BUTTONS (Dependent on Master)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
@@ -1235,7 +1237,7 @@ SpeedFrame.LayoutOrder = GetNextOrder()
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
 SpeedLabel.Text = "Subtle Speed: 16 (Default)"
-SpeedLabel.TextColor3 = Color3.new(1, 1, 1) -- UPDATED: Bright White
+SpeedLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Font = Enum.Font.Gotham
 SpeedLabel.TextSize = 10
@@ -1350,13 +1352,16 @@ CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
 
-CreateButton("⚡ Toggle Subtle Pursuit (Risk: Medium)", function(b)
+-- UPDATED BUTTON WITH : OFF
+CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
+    
+    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
     b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
     SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
     SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     
-    -- Visual Update
     for _, item in pairs(SpeedVisuals.DimItems) do
          item.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
     end
@@ -1988,4 +1993,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V53 (UI Perfected)")
+Notify("Aura Hub V54 (Balanced)")
