@@ -1,4 +1,4 @@
---// AuraHub V48: Evade Fix & UI Reorder
+--// AuraHub V49: Master Hierarchy & Dependency
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V48_Fixed" 
+ScreenGui.Name = "AuraHub_V49_Master" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -140,31 +140,30 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (Fixed Priority for Evade)
+--// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         
-        -- 1. DOWNED CHECK (Priority HIGH - Fixes Evade "Dead" Glitch)
-        -- Checks attributes common in Evade and other DB games
+        -- 1. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
-        local attrState = player.Character:GetAttribute("State") -- Some games use State string
+        local attrState = player.Character:GetAttribute("State")
         local findRev = player.Character:FindFirstChild("Revive")
         
         if attrDown == true or attrRev == true or (type(attrState) == "string" and attrState:lower():find("down")) or findRev then
             return "Downed"
         end
 
-        -- 2. DEAD CHECK (Secondary)
+        -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
     end
 
-    -- 3. INVENTORY SCAN (MM2)
+    -- 3. INVENTORY SCAN
     local inventory = {}
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do table.insert(inventory, t.Name:lower()) end 
@@ -194,14 +193,11 @@ end
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
-    if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end -- Orange for Downed
+    if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
-    
     if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
-    
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
-    
     if player.TeamColor then return player.TeamColor.Color end
 
     return Color3.fromRGB(255, 255, 255)
@@ -853,7 +849,7 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// 🟡 UTILITY SECTION (Reordered)
+--// 🟡 UTILITY SECTION (MASTER FIRST)
 -------------------------------------------------------------------------
 local UtilLabel = Instance.new("TextLabel", ScrollContainer)
 UtilLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -864,7 +860,69 @@ UtilLabel.Font = Enum.Font.GothamBold
 UtilLabel.TextSize = 10
 UtilLabel.LayoutOrder = GetNextOrder()
 
--- CHAMS SECTION (Now First)
+--// MASTER ESP VISUALS (NEW)
+local MasterFrame = Instance.new("Frame", ScrollContainer)
+MasterFrame.Size = UDim2.new(0.9, 0, 0, 50) 
+MasterFrame.BackgroundTransparency = 1
+MasterFrame.LayoutOrder = GetNextOrder()
+
+local MasterLabel = Instance.new("TextLabel", MasterFrame)
+MasterLabel.Size = UDim2.new(1, 0, 0, 15)
+MasterLabel.Text = "Master ESP Visuals"
+MasterLabel.TextColor3 = Color3.new(1, 1, 1)
+MasterLabel.BackgroundTransparency = 1
+MasterLabel.Font = Enum.Font.Gotham
+MasterLabel.TextSize = 10
+MasterLabel.Position = UDim2.new(0, 0, 0, 0)
+
+local MasterNote = Instance.new("TextLabel", MasterFrame)
+MasterNote.Size = UDim2.new(1, 0, 0, 10)
+MasterNote.Text = "⚠️ Enable Master First"
+MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+MasterNote.BackgroundTransparency = 1
+MasterNote.Font = Enum.Font.GothamBold
+MasterNote.TextSize = 9
+MasterNote.Position = UDim2.new(0, 0, 0, 15)
+
+local MasterBtn = Instance.new("TextButton", MasterFrame)
+MasterBtn.Size = UDim2.new(1, 0, 0, 25)
+MasterBtn.Position = UDim2.new(0, 0, 0, 30)
+MasterBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+MasterBtn.Text = "Toggle Master ESP: OFF"
+MasterBtn.TextColor3 = Color3.new(1, 1, 1)
+MasterBtn.Font = Enum.Font.GothamSemibold
+MasterBtn.TextSize = 11
+Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
+
+-- ESP SUB-BUTTONS (Dependent on Master)
+local EspRow1 = Instance.new("Frame", ScrollContainer)
+EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow1.BackgroundTransparency = 1
+EspRow1.LayoutOrder = GetNextOrder()
+local EspRow1Layout = Instance.new("UIListLayout", EspRow1)
+EspRow1Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow1Layout.Padding = UDim.new(0, 5)
+EspRow1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local EspRow2 = Instance.new("Frame", ScrollContainer)
+EspRow2.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow2.BackgroundTransparency = 1
+EspRow2.LayoutOrder = GetNextOrder()
+local EspRow2Layout = Instance.new("UIListLayout", EspRow2)
+EspRow2Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow2Layout.Padding = UDim.new(0, 5)
+EspRow2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local EspRow3 = Instance.new("Frame", ScrollContainer)
+EspRow3.Size = UDim2.new(0.9, 0, 0, 25)
+EspRow3.BackgroundTransparency = 1
+EspRow3.LayoutOrder = GetNextOrder()
+local EspRow3Layout = Instance.new("UIListLayout", EspRow3)
+EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
+EspRow3Layout.Padding = UDim.new(0, 5)
+EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+-- CHAMS SECTION (Dependent on Master)
 local ChamsFrame = Instance.new("Frame", ScrollContainer)
 ChamsFrame.Size = UDim2.new(0.9, 0, 0, 105) 
 ChamsFrame.BackgroundTransparency = 1
@@ -893,7 +951,7 @@ ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
 ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
 ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 ChamsMainBtn.Text = "Toggle Chams: OFF"
-ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Default Disabled Look
 ChamsMainBtn.Font = Enum.Font.GothamSemibold
 ChamsMainBtn.TextSize = 11
 Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
@@ -918,66 +976,29 @@ PulseBtn.Font = Enum.Font.GothamSemibold
 PulseBtn.TextSize = 10
 Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
 
--- ESP Rows (Now below Chams)
-local EspRow1 = Instance.new("Frame", ScrollContainer)
-EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
-EspRow1.BackgroundTransparency = 1
-EspRow1.LayoutOrder = GetNextOrder()
-local EspRow1Layout = Instance.new("UIListLayout", EspRow1)
-EspRow1Layout.FillDirection = Enum.FillDirection.Horizontal
-EspRow1Layout.Padding = UDim.new(0, 5)
-EspRow1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local EspRow2 = Instance.new("Frame", ScrollContainer)
-EspRow2.Size = UDim2.new(0.9, 0, 0, 25)
-EspRow2.BackgroundTransparency = 1
-EspRow2.LayoutOrder = GetNextOrder()
-local EspRow2Layout = Instance.new("UIListLayout", EspRow2)
-EspRow2Layout.FillDirection = Enum.FillDirection.Horizontal
-EspRow2Layout.Padding = UDim.new(0, 5)
-EspRow2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local EspRow3 = Instance.new("Frame", ScrollContainer)
-EspRow3.Size = UDim2.new(0.9, 0, 0, 25)
-EspRow3.BackgroundTransparency = 1
-EspRow3.LayoutOrder = GetNextOrder()
-local EspRow3Layout = Instance.new("UIListLayout", EspRow3)
-EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
-EspRow3Layout.Padding = UDim.new(0, 5)
-EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local function CreateSmallToggle(parent, text, defaultState, callback)
-    local btn = Instance.new("TextButton", parent)
-    btn.Size = UDim2.new(0.48, 0, 1, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
-    btn.TextColor3 = defaultState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 8
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
-    btn.MouseButton1Click:Connect(function()
-        local newState = callback()
-        btn.Text = text .. ": " .. (newState and "ON" or "OFF")
-        btn.TextColor3 = newState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
-    end)
-    return btn
-end
-
--- Update Chams Logic
+--// LOGIC FUNCTIONS
 local function UpdateChamsVisuals()
-    if espShowChams then
+    -- Only active if Master ESP is ON
+    if espEnabled and espShowChams then
         ChamsNote.Text = "Status: Active"
         ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
         ChamsMainBtn.Text = "Toggle Chams: ON"
         ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+        
         WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
         PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     else
+        -- If Master is OFF, override Chams visual to inactive
+        if not espEnabled then
+             ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+        else
+             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+        end
+        
         ChamsNote.Text = "⚠️ Enable Chams First"
         ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-        ChamsMainBtn.Text = "Toggle Chams: OFF"
-        ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+        ChamsMainBtn.Text = "Toggle Chams: " .. (espShowChams and "ON" or "OFF")
+        
         WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
@@ -985,31 +1006,107 @@ local function UpdateChamsVisuals()
     PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
 
-ChamsMainBtn.MouseButton1Click:Connect(function()
-    espShowChams = not espShowChams
-    if not espShowChams then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraChams" then item:Destroy() end end end
-    UpdateChamsVisuals()
-end)
-WallsBtn.MouseButton1Click:Connect(function() if espShowChams then espWallsOnly = not espWallsOnly UpdateChamsVisuals() end end)
-PulseBtn.MouseButton1Click:Connect(function() if espShowChams then dynamicChamsPulse = not dynamicChamsPulse UpdateChamsVisuals() end end)
+-- Button References for Master Control
+local EspButtons = {}
 
--- Other Toggles
-CreateSmallToggle(EspRow1, "Show Players", true, function()
+local function UpdateMasterVisuals()
+    if espEnabled then
+        MasterNote.Text = "Status: Active"
+        MasterNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+        MasterBtn.Text = "Toggle Master ESP: ON"
+        MasterBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+        
+        -- Enable Sub-buttons visually
+        for _, btn in pairs(EspButtons) do
+            -- Refresh their specific state color
+            -- We need to know which state they represent. 
+            -- Simplified: Just making them bright white or green if active
+        end
+    else
+        MasterNote.Text = "⚠️ Enable Master First"
+        MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+        MasterBtn.Text = "Toggle Master ESP: OFF"
+        MasterBtn.TextColor3 = Color3.new(1, 1, 1)
+    end
+    UpdateChamsVisuals() -- Refresh downstream
+end
+
+-- SUB-TOGGLE CREATOR
+local function CreateSubToggle(parent, text, defaultState, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.Size = UDim2.new(0.48, 0, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
+    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Start Gray
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 8
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
+    table.insert(EspButtons, btn)
+    
+    -- Initial Visual Check
+    if defaultState and espEnabled then 
+        btn.TextColor3 = Color3.fromRGB(0, 255, 140)
+    elseif espEnabled then
+        btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        if not espEnabled then return end -- Strict Dependency
+        local newState = callback()
+        btn.Text = text .. ": " .. (newState and "ON" or "OFF")
+        btn.TextColor3 = newState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
+    end)
+    
+    -- Hook into Master Update (Manual logic injection for visual refresh)
+    local originalUpdate = UpdateMasterVisuals
+    UpdateMasterVisuals = function()
+        originalUpdate()
+        if espEnabled then
+             -- We need to check the ACTUAL state variable here. 
+             -- Since I can't pass the var by reference easily in Lua without a table wrapper,
+             -- I will rely on the text content or a flag.
+             if btn.Text:find("ON") then
+                 btn.TextColor3 = Color3.fromRGB(0, 255, 140)
+             else
+                 btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+             end
+        else
+             btn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+        end
+    end
+    
+    return btn
+end
+
+-- CREATE BUTTONS
+MasterBtn.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    if not espEnabled then
+        Notify("ESP Disabled (Clearing...)")
+        ClearAllESP()
+    else
+        Notify("ESP Master Active")
+    end
+    UpdateMasterVisuals()
+end)
+
+CreateSubToggle(EspRow1, "Show Players", true, function()
     espShowPlayers = not espShowPlayers
     if not espShowPlayers then ClearPlayerESP() end
     return espShowPlayers
 end)
-CreateSmallToggle(EspRow1, "Show NPCs", false, function()
+CreateSubToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
     if not espShowNPCs then ClearNPCESP() end
     return espShowNPCs
 end)
-CreateSmallToggle(EspRow2, "Boxes", true, function()
+CreateSubToggle(EspRow2, "Boxes", true, function()
     espShowBoxes = not espShowBoxes
     if not espShowBoxes then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraBox" then item:Destroy() end end end
     return espShowBoxes
 end)
-CreateSmallToggle(EspRow2, "Name & Dist", true, function()
+CreateSubToggle(EspRow2, "Name & Dist", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTag" then item:Destroy() end end 
@@ -1017,26 +1114,21 @@ CreateSmallToggle(EspRow2, "Name & Dist", true, function()
     end
     return espShowNames
 end)
-local TracerBtn = Instance.new("TextButton", EspRow3)
-TracerBtn.Size = UDim2.new(0.48, 0, 1, 0)
-TracerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-TracerBtn.Text = "Tracers: ON"
-TracerBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
-TracerBtn.Font = Enum.Font.GothamBold
-TracerBtn.TextSize = 8
-Instance.new("UICorner", TracerBtn).CornerRadius = UDim.new(0, 6)
-TracerBtn.MouseButton1Click:Connect(function()
+local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
     espShowTracers = not espShowTracers
-    TracerBtn.Text = "Tracers: " .. (espShowTracers and "ON" or "OFF")
-    TracerBtn.TextColor3 = espShowTracers and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
     if not espShowTracers then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTracer" then item:Destroy() end end end
+    return espShowTracers
 end)
 
-CreateButton("🔍 Master ESP Toggle", function(b)
-    espEnabled = not espEnabled
-    b.TextColor3 = espEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    if not espEnabled then Notify("ESP Disabled (Clearing...)") ClearAllESP() else Notify("ESP Master Active") end
-end, GetNextOrder())
+-- CHAMS CONNECTS
+ChamsMainBtn.MouseButton1Click:Connect(function()
+    if not espEnabled then return end -- Strict Master Dependency
+    espShowChams = not espShowChams
+    if not espShowChams then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraChams" then item:Destroy() end end end
+    UpdateChamsVisuals()
+end)
+WallsBtn.MouseButton1Click:Connect(function() if espEnabled and espShowChams then espWallsOnly = not espWallsOnly UpdateChamsVisuals() end end)
+PulseBtn.MouseButton1Click:Connect(function() if espEnabled and espShowChams then dynamicChamsPulse = not dynamicChamsPulse UpdateChamsVisuals() end end)
 
 CreateSpacer(GetNextOrder())
 
@@ -1827,4 +1919,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V48 (Evade Fix)")
+Notify("Aura Hub V49 (Master Hierarchy)")
