@@ -1,4 +1,4 @@
---// AuraHub V46: Dynamic Pulse Returns
+--// AuraHub V47: Pro UI & Strict Dependency
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -46,7 +46,7 @@ local espShowBoxes = true
 local espShowTracers = true
 local espShowChams = false 
 local espWallsOnly = false 
-local dynamicChamsPulse = false -- New State
+local dynamicChamsPulse = false
 
 -- Data Caches
 local ESP_Data_Cache = {} 
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V46_Pulse" 
+ScreenGui.Name = "AuraHub_V47_Pro" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -147,13 +147,8 @@ local function GetUniversalRole(player)
     -- 1. DEAD CHECK (Highest Priority)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
-        if hum and hum.Health <= 0 then
-            return "Dead"
-        end
-        -- Downed Check (Evade)
-        if player.Character:GetAttribute("Downed") or player.Character:FindFirstChild("Revive") then
-            return "Downed"
-        end
+        if hum and hum.Health <= 0 then return "Dead" end
+        if player.Character:GetAttribute("Downed") or player.Character:FindFirstChild("Revive") then return "Downed" end
     end
 
     -- 2. INVENTORY SCAN
@@ -175,9 +170,7 @@ local function GetUniversalRole(player)
     -- 3. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
-        if tName == "neutral" or tName == "lobby" or tName == "spectator" then
-            return "Neutral"
-        end
+        if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
         return player.Team.Name
     end
 
@@ -883,15 +876,6 @@ EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow3Layout.Padding = UDim.new(0, 5)
 EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local EspRow4 = Instance.new("Frame", ScrollContainer)
-EspRow4.Size = UDim2.new(0.9, 0, 0, 25)
-EspRow4.BackgroundTransparency = 1
-EspRow4.LayoutOrder = GetNextOrder()
-local EspRow4Layout = Instance.new("UIListLayout", EspRow4)
-EspRow4Layout.FillDirection = Enum.FillDirection.Horizontal
-EspRow4Layout.Padding = UDim.new(0, 5)
-EspRow4Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
 local function CreateSmallToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.48, 0, 1, 0)
@@ -962,80 +946,115 @@ TracerBtn.MouseButton1Click:Connect(function()
         end
     end
 end)
-local ChamsBtn = Instance.new("TextButton", EspRow3)
-ChamsBtn.Size = UDim2.new(0.48, 0, 1, 0)
-ChamsBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-ChamsBtn.Text = "Chams: OFF"
-ChamsBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-ChamsBtn.Font = Enum.Font.GothamBold
-ChamsBtn.TextSize = 8
-Instance.new("UICorner", ChamsBtn).CornerRadius = UDim.new(0, 6)
 
-local WallsOnlyBtn = Instance.new("TextButton", EspRow4)
-WallsOnlyBtn.Size = UDim2.new(0.48, 0, 1, 0) 
-WallsOnlyBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-WallsOnlyBtn.Text = "Chams: Walls Only: OFF"
-WallsOnlyBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-WallsOnlyBtn.Font = Enum.Font.GothamBold
-WallsOnlyBtn.TextSize = 8
-Instance.new("UICorner", WallsOnlyBtn).CornerRadius = UDim.new(0, 6)
+-------------------------------------------------------------------------
+--// CHAMS SECTION (Refactored to look like FOV)
+-------------------------------------------------------------------------
+local ChamsFrame = Instance.new("Frame", ScrollContainer)
+ChamsFrame.Size = UDim2.new(0.9, 0, 0, 105) -- Taller to fit buttons
+ChamsFrame.BackgroundTransparency = 1
+ChamsFrame.LayoutOrder = GetNextOrder()
 
-local DynamicPulseBtn = Instance.new("TextButton", EspRow4)
-DynamicPulseBtn.Size = UDim2.new(0.48, 0, 1, 0) 
-DynamicPulseBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-DynamicPulseBtn.Text = "Chams: Dynamic Pulse: OFF"
-DynamicPulseBtn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-DynamicPulseBtn.Font = Enum.Font.GothamBold
-DynamicPulseBtn.TextSize = 8
-Instance.new("UICorner", DynamicPulseBtn).CornerRadius = UDim.new(0, 6)
+local ChamsLabel = Instance.new("TextLabel", ChamsFrame)
+ChamsLabel.Size = UDim2.new(1, 0, 0, 15)
+ChamsLabel.Text = "Chams Visuals"
+ChamsLabel.TextColor3 = Color3.new(1, 1, 1)
+ChamsLabel.BackgroundTransparency = 1
+ChamsLabel.Font = Enum.Font.Gotham
+ChamsLabel.TextSize = 10
+ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
 
-local function UpdateWallsBtnVisuals()
-    if not espShowChams then
-        WallsOnlyBtn.Text = "Chams: Walls Only: OFF"
-        WallsOnlyBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
-        DynamicPulseBtn.Text = "Chams: Dynamic Pulse: OFF"
-        DynamicPulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+local ChamsNote = Instance.new("TextLabel", ChamsFrame)
+ChamsNote.Size = UDim2.new(1, 0, 0, 10)
+ChamsNote.Text = "⚠️ Enable Chams First"
+ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+ChamsNote.BackgroundTransparency = 1
+ChamsNote.Font = Enum.Font.GothamBold
+ChamsNote.TextSize = 9
+ChamsNote.Position = UDim2.new(0, 0, 0, 15)
+
+-- Main Toggle
+local ChamsMainBtn = Instance.new("TextButton", ChamsFrame)
+ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
+ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
+ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ChamsMainBtn.Text = "Toggle Chams: OFF"
+ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+ChamsMainBtn.Font = Enum.Font.GothamSemibold
+ChamsMainBtn.TextSize = 11
+Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
+
+-- Walls Only
+local WallsBtn = Instance.new("TextButton", ChamsFrame)
+WallsBtn.Size = UDim2.new(0.48, 0, 0, 25)
+WallsBtn.Position = UDim2.new(0, 0, 0, 60)
+WallsBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+WallsBtn.Text = "Walls Only: OFF"
+WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Grayed out
+WallsBtn.Font = Enum.Font.GothamSemibold
+WallsBtn.TextSize = 10
+Instance.new("UICorner", WallsBtn).CornerRadius = UDim.new(0, 6)
+
+-- Pulse
+local PulseBtn = Instance.new("TextButton", ChamsFrame)
+PulseBtn.Size = UDim2.new(0.48, 0, 0, 25)
+PulseBtn.Position = UDim2.new(0.52, 0, 0, 60)
+PulseBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+PulseBtn.Text = "Dynamic Pulse: OFF"
+PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Grayed out
+PulseBtn.Font = Enum.Font.GothamSemibold
+PulseBtn.TextSize = 10
+Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
+
+-- Logic
+local function UpdateChamsVisuals()
+    if espShowChams then
+        ChamsNote.Text = "Status: Active"
+        ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+        ChamsMainBtn.Text = "Toggle Chams: ON"
+        ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+        
+        -- Update sub-buttons to look active/clickable
+        WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+        PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     else
-        WallsOnlyBtn.Text = "Chams: Walls Only: " .. (espWallsOnly and "ON" or "OFF")
-        WallsOnlyBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
-        DynamicPulseBtn.Text = "Chams: Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
-        DynamicPulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
+        ChamsNote.Text = "Enable Chams First"
+        ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+        ChamsMainBtn.Text = "Toggle Chams: OFF"
+        ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+        
+        -- Gray out sub-buttons
+        WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+        PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
+    
+    WallsBtn.Text = "Walls Only: " .. (espWallsOnly and "ON" or "OFF")
+    PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
 
-ChamsBtn.MouseButton1Click:Connect(function()
+ChamsMainBtn.MouseButton1Click:Connect(function()
     espShowChams = not espShowChams
-    ChamsBtn.Text = "Chams: " .. (espShowChams and "ON" or "OFF")
-    ChamsBtn.TextColor3 = espShowChams and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
     if not espShowChams then
+        -- Clear existing chams
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
             if item.Name == "AuraChams" then item:Destroy() end
         end
     end
-    UpdateWallsBtnVisuals()
+    UpdateChamsVisuals()
 end)
 
-WallsOnlyBtn.MouseButton1Click:Connect(function()
-    if not espShowChams then
-        WallsOnlyBtn.Text = "⚠️ Enable Chams First!"
-        WallsOnlyBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-        task.delay(1, function() UpdateWallsBtnVisuals() end)
-        return
-    end
+WallsBtn.MouseButton1Click:Connect(function()
+    if not espShowChams then return end -- Strict dependency
     espWallsOnly = not espWallsOnly
-    UpdateWallsBtnVisuals()
+    UpdateChamsVisuals()
 end)
 
-DynamicPulseBtn.MouseButton1Click:Connect(function()
-    if not espShowChams then
-        DynamicPulseBtn.Text = "⚠️ Enable Chams First!"
-        DynamicPulseBtn.TextColor3 = Color3.fromRGB(255, 50, 50)
-        task.delay(1, function() UpdateWallsBtnVisuals() end)
-        return
-    end
+PulseBtn.MouseButton1Click:Connect(function()
+    if not espShowChams then return end -- Strict dependency
     dynamicChamsPulse = not dynamicChamsPulse
-    UpdateWallsBtnVisuals()
+    UpdateChamsVisuals()
 end)
+-------------------------------------------------------------------------
 
 CreateButton("🔍 Master ESP Toggle", function(b)
     espEnabled = not espEnabled
@@ -1832,4 +1851,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V46 (Dynamic Pulse)")
+Notify("Aura Hub V47 (Pro UI)")
