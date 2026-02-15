@@ -1,4 +1,4 @@
---// AuraHub V49: Master Hierarchy & Dependency
+--// AuraHub V50: UI Perfection (Spacing, Logic & Warnings)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V49_Master" 
+ScreenGui.Name = "AuraHub_V50_Perfect" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -483,7 +483,7 @@ FOVLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local FOVNote = Instance.new("TextLabel", FOVFrame)
 FOVNote.Size = UDim2.new(1, 0, 0, 10)
-FOVNote.Text = "Toggle FOV Modifier First"
+FOVNote.Text = "⚠️ Enable FOV First"
 FOVNote.TextColor3 = Color3.fromRGB(255, 100, 100) 
 FOVNote.BackgroundTransparency = 1
 FOVNote.Font = Enum.Font.GothamBold
@@ -584,7 +584,7 @@ CreateButton("👁️ Toggle FOV Modifier", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then Camera.FieldOfView = 70 end
     b.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    FOVNote.Text = fovEnabled and "Status: Active" or "Toggle FOV Modifier First"
+    FOVNote.Text = fovEnabled and "Status: Active" or "⚠️ Enable FOV First"
     FOVNote.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
@@ -608,7 +608,7 @@ TimeLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local TimeNote = Instance.new("TextLabel", TimeFrame)
 TimeNote.Size = UDim2.new(1, 0, 0, 10)
-TimeNote.Text = "Toggle Time Changer First"
+TimeNote.Text = "⚠️ Enable Time First"
 TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 TimeNote.BackgroundTransparency = 1
 TimeNote.Font = Enum.Font.GothamBold
@@ -722,7 +722,7 @@ CreatePresetTime(24, "Midnight")
 
 local function UpdateTimeStatusVisuals()
     if not timeChangerEnabled then
-        TimeNote.Text = "Toggle Time Changer First"
+        TimeNote.Text = "⚠️ Enable Time First"
         TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
     elseif dynamicDayNightEnabled then
         TimeNote.Text = "Status: Active - Dynamic Cycle On"
@@ -860,7 +860,7 @@ UtilLabel.Font = Enum.Font.GothamBold
 UtilLabel.TextSize = 10
 UtilLabel.LayoutOrder = GetNextOrder()
 
---// MASTER ESP VISUALS (NEW)
+--// MASTER ESP VISUALS
 local MasterFrame = Instance.new("Frame", ScrollContainer)
 MasterFrame.Size = UDim2.new(0.9, 0, 0, 50) 
 MasterFrame.BackgroundTransparency = 1
@@ -893,6 +893,9 @@ MasterBtn.TextColor3 = Color3.new(1, 1, 1)
 MasterBtn.Font = Enum.Font.GothamSemibold
 MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
+
+-- SPACER TO FIX CLUTTER
+CreateSpacer(GetNextOrder())
 
 -- ESP SUB-BUTTONS (Dependent on Master)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
@@ -939,7 +942,7 @@ ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local ChamsNote = Instance.new("TextLabel", ChamsFrame)
 ChamsNote.Size = UDim2.new(1, 0, 0, 10)
-ChamsNote.Text = "⚠️ Enable Chams First"
+ChamsNote.Text = "⚠️ Enable Master ESP First"
 ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 ChamsNote.BackgroundTransparency = 1
 ChamsNote.Font = Enum.Font.GothamBold
@@ -979,29 +982,39 @@ Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
 --// LOGIC FUNCTIONS
 local function UpdateChamsVisuals()
     -- Only active if Master ESP is ON
-    if espEnabled and espShowChams then
-        ChamsNote.Text = "Status: Active"
-        ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
-        ChamsMainBtn.Text = "Toggle Chams: ON"
-        ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
-        
-        WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-        PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    else
-        -- If Master is OFF, override Chams visual to inactive
-        if not espEnabled then
-             ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+    if espEnabled then
+        -- Step 2: Check if Chams is ON
+        if espShowChams then
+            ChamsNote.Text = "Status: Active"
+            ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+            
+            ChamsMainBtn.Text = "Toggle Chams: ON"
+            ChamsMainBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
+            
+            WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+            PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
         else
-             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+            ChamsNote.Text = "⚠️ Toggle Chams First"
+            ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+            
+            ChamsMainBtn.Text = "Toggle Chams: OFF"
+            ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
+            
+            WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+            PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
-        
-        ChamsNote.Text = "⚠️ Enable Chams First"
+    else
+        -- If Master is OFF, disable everything
+        ChamsNote.Text = "⚠️ Enable Master ESP First"
         ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+        
         ChamsMainBtn.Text = "Toggle Chams: " .. (espShowChams and "ON" or "OFF")
+        ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         
         WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
     end
+    
     WallsBtn.Text = "Walls Only: " .. (espWallsOnly and "ON" or "OFF")
     PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
@@ -1016,17 +1029,24 @@ local function UpdateMasterVisuals()
         MasterBtn.Text = "Toggle Master ESP: ON"
         MasterBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
         
-        -- Enable Sub-buttons visually
+        -- Visually refresh standard ESP buttons
         for _, btn in pairs(EspButtons) do
-            -- Refresh their specific state color
-            -- We need to know which state they represent. 
-            -- Simplified: Just making them bright white or green if active
+             if btn.Text:find("ON") then
+                 btn.TextColor3 = Color3.fromRGB(0, 255, 140)
+             else
+                 btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+             end
         end
     else
         MasterNote.Text = "⚠️ Enable Master First"
         MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
         MasterBtn.Text = "Toggle Master ESP: OFF"
         MasterBtn.TextColor3 = Color3.new(1, 1, 1)
+        
+        -- Gray out standard ESP buttons
+        for _, btn in pairs(EspButtons) do
+             btn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
+        end
     end
     UpdateChamsVisuals() -- Refresh downstream
 end
@@ -1057,24 +1077,6 @@ local function CreateSubToggle(parent, text, defaultState, callback)
         btn.Text = text .. ": " .. (newState and "ON" or "OFF")
         btn.TextColor3 = newState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
     end)
-    
-    -- Hook into Master Update (Manual logic injection for visual refresh)
-    local originalUpdate = UpdateMasterVisuals
-    UpdateMasterVisuals = function()
-        originalUpdate()
-        if espEnabled then
-             -- We need to check the ACTUAL state variable here. 
-             -- Since I can't pass the var by reference easily in Lua without a table wrapper,
-             -- I will rely on the text content or a flag.
-             if btn.Text:find("ON") then
-                 btn.TextColor3 = Color3.fromRGB(0, 255, 140)
-             else
-                 btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-             end
-        else
-             btn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
-        end
-    end
     
     return btn
 end
@@ -1191,7 +1193,7 @@ SpeedLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local SpeedNote = Instance.new("TextLabel", SpeedFrame)
 SpeedNote.Size = UDim2.new(1, 0, 0, 10)
-SpeedNote.Text = "Toggle Subtle Pursuit First"
+SpeedNote.Text = "⚠️ Enable Speed First"
 SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 SpeedNote.BackgroundTransparency = 1
 SpeedNote.Font = Enum.Font.GothamBold
@@ -1291,7 +1293,7 @@ CreatePresetSpeed(30, "30")
 CreateButton("⚡ Toggle Subtle Pursuit (Risk: Medium)", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
     b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "Toggle Subtle Pursuit First"
+    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
     SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
@@ -1919,4 +1921,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V49 (Master Hierarchy)")
+Notify("Aura Hub V50 (UI Perfected)")
