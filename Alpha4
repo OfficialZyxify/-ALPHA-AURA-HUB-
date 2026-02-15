@@ -1,4 +1,4 @@
---// AuraHub V53: THE FINAL COMPLETE VERSION
+--// AuraHub V51: Global Dependency & UI Polish
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V53_Full" 
+ScreenGui.Name = "AuraHub_V51_Perfect" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -190,14 +190,12 @@ end
 --// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
-    
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
-
     return Color3.fromRGB(255, 255, 255)
 end
 
@@ -453,34 +451,6 @@ SliderDotFOV.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotFOV.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
 Instance.new("UICorner", SliderDotFOV).CornerRadius = UDim.new(1, 0)
 
-local function SetSliderVisualsFOV(val)
-    local percentage = (val - 70) / 50
-    percentage = math.clamp(percentage, 0, 1)
-    SliderDotFOV.Position = UDim2.new(percentage, -8, 0.5, -8)
-    FOVLabel.Text = (val == 70) and "Field of View: 70 (Default)" or "Field of View: " .. val
-end
-
-local function UpdateFOV(input)
-    local pos = math.clamp((input.Position.X - SliderBarFOV.AbsolutePosition.X) / SliderBarFOV.AbsoluteSize.X, 0, 1)
-    SliderDotFOV.Position = UDim2.new(pos, -8, 0.5, -8)
-    currentFOV = math.floor(70 + (pos * 50))
-    FOVLabel.Text = (currentFOV == 70) and "Field of View: 70 (Default)" or "Field of View: " .. currentFOV
-end
-
-local slidingFOV = false
-SliderBarFOV.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        slidingFOV = true
-        UpdateFOV(input)
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if slidingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        UpdateFOV(input)
-    end
-end)
-UserInputService.InputEnded:Connect(function() slidingFOV = false end)
-
 local PresetFrameFOV = Instance.new("Frame", ScrollContainer)
 PresetFrameFOV.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameFOV.BackgroundTransparency = 1
@@ -514,6 +484,35 @@ local function UpdateFOVVisuals()
         end
     end
 end
+
+local function SetSliderVisualsFOV(val)
+    local percentage = (val - 70) / 50
+    percentage = math.clamp(percentage, 0, 1)
+    SliderDotFOV.Position = UDim2.new(percentage, -8, 0.5, -8)
+    FOVLabel.Text = (val == 70) and "Field of View: 70 (Default)" or "Field of View: " .. val
+end
+
+local function UpdateFOV(input)
+    if not fovEnabled then return end
+    local pos = math.clamp((input.Position.X - SliderBarFOV.AbsolutePosition.X) / SliderBarFOV.AbsoluteSize.X, 0, 1)
+    SliderDotFOV.Position = UDim2.new(pos, -8, 0.5, -8)
+    currentFOV = math.floor(70 + (pos * 50))
+    FOVLabel.Text = (currentFOV == 70) and "Field of View: 70 (Default)" or "Field of View: " .. currentFOV
+end
+
+local slidingFOV = false
+SliderBarFOV.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        slidingFOV = true
+        UpdateFOV(input)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if slidingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        UpdateFOV(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function() slidingFOV = false end)
 
 local function CreatePresetFOV(val, label)
     local btn = Instance.new("TextButton", PresetFrameFOV)
@@ -604,6 +603,44 @@ SliderDotTime.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotTime.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
 Instance.new("UICorner", SliderDotTime).CornerRadius = UDim.new(1, 0)
 
+local PresetFrameTime = Instance.new("Frame", ScrollContainer)
+PresetFrameTime.Size = UDim2.new(0.9, 0, 0, 25)
+PresetFrameTime.BackgroundTransparency = 1
+PresetFrameTime.LayoutOrder = GetNextOrder()
+local PresetLayoutTime = Instance.new("UIListLayout", PresetFrameTime)
+PresetLayoutTime.FillDirection = Enum.FillDirection.Horizontal
+PresetLayoutTime.Padding = UDim.new(0, 3) 
+PresetLayoutTime.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local Time_Preset_Btns = {}
+
+local function UpdateTimeVisuals()
+    if timeChangerEnabled then
+        if dynamicDayNightEnabled then
+            TimeNote.Text = "Status: Active - Dynamic Cycle"
+            TimeNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+        else
+            TimeNote.Text = "Status: Active - Static Time"
+            TimeNote.TextColor3 = Color3.fromRGB(0, 255, 140)
+        end
+        SliderBarTime.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        SliderDotTime.Visible = true
+        for _, btn in pairs(Time_Preset_Btns) do
+            btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        end
+    else
+        TimeNote.Text = "⚠️ Enable Time First"
+        TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+        SliderBarTime.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        SliderDotTime.Visible = false
+        for _, btn in pairs(Time_Preset_Btns) do
+            btn.TextColor3 = Color3.new(0.4, 0.4, 0.4)
+            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+        end
+    end
+end
+
 local function FormatTime(val)
     local hours = math.floor(val)
     local minutes = math.floor((val - hours) * 60)
@@ -643,44 +680,6 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 UserInputService.InputEnded:Connect(function() slidingTime = false end)
-
-local PresetFrameTime = Instance.new("Frame", ScrollContainer)
-PresetFrameTime.Size = UDim2.new(0.9, 0, 0, 25)
-PresetFrameTime.BackgroundTransparency = 1
-PresetFrameTime.LayoutOrder = GetNextOrder()
-local PresetLayoutTime = Instance.new("UIListLayout", PresetFrameTime)
-PresetLayoutTime.FillDirection = Enum.FillDirection.Horizontal
-PresetLayoutTime.Padding = UDim.new(0, 3) 
-PresetLayoutTime.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local Time_Preset_Btns = {}
-
-local function UpdateTimeVisuals()
-    if timeChangerEnabled then
-        if dynamicDayNightEnabled then
-            TimeNote.Text = "Status: Active - Dynamic Cycle"
-            TimeNote.TextColor3 = Color3.fromRGB(0, 255, 140)
-        else
-            TimeNote.Text = "Status: Active - Static Time"
-            TimeNote.TextColor3 = Color3.fromRGB(0, 255, 140)
-        end
-        SliderBarTime.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-        SliderDotTime.Visible = true
-        for _, btn in pairs(Time_Preset_Btns) do
-            btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
-            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        end
-    else
-        TimeNote.Text = "⚠️ Enable Time First"
-        TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-        SliderBarTime.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        SliderDotTime.Visible = false
-        for _, btn in pairs(Time_Preset_Btns) do
-            btn.TextColor3 = Color3.new(0.4, 0.4, 0.4)
-            btn.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-        end
-    end
-end
 
 local function CreatePresetTime(val, label)
     local btn = Instance.new("TextButton", PresetFrameTime)
@@ -868,7 +867,7 @@ MasterBtn.Font = Enum.Font.GothamSemibold
 MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
 
--- SPACER (Standard 10px Gap)
+-- SPACER TO FIX CLUTTER (10px height)
 CreateSpacer(GetNextOrder(), 10)
 
 -- ESP SUB-BUTTONS
@@ -1015,7 +1014,7 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     btn.Size = UDim2.new(0.48, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
-    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
+    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Start Gray
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 8
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -1154,35 +1153,6 @@ SliderDotSpeed.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotSpeed.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
 Instance.new("UICorner", SliderDotSpeed).CornerRadius = UDim.new(1, 0)
 
-local minSpeed = 16
-local maxSpeed = 100
-local function SetSliderVisualsSpeed(val)
-    local percentage = (val - minSpeed) / (maxSpeed - minSpeed)
-    percentage = math.clamp(percentage, 0, 1)
-    SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
-    SpeedLabel.Text = "Subtle Speed: " .. val .. (val == 16 and " (Default)" or "")
-end
-local function UpdateSpeed(input)
-    if not subtleSpeedEnabled then return end
-    local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
-    SliderDotSpeed.Position = UDim2.new(pos, -8, 0.5, -8)
-    subtleSpeedValue = math.floor(minSpeed + (pos * (maxSpeed - minSpeed)))
-    SpeedLabel.Text = "Subtle Speed: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
-end
-local slidingSpeed = false
-SliderBarSpeed.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        slidingSpeed = true
-        UpdateSpeed(input)
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if slidingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        UpdateSpeed(input)
-    end
-end)
-UserInputService.InputEnded:Connect(function() slidingSpeed = false end)
-
 local PresetFrameSpeed = Instance.new("Frame", ScrollContainer)
 PresetFrameSpeed.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameSpeed.BackgroundTransparency = 1
@@ -1215,6 +1185,35 @@ local function UpdateSpeedVisuals()
         end
     end
 end
+
+local function SetSliderVisualsSpeed(val)
+    local percentage = (val - minSpeed) / (maxSpeed - minSpeed)
+    percentage = math.clamp(percentage, 0, 1)
+    SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
+    SpeedLabel.Text = "Subtle Speed: " .. val .. (val == 16 and " (Default)" or "")
+end
+
+local function UpdateSpeed(input)
+    if not subtleSpeedEnabled then return end
+    local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
+    SliderDotSpeed.Position = UDim2.new(pos, -8, 0.5, -8)
+    subtleSpeedValue = math.floor(minSpeed + (pos * (maxSpeed - minSpeed)))
+    SpeedLabel.Text = "Subtle Speed: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
+end
+
+local slidingSpeed = false
+SliderBarSpeed.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        slidingSpeed = true
+        UpdateSpeed(input)
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if slidingSpeed and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        UpdateSpeed(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function() slidingSpeed = false end)
 
 local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
@@ -1390,7 +1389,7 @@ task.spawn(function()
     end
 end)
 
--- LOGIC LOOP (Protected)
+-- LOGIC LOOP
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
@@ -1502,7 +1501,6 @@ task.spawn(function()
                         local color = GetSmartColor(role, p)
                         local dist = 0
                         local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
-                        
                         if root then
                             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
                                  dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
@@ -1523,7 +1521,7 @@ end)
 
 Players.PlayerRemoving:Connect(function(p) ESP_Data_Cache[p] = nil end)
 
---// 🟢 VISUAL LOOP (60 FPS)
+--// 🟢 VISUAL LOOP
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1807,5 +1805,4 @@ SetSliderVisualsTime(customClockTime)
 UpdateFOVVisuals()
 UpdateTimeVisuals()
 UpdateSpeedVisuals()
-UpdateMasterVisuals() -- Ensure hierarchy is respected on load
-Notify("Aura Hub V53 (Complete)")
+Notify("Aura Hub V51 (Final Polish)")
