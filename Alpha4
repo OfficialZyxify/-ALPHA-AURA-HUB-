@@ -109,7 +109,7 @@ local function Notify(msg)
     Stroke.Transparency = 0.6
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
     task.delay(3, function()
-        n:TweenPosition(UDim2.new(0.5, -140, -0.1, 0), "In", "Quad", 0.5, true, function() n:Destroy() end)
+         n:TweenPosition(UDim2.new(0.5, -140, -0.1, 0), "In", "Quad", 0.5, true, function() n:Destroy() end)
     end)
 end
 
@@ -175,6 +175,10 @@ local function GetUniversalRole(player)
     end
 
     for _, item in pairs(inventory) do
+        -- [UPDATED] Beast Detection (Flee the Facility)
+        if item == "hammer" or item:find("hammer") or item:find("beast") then return "Beast" end
+        
+        -- Existing Logic
         if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
         if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
     end
@@ -195,7 +199,10 @@ local function GetSmartColor(role, player)
     
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
-    if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
+    
+    -- [UPDATED] Added Beast to Red Color Group
+    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
+    
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
@@ -240,7 +247,7 @@ local function StableServerHop()
         local PossibleServers = {}
         for _, server in pairs(Result) do
             if server.playing < server.maxPlayers and server.id ~= game.JobId then
-                table.insert(PossibleServers, server.id)
+                 table.insert(PossibleServers, server.id)
             end
         end
         if #PossibleServers > 0 then
@@ -255,7 +262,7 @@ local function RejoinServer()
     if #Players:GetPlayers() <= 1 then
         LocalPlayer:Kick("\nRejoining...")
         task.wait()
-        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+         TeleportService:Teleport(game.PlaceId, LocalPlayer)
     else
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
@@ -1080,13 +1087,13 @@ local function UpdateMasterVisuals()
         MasterBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
         
         -- Visually refresh standard ESP buttons
-        for _, btn in pairs(EspButtons) do
+         for _, btn in pairs(EspButtons) do
              if btn.Text:find("ON") then
                  btn.TextColor3 = Color3.fromRGB(0, 255, 140)
              else
                  btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
              end
-        end
+         end
     else
         MasterNote.Text = "⚠️ Enable Master First"
         MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
@@ -1425,6 +1432,7 @@ local function ToggleFly(state)
                     flyButtonRef.TextColor3 = Color3.new(1, 1, 1)
                     flyButtonRef.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
                 end
+            
                 if flyConnection then flyConnection:Disconnect() flyConnection = nil end
                 deathConnection:Disconnect()
             end
@@ -1433,7 +1441,7 @@ local function ToggleFly(state)
         flyConnection = RunService.RenderStepped:Connect(function()
             if not flyEnabled or not char.Parent or not hrp.Parent then ToggleFly(false) return end
             for _, v in pairs(char:GetDescendants()) do
-                if v:IsA("BasePart") then v.CanCollide = false end
+                 if v:IsA("BasePart") then v.CanCollide = false end
             end
             local ctrl = GetControls()
             if ctrl then
@@ -1504,7 +1512,7 @@ task.spawn(function()
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
                     -- Fix NPC Detection: Ignore if name matches a Player or is LocalPlayer
-                    if not Players:GetPlayerFromCharacter(v) and not Players:FindFirstChild(v.Name) then
+                     if not Players:GetPlayerFromCharacter(v) and not Players:FindFirstChild(v.Name) then
                         table.insert(newCache, v)
                     end
                 end
@@ -1581,7 +1589,7 @@ RunService.RenderStepped:Connect(function()
         if LocalPlayer.Character then
             local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
-        
+            
             if hum and hrp then
                 if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
                     local speedDiff = math.max(0, subtleSpeedValue - 16)
@@ -1805,11 +1813,14 @@ RunService.RenderStepped:Connect(function()
                         -- TOP STATUS TEXT
                         local topText = ""
                         if data.Role == "Downed" then 
-                            topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
+                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
+                        -- [UPDATED] Beast Text Check
+                        elseif data.Role == "Beast" then
+                             topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
-                            topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
+                             topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                         elseif data.Role == "Sheriff" then 
                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
                         end
