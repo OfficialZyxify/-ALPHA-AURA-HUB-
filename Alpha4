@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (10-Player FTF Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF 10-Player Visibility Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,7 +140,22 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (STRICT 10-PLAYER FIX)
+--// HELPER: IS OBJECT VISIBLE?
+-- Checks if a model has any visible parts (Transparency < 1)
+local function IsObjectVisible(model)
+    if not model then return false end
+    for _, descendant in pairs(model:GetDescendants()) do
+        if descendant:IsA("BasePart") or descendant:IsA("MeshPart") then
+            -- If we find ONE part that is visible (not transparent), the object is visible
+            if descendant.Transparency < 1 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+--// UNIVERSAL ROLE DETECTOR (VISIBILITY & STRICT CHECK)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -148,7 +163,7 @@ local function GetUniversalRole(player)
     if player.Team then
         local tName = player.Team.Name:lower()
         if tName:find("beast") then return "Beast" end
-        if tName:find("survivor") or tName:find("innocent") then return "Survivor" end
+        -- Note: Some 10-player modes put everyone on "Survivor" initially, so we don't return Survivor immediately here.
     end
 
     if player.Character then
@@ -169,27 +184,27 @@ local function GetUniversalRole(player)
             return "Dead"
         end
 
-        -- 4. PHYSICAL HAMMER CHECK (Strict Filter)
-        -- We iterate children to find the physical model
+        -- 4. PHYSICAL HAMMER CHECK (Visibility Filter)
+        -- We look for ANY Model/Tool named "Hammer" or "Gemstone", but ONLY if it is VISIBLE.
         for _, child in pairs(player.Character:GetChildren()) do
-            -- MUST be a Model or Tool. MUST NOT be an Accessory (Fixes "Everyone is Beast")
             if (child:IsA("Model") or child:IsA("Tool")) and not child:IsA("Accessory") then
                 local name = child.Name:lower()
                 
-                -- Check for explicit Hammer names found in 10-Player Mods
-                if name == "hammer" or name == "gemstone" or name == "beasthammer" then
-                    return "Beast"
-                end
-                
-                -- Fallback: Contains "hammer" but isn't a holster
-                if name:find("hammer") and not name:find("holster") then
-                    return "Beast"
+                -- Check for explicit FTF items
+                if name == "hammer" or name == "gemstone" or name == "beasthammer" or name:find("hammer") then
+                    -- IGNORE Holsters
+                    if not name:find("holster") then
+                        -- VISIBILITY CHECK: Only flag if the item is actually visible
+                        if IsObjectVisible(child) then
+                            return "Beast"
+                        end
+                    end
                 end
             end
         end
     end
 
-    -- 5. BACKPACK SCAN
+    -- 5. BACKPACK SCAN (Only if Tool)
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
             if t:IsA("Tool") then
@@ -201,7 +216,7 @@ local function GetUniversalRole(player)
         end 
     end
 
-    return "Survivor" -- Default to survivor if no hammer found
+    return "Survivor" 
 end
 
 --// SMART COLOR ENGINE
@@ -223,7 +238,7 @@ local function GetSmartColor(role, player)
     return Color3.fromRGB(255, 255, 255)
 end
 
---// VISIBILITY CHECKER
+--// VISIBILITY CHECKER (For ESP Walls Only)
 local function IsVisible(targetModel, ignoreList)
     if not targetModel then return false end
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
@@ -2021,4 +2036,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF 10-P Fix)")
+Notify("Aura Hub V54 (Balanced + FTF 10-Player Fix)")
