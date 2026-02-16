@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V3)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 - Smart Weld Detection)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,7 +140,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (FIXED MODEL DETECTION)
+--// UNIVERSAL ROLE DETECTOR (UPDATED: FTF SMART WELD DETECTION)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -161,35 +161,59 @@ local function GetUniversalRole(player)
         if hum and hum.Health <= 0 then
             return "Dead"
         end
-    end
 
-    -- 3. INVENTORY SCAN
-    local inventory = {}
-    
-    -- Check Backpack
-    if player.Backpack then 
-        for _, t in pairs(player.Backpack:GetChildren()) do 
-            table.insert(inventory, t.Name:lower()) 
-        end 
-    end
-    
-    -- Check Character (Equipped Items - Models or Tools)
-    if player.Character then 
-        for _, t in pairs(player.Character:GetChildren()) do 
-            -- FTF Hammers are often Models, not Tools. We check both.
-            if t:IsA("Tool") or t:IsA("Model") then 
-                table.insert(inventory, t.Name:lower()) 
-            end
-        end 
-    end
-
-    for _, item in pairs(inventory) do
-        -- FTF Logic: Check if the item NAME contains "hammer"
-        if item:find("hammer") then return "Beast" end 
+        -- 3. INVENTORY & EQUIPMENT SCAN (FTF FIX)
+        -- We scan children of the Character.
+        -- If it is a Tool: It's equipped -> Beast.
+        -- If it is a Model (Custom Hammer): We check WELDS to see if it is on the Right Arm/Hand.
         
-        -- MM2/Sheriff Logic
-        if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
-        if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
+        for _, child in pairs(player.Character:GetChildren()) do
+            local name = child.Name:lower()
+
+            -- >>> FTF HAMMER LOGIC <<<
+            if name:find("hammer") then
+                -- Case A: It is a standard Tool object. If it's in Character, it's equipped.
+                if child:IsA("Tool") then
+                    return "Beast"
+                
+                -- Case B: It is a Model or MeshPart (Custom FTF Hammer)
+                elseif child:IsA("Model") or child:IsA("BasePart") then
+                    -- We must check if this hammer is welded to the HAND/ARM or the TORSO/BACK.
+                    local attachedToHand = false
+                    
+                    -- Scan all welds in the character
+                    for _, weld in pairs(player.Character:GetDescendants()) do
+                        if weld:IsA("Weld") or weld:IsA("Motor6D") or weld:IsA("WeldConstraint") then
+                            if weld.Part0 and weld.Part1 then
+                                -- Check if this weld connects the Hammer to the Player
+                                local isHammerPart = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) or (weld.Part1:IsDescendantOf(child) or weld.Part1 == child)
+                                
+                                if isHammerPart then
+                                    -- Identify the body part it is attached to
+                                    local limb = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) and weld.Part1 or weld.Part0
+                                    local limbName = limb.Name:lower()
+                                    
+                                    -- If attached to Right Arm, RightHand, etc -> BEAST
+                                    if limbName:find("right") and (limbName:find("arm") or limbName:find("hand")) then
+                                        attachedToHand = true
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    if attachedToHand then
+                        return "Beast"
+                    end
+                    -- If code reaches here, the hammer exists but is likely welded to Torso (Back) -> Ignored/Survivor.
+                end
+            end
+
+            -- >>> MM2 / SHERIFF LOGIC <<<
+            if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
+            if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
+        end
     end
 
     -- 4. TEAM CHECK
@@ -869,7 +893,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         local function Optimize(v)
             if v:IsA("BasePart") then
                 if not optimizationCache[v] then
-                    optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
+                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
@@ -1662,10 +1686,10 @@ task.spawn(function()
                         
                         if root then
                             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                                dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else 
                                 dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
-                             end
+                            end
                         end
                         
                         -- Store in Cache
@@ -1775,7 +1799,7 @@ RunService.RenderStepped:Connect(function()
                                 highlight.Enabled = true
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                             end
-                         else
+                        else
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
@@ -2019,4 +2043,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF V3)")
+Notify("Aura Hub V54 (Balanced + FTF V4 Fix)")
