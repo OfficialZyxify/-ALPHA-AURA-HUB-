@@ -1,4 +1,4 @@
---// AuraHub V55: Flee the Facility Optimized
+--// AuraHub V56: Strict Beast Detection (Fixed)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V55_FtF" 
+ScreenGui.Name = "AuraHub_V56_Fixed" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -140,56 +140,53 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (V55: FtF Optimized)
+--// UNIVERSAL ROLE DETECTOR (V56: Strict Hammer Check)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. CHARACTER SCAN (Aggressive Mode for FtF)
-    if player.Character then
-        local hum = player.Character:FindFirstChild("Humanoid")
+    local char = player.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
         
-        -- Downed / Freeze Check
-        local attrDown = player.Character:GetAttribute("Downed")
-        local attrRev = player.Character:GetAttribute("Revive")
-        local attrState = player.Character:GetAttribute("State")
-        local findRev = player.Character:FindFirstChild("Revive")
+        -- 1. BEAST CHECK (STRICT)
+        -- Only check for the specific "Hammer" model or tool. 
+        -- Do NOT scan random parts to avoid false positives.
         
-        if attrDown == true or attrRev == true or (type(attrState) == "string" and attrState:lower():find("down")) or findRev then
-            return "Downed"
+        -- Check A: Hammer Model (Back)
+        if char:FindFirstChild("Hammer") or char:FindFirstChild("Gemstone Hammer") or char:FindFirstChild("Mallet") then
+            return "Beast"
         end
-
-        -- Dead Check
-        if hum and hum.Health <= 0 then return "Dead" end
-
-        -- [[ BEAST CHECK ]]
-        -- Scan ALL children, not just tools. Hammers are often Models on the back.
-        for _, obj in pairs(player.Character:GetChildren()) do
-            local n = obj.Name:lower()
-            -- Keywords for Flee the Facility Beast
-            if n:find("hammer") or n:find("mallet") or n:find("gemstone") or n:find("beast") then
-                return "Beast"
+        
+        -- Check B: Equipped Tool
+        for _, item in pairs(char:GetChildren()) do
+            if item:IsA("Tool") then
+                local n = item.Name:lower()
+                if n:match("hammer") or n:match("mallet") then
+                    return "Beast"
+                end
             end
         end
+
+        -- 2. STATUS CHECKS (FtF Specific)
+        if char:FindFirstChild("FrozenPart") or char:FindFirstChild("Ice") then return "Frozen" end
+        
+        -- Dead Check
+        if hum and hum.Health <= 0 then return "Dead" end
     end
 
-    -- 2. BACKPACK SCAN (Classic Tools)
+    -- 3. BACKPACK CHECK (Unequipped Tool)
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
-            local n = t.Name:lower()
-            if n:find("hammer") or n:find("mallet") or n:find("gemstone") then return "Beast" end
-            if n == "knife" or n == "dagger" or n:find("knife") then return "Murderer" end
-            if n == "gun" or n == "revolver" or n == "sheriff" then return "Sheriff" end
+            if t:IsA("Tool") then
+                local n = t.Name:lower()
+                if n:match("hammer") or n:match("mallet") then return "Beast" end
+                if n:match("gun") or n:match("revolver") then return "Sheriff" end
+                if n:match("knife") then return "Murderer" end
+            end
         end 
     end
 
-    -- 3. TEAM CHECK
-    if player.Team then
-        local tName = player.Team.Name:lower()
-        if tName:find("beast") then return "Beast" end
-        if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
-    end
-
-    -- Default to Survivor if nothing found (Cleaner look for FtF)
+    -- Default
     return "Survivor" 
 end
 
@@ -197,25 +194,21 @@ end
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
-    if r == "downed" or r:find("down") or r:find("frozen") then return Color3.fromRGB(255, 170, 0) end
+    if r == "frozen" or r:find("ice") then return Color3.fromRGB(0, 255, 255) end -- Cyan for Frozen
+    if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     
-    -- BEAST / MURDERER (RED)
-    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
+    -- BEAST (RED)
+    if r == "beast" or r == "murderer" or r:find("murder") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
     
-    -- SHERIFF / HERO (BLUE)
-    if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then 
-        return Color3.fromRGB(40, 100, 255) 
-    end
+    -- SURVIVOR (GREEN)
+    if r == "survivor" then return Color3.fromRGB(100, 255, 100) end
     
-    -- SURVIVOR / NEUTRAL (WHITE/GREEN TINT)
-    if r == "survivor" then return Color3.fromRGB(200, 255, 200) end
+    if r == "sheriff" or r:find("sheriff") then return Color3.fromRGB(40, 100, 255) end
     
-    if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
-
     return Color3.fromRGB(255, 255, 255)
 end
 
@@ -1712,7 +1705,7 @@ RunService.RenderStepped:Connect(function()
                         continue
                     end
 
-                    local data = ESP_Data_Cache[p] or { Role = "Survivor", Color = Color3.fromRGB(200, 255, 200), Dist = 0, Name = p.Name }
+                    local data = ESP_Data_Cache[p] or { Role = "Survivor", Color = Color3.fromRGB(100, 255, 100), Dist = 0, Name = p.Name }
                     
                     -- FORCE RE-CALCULATION OF COLOR IF DEAD
                     local forcedColor = data.Color
@@ -1832,6 +1825,10 @@ RunService.RenderStepped:Connect(function()
                              topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                         elseif data.Role == "Sheriff" then 
                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
+                        elseif data.Role == "Survivor" then
+                            topText = "<font color='rgb(100,255,100)'>[SURVIVOR]</font>\n"
+                        elseif data.Role == "Frozen" then
+                            topText = "<font color='rgb(0,255,255)'>[FROZEN]</font>\n"
                         end
 
                         local txt = topText .. p.Name .. "\n[" .. data.Dist .. "m]"
@@ -2013,4 +2010,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V55 (FtF Optimized)")
+Notify("Aura Hub V56 (Fixed Beast)")
