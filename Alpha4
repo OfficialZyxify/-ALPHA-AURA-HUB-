@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V3)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 - Real Beast Detect)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,14 +140,21 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (FIXED MODEL DETECTION)
+--// UNIVERSAL ROLE DETECTOR (FIXED BEAST DETECTION V4)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
+    -- 1. TEAM CHECK (Most Reliable for some modes)
+    if player.Team then
+        local tName = player.Team.Name:lower()
+        if tName == "beast" then return "Beast" end
+        if tName == "survivor" then return "Survivor" end
+    end
+
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         
-        -- 1. DOWNED CHECK
+        -- 2. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
@@ -157,49 +164,35 @@ local function GetUniversalRole(player)
             return "Downed"
         end
 
-        -- 2. DEAD CHECK
+        -- 3. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
+
+        -- 4. PHYSICAL HAMMER CHECK (The "Real" Check)
+        -- In FtF, the hammer is a Model named "Hammer" inside the Character
+        local hammerFound = player.Character:FindFirstChild("Hammer") 
+        if hammerFound then return "Beast" end
+        
+        -- Also check children for anything that *looks* like a hammer model just in case of skins
+        for _, child in pairs(player.Character:GetChildren()) do
+             if child:IsA("Model") and (child.Name:lower():find("hammer") or child.Name == "Gemstone") then
+                 return "Beast"
+             end
+        end
     end
 
-    -- 3. INVENTORY SCAN
-    local inventory = {}
-    
-    -- Check Backpack
+    -- 5. INVENTORY SCAN (For Lobby/Pre-game)
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
-            table.insert(inventory, t.Name:lower()) 
-        end 
-    end
-    
-    -- Check Character (Equipped Items - Models or Tools)
-    if player.Character then 
-        for _, t in pairs(player.Character:GetChildren()) do 
-            -- FTF Hammers are often Models, not Tools. We check both.
-            if t:IsA("Tool") or t:IsA("Model") then 
-                table.insert(inventory, t.Name:lower()) 
-            end
+            local n = t.Name:lower()
+            if n:find("hammer") then return "Beast" end 
+            if n == "knife" or n == "dagger" or n:find("knife") then return "Murderer" end
+            if n == "gun" or n == "revolver" or n == "sheriff" then return "Sheriff" end
         end 
     end
 
-    for _, item in pairs(inventory) do
-        -- FTF Logic: Check if the item NAME contains "hammer"
-        if item:find("hammer") then return "Beast" end 
-        
-        -- MM2/Sheriff Logic
-        if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
-        if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
-    end
-
-    -- 4. TEAM CHECK
-    if player.Team then
-        local tName = player.Team.Name:lower()
-        if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
-        return player.Team.Name
-    end
-
-    return "Neutral"
+    return "Survivor" -- Default to Survivor instead of Neutral
 end
 
 --// SMART COLOR ENGINE
@@ -2019,4 +2012,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF V3)")
+Notify("Aura Hub V54 (Balanced + FTF V4)")
