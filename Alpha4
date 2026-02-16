@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF 10-Player "Weld" Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V3)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,58 +140,14 @@ local function ClearNPCESP()
     end
 end
 
---// HELPER: IS OBJECT HELD IN HAND?
--- Scans welds to see if the object is attached to a Hand or Arm
-local function IsHeldInHand(model, character)
-    if not model or not character then return false end
-    
-    -- Check 1: If it's a Tool class, Roblox handles it automatically
-    if model:IsA("Tool") then return true end
-    
-    -- Check 2: Scan for Welds/Motor6Ds connecting to the Hand
-    for _, descendant in pairs(character:GetDescendants()) do
-        if descendant:IsA("Weld") or descendant:IsA("Motor6D") or descendant:IsA("WeldConstraint") then
-            local p0 = descendant.Part0
-            local p1 = descendant.Part1
-            
-            if (p0 and p1) then
-                -- Check if one part belongs to the Hammer and the other is a Hand
-                local isHammerPart = (p0:IsDescendantOf(model) or p1:IsDescendantOf(model))
-                
-                if isHammerPart then
-                    local otherPart = p0:IsDescendantOf(model) and p1 or p0
-                    local name = otherPart.Name:lower()
-                    
-                    -- If attached to Hand or Arm -> BEAST
-                    if name:find("hand") or name:find("arm") or name:find("grip") then
-                        return true
-                    end
-                    
-                    -- If attached to Torso/Back -> HOLSTERED (Survivor)
-                    if name:find("torso") or name:find("back") then
-                        return false 
-                    end
-                end
-            end
-        end
-    end
-    return false
-end
-
---// UNIVERSAL ROLE DETECTOR (PHYSICAL HOLD CHECK)
+--// UNIVERSAL ROLE DETECTOR (FIXED MODEL DETECTION)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. TEAM CHECK (Keep this as priority fallback)
-    if player.Team then
-        local tName = player.Team.Name:lower()
-        if tName == "beast" then return "Beast" end
-    end
-
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         
-        -- 2. DOWNED CHECK
+        -- 1. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
@@ -201,41 +157,49 @@ local function GetUniversalRole(player)
             return "Downed"
         end
 
-        -- 3. DEAD CHECK
+        -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
-
-        -- 4. PHYSICAL HAMMER CHECK (The Weld Fix)
-        for _, child in pairs(player.Character:GetChildren()) do
-            -- Look for suspicious items (Models or Tools)
-            if (child:IsA("Model") or child:IsA("Tool")) and not child:IsA("Accessory") then
-                local name = child.Name:lower()
-                
-                -- Check typical FTF names
-                if name:find("hammer") or name:find("gemstone") or name:find("beast") then
-                    -- STRICT CHECK: IS IT IN THE HAND?
-                    if IsHeldInHand(child, player.Character) then
-                        return "Beast"
-                    end
-                end
-            end
-        end
     end
 
-    -- 5. BACKPACK SCAN (Standard Tools only)
+    -- 3. INVENTORY SCAN
+    local inventory = {}
+    
+    -- Check Backpack
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
-            if t:IsA("Tool") then
-                local n = t.Name:lower()
-                if n:find("hammer") then return "Beast" end 
-                if n == "knife" or n == "dagger" or n:find("knife") then return "Murderer" end
-                if n == "gun" or n == "revolver" or n == "sheriff" then return "Sheriff" end
+            table.insert(inventory, t.Name:lower()) 
+        end 
+    end
+    
+    -- Check Character (Equipped Items - Models or Tools)
+    if player.Character then 
+        for _, t in pairs(player.Character:GetChildren()) do 
+            -- FTF Hammers are often Models, not Tools. We check both.
+            if t:IsA("Tool") or t:IsA("Model") then 
+                table.insert(inventory, t.Name:lower()) 
             end
         end 
     end
 
-    return "Survivor" 
+    for _, item in pairs(inventory) do
+        -- FTF Logic: Check if the item NAME contains "hammer"
+        if item:find("hammer") then return "Beast" end 
+        
+        -- MM2/Sheriff Logic
+        if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
+        if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
+    end
+
+    -- 4. TEAM CHECK
+    if player.Team then
+        local tName = player.Team.Name:lower()
+        if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
+        return player.Team.Name
+    end
+
+    return "Neutral"
 end
 
 --// SMART COLOR ENGINE
@@ -2055,4 +2019,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF 10-Player Weld Fix)")
+Notify("Aura Hub V54 (Balanced + FTF V3)")
