@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Updated for FtF)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Fixed Beast & Time)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,7 +140,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (UPDATED FOR BEAST)
+--// UNIVERSAL ROLE DETECTOR (FIXED STRICT HAMMER CHECK)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -163,21 +163,25 @@ local function GetUniversalRole(player)
         end
     end
 
-    -- 3. INVENTORY SCAN
+    -- 3. INVENTORY SCAN (STRICT TOOLS ONLY)
     local inventory = {}
     if player.Backpack then 
-        for _, t in pairs(player.Backpack:GetChildren()) do table.insert(inventory, t.Name:lower()) end 
+        for _, t in pairs(player.Backpack:GetChildren()) do 
+            if t:IsA("Tool") then -- Must be a Tool
+                table.insert(inventory, t.Name:lower()) 
+            end
+        end 
     end
     if player.Character then 
         for _, t in pairs(player.Character:GetChildren()) do 
-            if t:IsA("Tool") or t.Name:lower():find("hammer") then -- Expanded to catch hammers
+            if t:IsA("Tool") then -- Must be a Tool (Holding)
                 table.insert(inventory, t.Name:lower()) 
             end
         end 
     end
 
     for _, item in pairs(inventory) do
-        if item:find("hammer") then return "Beast" end -- FTF Check
+        if item:find("hammer") then return "Beast" end -- Only triggers if a TOOL named hammer is found
         if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
         if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
     end
@@ -192,14 +196,14 @@ local function GetUniversalRole(player)
     return "Neutral"
 end
 
---// SMART COLOR ENGINE (UPDATED FOR BEAST)
+--// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     
-    -- Added Beast to Red Logic
+    -- Beast = Red
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
@@ -816,7 +820,10 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
+    
+    -- REMOVED: if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
+    -- We now just let the game take over when disabled.
+    
     UpdateTimeStatusVisuals()
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
@@ -1535,7 +1542,7 @@ RunService.RenderStepped:Connect(function()
             Camera.FieldOfView = currentFOV
         end
 
-        -- Time
+        -- Time (FIXED: Does not conflict when disabled)
         if timeChangerEnabled then
             if dynamicDayNightEnabled then
                 customClockTime = customClockTime + dayNightSpeed
@@ -1544,6 +1551,7 @@ RunService.RenderStepped:Connect(function()
             end
             Lighting.ClockTime = customClockTime
         else
+            -- When disabled, just read the time so the slider updates, but DON'T set it
             if Lighting.ClockTime ~= customClockTime then
                  customClockTime = Lighting.ClockTime
                  SetSliderVisualsTime(customClockTime)
@@ -1556,7 +1564,7 @@ RunService.RenderStepped:Connect(function()
             Lighting.Brightness = 2
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 100000
-            if not timeChangerEnabled then Lighting.ClockTime = 14 end
+            -- REMOVED: Force time causing conflict
         elseif shadowsDisabled then
             Lighting.GlobalShadows = false
         end
@@ -1818,7 +1826,7 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
-                        elseif data.Role == "Beast" then  -- BEAST TAG
+                        elseif data.Role == "Beast" then 
                             topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
                             topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
@@ -2005,4 +2013,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF)")
+Notify("Aura Hub V54 (Balanced + FTF Fix)")
