@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Updated for FtF)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -14,7 +14,7 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// ðŸ›‘ DEEP CLEANUP
+--// 🛑 DEEP CLEANUP
 local function DeepClean()
     for _, oldGui in pairs(PlayerGui:GetChildren()) do
         if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
@@ -99,7 +99,7 @@ local function Notify(msg)
     n.Position = UDim2.new(0.5, -140, -0.1, 0)
     n.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
     n.TextColor3 = Color3.fromRGB(0, 255, 140)
-    n.Text = "Â» " .. msg
+    n.Text = "» " .. msg
     n.Font = Enum.Font.GothamBold
     n.TextSize = 14
     n.Parent = ScreenGui
@@ -140,7 +140,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR
+--// UNIVERSAL ROLE DETECTOR (UPDATED FOR BEAST)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -170,11 +170,14 @@ local function GetUniversalRole(player)
     end
     if player.Character then 
         for _, t in pairs(player.Character:GetChildren()) do 
-            if t:IsA("Tool") then table.insert(inventory, t.Name:lower()) end
+            if t:IsA("Tool") or t.Name:lower():find("hammer") then -- Expanded to catch hammers
+                table.insert(inventory, t.Name:lower()) 
+            end
         end 
     end
 
     for _, item in pairs(inventory) do
+        if item:find("hammer") then return "Beast" end -- FTF Check
         if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
         if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
     end
@@ -189,13 +192,18 @@ local function GetUniversalRole(player)
     return "Neutral"
 end
 
---// SMART COLOR ENGINE
+--// SMART COLOR ENGINE (UPDATED FOR BEAST)
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
     
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
-    if r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
+    
+    -- Added Beast to Red Logic
+    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
+        return Color3.fromRGB(255, 40, 40) 
+    end
+    
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
@@ -294,7 +302,7 @@ ConfirmStroke.Transparency = 0
 local WarningIcon = Instance.new("TextLabel", ConfirmModal)
 WarningIcon.Size = UDim2.new(1, 0, 0, 40)
 WarningIcon.Position = UDim2.new(0, 0, 0, 5) 
-WarningIcon.Text = "âš ï¸"
+WarningIcon.Text = "⚠️"
 WarningIcon.TextSize = 30
 WarningIcon.BackgroundTransparency = 1
 WarningIcon.Parent = ConfirmModal
@@ -455,11 +463,11 @@ local function CreateSpacer(layoutOrder)
 end
 
 -------------------------------------------------------------------------
---// ðŸŸ¢ SAFE SECTION
+--// 🟢 SAFE SECTION
 -------------------------------------------------------------------------
 local SafeLabel = Instance.new("TextLabel", ScrollContainer)
 SafeLabel.Size = UDim2.new(1, 0, 0, 20)
-SafeLabel.Text = "ðŸŸ¢ SAFE VISUALS (CLIENT-SIDE)"
+SafeLabel.Text = "🟢 SAFE VISUALS (CLIENT-SIDE)"
 SafeLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
 SafeLabel.BackgroundTransparency = 1
 SafeLabel.Font = Enum.Font.GothamBold
@@ -486,7 +494,7 @@ table.insert(FOVVisuals.ActiveItems, FOVLabel)
 
 local FOVNote = Instance.new("TextLabel", FOVFrame)
 FOVNote.Size = UDim2.new(1, 0, 0, 10)
-FOVNote.Text = "âš ï¸ Enable FOV First"
+FOVNote.Text = "⚠️ Enable FOV First"
 FOVNote.TextColor3 = Color3.fromRGB(255, 100, 100) 
 FOVNote.BackgroundTransparency = 1
 FOVNote.Font = Enum.Font.GothamBold
@@ -593,15 +601,15 @@ CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
 
 -- UPDATED BUTTON WITH : OFF
-CreateButton("ðŸ‘ï¸ Toggle FOV Modifier: OFF", function(b)
+CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then Camera.FieldOfView = 70 end
     
-    b.Text = "ðŸ‘ï¸ Toggle FOV Modifier: " .. (fovEnabled and "ON" or "OFF")
+    b.Text = "👁️ Toggle FOV Modifier: " .. (fovEnabled and "ON" or "OFF")
     b.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
     -- Visual Update
-    FOVNote.Text = fovEnabled and "Status: Active" or "âš ï¸ Enable FOV First"
+    FOVNote.Text = fovEnabled and "Status: Active" or "⚠️ Enable FOV First"
     FOVNote.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     
     for _, item in pairs(FOVVisuals.DimItems) do
@@ -634,7 +642,7 @@ table.insert(TimeVisuals.ActiveItems, TimeLabel)
 
 local TimeNote = Instance.new("TextLabel", TimeFrame)
 TimeNote.Size = UDim2.new(1, 0, 0, 10)
-TimeNote.Text = "âš ï¸ Enable Time First"
+TimeNote.Text = "⚠️ Enable Time First"
 TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 TimeNote.BackgroundTransparency = 1
 TimeNote.Font = Enum.Font.GothamBold
@@ -757,7 +765,7 @@ CreatePresetTime(24, "Midnight")
 
 local function UpdateTimeStatusVisuals()
     if not timeChangerEnabled then
-        TimeNote.Text = "âš ï¸ Enable Time First"
+        TimeNote.Text = "⚠️ Enable Time First"
         TimeNote.TextColor3 = Color3.fromRGB(255, 100, 100)
     elseif dynamicDayNightEnabled then
         TimeNote.Text = "Status: Active - Dynamic Cycle On"
@@ -784,7 +792,7 @@ DynamicTimeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 DynamicTimeBtn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
 DynamicTimeBtn.Font = Enum.Font.GothamSemibold
 DynamicTimeBtn.TextSize = 10
-DynamicTimeBtn.Text = "ðŸ”„ Dynamic Day & Night Cycle (Slow)"
+DynamicTimeBtn.Text = "🔄 Dynamic Day & Night Cycle (Slow)"
 DynamicTimeBtn.LayoutOrder = GetNextOrder()
 Instance.new("UICorner", DynamicTimeBtn)
 table.insert(TimeVisuals.DimItems, DynamicTimeBtn)
@@ -803,10 +811,10 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
 end)
 
 -- UPDATED BUTTON WITH : OFF
-CreateButton("ðŸ•’ Toggle Time Changer: OFF", function(b)
+CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     timeChangerEnabled = not timeChangerEnabled
     
-    b.Text = "ðŸ•’ Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
+    b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
     UpdateTimeStatusVisuals()
@@ -815,7 +823,7 @@ end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
 
-CreateButton("ðŸŒ«ï¸ Clear Vision (No Fog)", function(b)
+CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     noFogEnabled = not noFogEnabled
     if noFogEnabled then
         if Lighting:FindFirstChildOfClass("Atmosphere") then Lighting:FindFirstChildOfClass("Atmosphere").Parent = nil end
@@ -828,7 +836,7 @@ CreateButton("ðŸŒ«ï¸ Clear Vision (No Fog)", function(b)
     Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, GetNextOrder())
 
-CreateButton("â˜€ï¸ Fullbright (Night Vision)", function(b)
+CreateButton("☀️ Fullbright (Night Vision)", function(b)
     fullbrightEnabled = not fullbrightEnabled
     if not fullbrightEnabled then
         Lighting.Ambient = originalAmbient
@@ -839,7 +847,7 @@ CreateButton("â˜€ï¸ Fullbright (Night Vision)", function(b)
     Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, GetNextOrder())
 
-CreateButton("ðŸ“ˆ Natural FPS Boost", function(b)
+CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
@@ -871,7 +879,7 @@ CreateButton("ðŸ“ˆ Natural FPS Boost", function(b)
     end
 end, GetNextOrder())
 
-CreateButton("ðŸŒ‘ Toggle Shadows", function(b)
+CreateButton("🌑 Toggle Shadows", function(b)
     shadowsDisabled = not shadowsDisabled
     if shadowsDisabled then
         Lighting.GlobalShadows = false
@@ -884,14 +892,14 @@ CreateButton("ðŸŒ‘ Toggle Shadows", function(b)
     end
 end, GetNextOrder())
 
-CreateButton("ðŸ’¡ Dynamic Lighting & Shadows", function(b)
+CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, GetNextOrder())
 
-CreateButton("âœ¨ HDR Lighting", function(b)
+CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
@@ -900,11 +908,11 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// ðŸŸ¡ UTILITY SECTION (MASTER FIRST)
+--// 🟡 UTILITY SECTION (MASTER FIRST)
 -------------------------------------------------------------------------
 local UtilLabel = Instance.new("TextLabel", ScrollContainer)
 UtilLabel.Size = UDim2.new(1, 0, 0, 20)
-UtilLabel.Text = "ðŸŸ¡ UTILITY & ESP (BEHAVIORAL RISK)"
+UtilLabel.Text = "🟡 UTILITY & ESP (BEHAVIORAL RISK)"
 UtilLabel.TextColor3 = Color3.fromRGB(255, 255, 100)
 UtilLabel.BackgroundTransparency = 1
 UtilLabel.Font = Enum.Font.GothamBold
@@ -928,7 +936,7 @@ MasterLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local MasterNote = Instance.new("TextLabel", MasterFrame)
 MasterNote.Size = UDim2.new(1, 0, 0, 10)
-MasterNote.Text = "âš ï¸ Enable Master First"
+MasterNote.Text = "⚠️ Enable Master First"
 MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 MasterNote.BackgroundTransparency = 1
 MasterNote.Font = Enum.Font.GothamBold
@@ -992,7 +1000,7 @@ ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
 
 local ChamsNote = Instance.new("TextLabel", ChamsFrame)
 ChamsNote.Size = UDim2.new(1, 0, 0, 10)
-ChamsNote.Text = "âš ï¸ Enable Master ESP First"
+ChamsNote.Text = "⚠️ Enable Master ESP First"
 ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 ChamsNote.BackgroundTransparency = 1
 ChamsNote.Font = Enum.Font.GothamBold
@@ -1044,7 +1052,7 @@ local function UpdateChamsVisuals()
             WallsBtn.TextColor3 = espWallsOnly and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
             PulseBtn.TextColor3 = dynamicChamsPulse and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
         else
-            ChamsNote.Text = "âš ï¸ Toggle Chams First"
+            ChamsNote.Text = "⚠️ Toggle Chams First"
             ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
             
             ChamsMainBtn.Text = "Toggle Chams: OFF"
@@ -1055,7 +1063,7 @@ local function UpdateChamsVisuals()
         end
     else
         -- If Master is OFF, disable everything
-        ChamsNote.Text = "âš ï¸ Enable Master ESP First"
+        ChamsNote.Text = "⚠️ Enable Master ESP First"
         ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
         
         ChamsMainBtn.Text = "Toggle Chams: " .. (espShowChams and "ON" or "OFF")
@@ -1088,7 +1096,7 @@ local function UpdateMasterVisuals()
              end
         end
     else
-        MasterNote.Text = "âš ï¸ Enable Master First"
+        MasterNote.Text = "⚠️ Enable Master First"
         MasterNote.TextColor3 = Color3.fromRGB(255, 100, 100)
         MasterBtn.Text = "Toggle Master ESP: OFF"
         MasterBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -1184,28 +1192,28 @@ PulseBtn.MouseButton1Click:Connect(function() if espEnabled and espShowChams the
 
 CreateSpacer(GetNextOrder())
 
-CreateButton("ðŸ”’ Shiftlock: OFF", function(b)
+CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
-    b.Text = "ðŸ”’ Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
+    b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, GetNextOrder())
 
-CreateButton("ðŸŽ¥ Force Shoulder View", function(b)
+CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
 
-CreateButton("ðŸ’¤ Anti-AFK", function(b)
+CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
 
-CreateButton("ðŸŒ Server Hopper", function() StableServerHop() end, GetNextOrder())
-CreateButton("ðŸ”„ Rejoin Server", function() RejoinServer() end, GetNextOrder())
-CreateButton("â˜ ï¸ Reset Character", function() 
+CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
+CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
+CreateButton("☠️ Reset Character", function() 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
         Notify("Respawning...")
         LocalPlayer.Character.Humanoid.Health = 0
@@ -1215,11 +1223,11 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -------------------------------------------------------------------------
---// ðŸ”´ RISKY SECTION
+--// 🔴 RISKY SECTION
 -------------------------------------------------------------------------
 local RiskyLabel = Instance.new("TextLabel", ScrollContainer)
 RiskyLabel.Size = UDim2.new(1, 0, 0, 20)
-RiskyLabel.Text = "ðŸ”´ DANGER ZONE (DETECTABLE)"
+RiskyLabel.Text = "🔴 DANGER ZONE (DETECTABLE)"
 RiskyLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
 RiskyLabel.BackgroundTransparency = 1
 RiskyLabel.Font = Enum.Font.GothamBold
@@ -1246,7 +1254,7 @@ table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
 
 local SpeedNote = Instance.new("TextLabel", SpeedFrame)
 SpeedNote.Size = UDim2.new(1, 0, 0, 10)
-SpeedNote.Text = "âš ï¸ Enable Speed First"
+SpeedNote.Text = "⚠️ Enable Speed First"
 SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 SpeedNote.BackgroundTransparency = 1
 SpeedNote.Font = Enum.Font.GothamBold
@@ -1340,7 +1348,7 @@ local function CreatePresetSpeed(val, label)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     table.insert(SpeedVisuals.ActiveItems, btn)
     table.insert(SpeedVisuals.DimItems, btn)
-    
+   
     btn.MouseButton1Click:Connect(function()
         if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
@@ -1353,13 +1361,13 @@ CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
 
 -- UPDATED BUTTON WITH : OFF
-CreateButton("âš¡ Toggle Subtle Pursuit: OFF", function(b)
+CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
     
-    b.Text = "âš¡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
+    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
     b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
-    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "âš ï¸ Enable Speed First"
+    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
     SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     
     for _, item in pairs(SpeedVisuals.DimItems) do
@@ -1394,7 +1402,7 @@ local function ToggleFly(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("ðŸš€ Fly Enabled")
+        Notify("🚀 Fly Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1425,6 +1433,7 @@ local function ToggleFly(state)
                     flyButtonRef.TextColor3 = Color3.new(1, 1, 1)
                     flyButtonRef.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
                 end
+            
                 if flyConnection then flyConnection:Disconnect() flyConnection = nil end
                 deathConnection:Disconnect()
             end
@@ -1467,7 +1476,7 @@ end
 
 local function UpdateFlyButtonVisuals()
     if flyButtonRef then
-        flyButtonRef.Text = flyEnabled and "ðŸš€ FLY: ACTIVE âš ï¸" or "FLY (RISK: HIGH)"
+        flyButtonRef.Text = flyEnabled and "🚀 FLY: ACTIVE ⚠️" or "FLY (RISK: HIGH)"
         flyButtonRef.TextColor3 = flyEnabled and Color3.fromRGB(255, 50, 50) or Color3.new(1, 1, 1)
         flyButtonRef.BackgroundColor3 = flyEnabled and Color3.fromRGB(50, 10, 10) or Color3.fromRGB(35, 35, 35)
     end
@@ -1509,6 +1518,7 @@ task.spawn(function()
                     end
                 end
             end
+        
             NPCCache = newCache
         else
             NPCCache = {}
@@ -1581,7 +1591,7 @@ RunService.RenderStepped:Connect(function()
         if LocalPlayer.Character then
             local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
-        
+            
             if hum and hrp then
                 if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
                     local speedDiff = math.max(0, subtleSpeedValue - 16)
@@ -1623,7 +1633,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// ðŸ›‘ DATA LOOP
+--// 🛑 DATA LOOP
 task.spawn(function()
     while true do
         if espEnabled and espShowPlayers then
@@ -1640,7 +1650,7 @@ task.spawn(function()
                             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
                                  dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else 
-                                 dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
+                                dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
                              end
                         end
                         
@@ -1668,7 +1678,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 
---// ðŸŸ¢ VISUAL LOOP (60 FPS)
+--// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1808,6 +1818,8 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
+                        elseif data.Role == "Beast" then  -- BEAST TAG
+                            topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
                             topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                         elseif data.Role == "Sheriff" then 
@@ -1957,11 +1969,11 @@ MainCircle.InputBegan:Connect(function(input)
             if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
                 local delta = moveInput.Position - dragStart
                 if delta.Magnitude > dragThreshold then moved = true end
-                
+        
                 if moved then
                     local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
                     local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
-                    
+                
                     MainCircle.Position = UDim2.new(0, newX, 0, newY)
                     
                     local panelX = newX + 70
@@ -1993,4 +2005,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced)")
+Notify("Aura Hub V54 (Balanced + FTF)")
