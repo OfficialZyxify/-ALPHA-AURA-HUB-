@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF 10-Player Visibility Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF 10-Player "Weld" Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,30 +140,52 @@ local function ClearNPCESP()
     end
 end
 
---// HELPER: IS OBJECT VISIBLE?
--- Checks if a model has any visible parts (Transparency < 1)
-local function IsObjectVisible(model)
-    if not model then return false end
-    for _, descendant in pairs(model:GetDescendants()) do
-        if descendant:IsA("BasePart") or descendant:IsA("MeshPart") then
-            -- If we find ONE part that is visible (not transparent), the object is visible
-            if descendant.Transparency < 1 then
-                return true
+--// HELPER: IS OBJECT HELD IN HAND?
+-- Scans welds to see if the object is attached to a Hand or Arm
+local function IsHeldInHand(model, character)
+    if not model or not character then return false end
+    
+    -- Check 1: If it's a Tool class, Roblox handles it automatically
+    if model:IsA("Tool") then return true end
+    
+    -- Check 2: Scan for Welds/Motor6Ds connecting to the Hand
+    for _, descendant in pairs(character:GetDescendants()) do
+        if descendant:IsA("Weld") or descendant:IsA("Motor6D") or descendant:IsA("WeldConstraint") then
+            local p0 = descendant.Part0
+            local p1 = descendant.Part1
+            
+            if (p0 and p1) then
+                -- Check if one part belongs to the Hammer and the other is a Hand
+                local isHammerPart = (p0:IsDescendantOf(model) or p1:IsDescendantOf(model))
+                
+                if isHammerPart then
+                    local otherPart = p0:IsDescendantOf(model) and p1 or p0
+                    local name = otherPart.Name:lower()
+                    
+                    -- If attached to Hand or Arm -> BEAST
+                    if name:find("hand") or name:find("arm") or name:find("grip") then
+                        return true
+                    end
+                    
+                    -- If attached to Torso/Back -> HOLSTERED (Survivor)
+                    if name:find("torso") or name:find("back") then
+                        return false 
+                    end
+                end
             end
         end
     end
     return false
 end
 
---// UNIVERSAL ROLE DETECTOR (VISIBILITY & STRICT CHECK)
+--// UNIVERSAL ROLE DETECTOR (PHYSICAL HOLD CHECK)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
-    -- 1. TEAM CHECK (Priority)
+    -- 1. TEAM CHECK (Keep this as priority fallback)
     if player.Team then
         local tName = player.Team.Name:lower()
-        if tName:find("beast") then return "Beast" end
-        -- Note: Some 10-player modes put everyone on "Survivor" initially, so we don't return Survivor immediately here.
+        if tName == "beast" then return "Beast" end
     end
 
     if player.Character then
@@ -184,27 +206,24 @@ local function GetUniversalRole(player)
             return "Dead"
         end
 
-        -- 4. PHYSICAL HAMMER CHECK (Visibility Filter)
-        -- We look for ANY Model/Tool named "Hammer" or "Gemstone", but ONLY if it is VISIBLE.
+        -- 4. PHYSICAL HAMMER CHECK (The Weld Fix)
         for _, child in pairs(player.Character:GetChildren()) do
+            -- Look for suspicious items (Models or Tools)
             if (child:IsA("Model") or child:IsA("Tool")) and not child:IsA("Accessory") then
                 local name = child.Name:lower()
                 
-                -- Check for explicit FTF items
-                if name == "hammer" or name == "gemstone" or name == "beasthammer" or name:find("hammer") then
-                    -- IGNORE Holsters
-                    if not name:find("holster") then
-                        -- VISIBILITY CHECK: Only flag if the item is actually visible
-                        if IsObjectVisible(child) then
-                            return "Beast"
-                        end
+                -- Check typical FTF names
+                if name:find("hammer") or name:find("gemstone") or name:find("beast") then
+                    -- STRICT CHECK: IS IT IN THE HAND?
+                    if IsHeldInHand(child, player.Character) then
+                        return "Beast"
                     end
                 end
             end
         end
     end
 
-    -- 5. BACKPACK SCAN (Only if Tool)
+    -- 5. BACKPACK SCAN (Standard Tools only)
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
             if t:IsA("Tool") then
@@ -238,7 +257,7 @@ local function GetSmartColor(role, player)
     return Color3.fromRGB(255, 255, 255)
 end
 
---// VISIBILITY CHECKER (For ESP Walls Only)
+--// VISIBILITY CHECKER
 local function IsVisible(targetModel, ignoreList)
     if not targetModel then return false end
     local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
@@ -2036,4 +2055,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF 10-Player Fix)")
+Notify("Aura Hub V54 (Balanced + FTF 10-Player Weld Fix)")
