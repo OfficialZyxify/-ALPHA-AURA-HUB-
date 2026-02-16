@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Fixed Beast & Time)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V3)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -140,7 +140,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (FIXED STRICT HAMMER CHECK)
+--// UNIVERSAL ROLE DETECTOR (FIXED MODEL DETECTION)
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -163,25 +163,31 @@ local function GetUniversalRole(player)
         end
     end
 
-    -- 3. INVENTORY SCAN (STRICT TOOLS ONLY)
+    -- 3. INVENTORY SCAN
     local inventory = {}
+    
+    -- Check Backpack
     if player.Backpack then 
         for _, t in pairs(player.Backpack:GetChildren()) do 
-            if t:IsA("Tool") then -- Must be a Tool
-                table.insert(inventory, t.Name:lower()) 
-            end
+            table.insert(inventory, t.Name:lower()) 
         end 
     end
+    
+    -- Check Character (Equipped Items - Models or Tools)
     if player.Character then 
         for _, t in pairs(player.Character:GetChildren()) do 
-            if t:IsA("Tool") then -- Must be a Tool (Holding)
+            -- FTF Hammers are often Models, not Tools. We check both.
+            if t:IsA("Tool") or t:IsA("Model") then 
                 table.insert(inventory, t.Name:lower()) 
             end
         end 
     end
 
     for _, item in pairs(inventory) do
-        if item:find("hammer") then return "Beast" end -- Only triggers if a TOOL named hammer is found
+        -- FTF Logic: Check if the item NAME contains "hammer"
+        if item:find("hammer") then return "Beast" end 
+        
+        -- MM2/Sheriff Logic
         if item == "knife" or item == "dagger" or item:find("knife") then return "Murderer" end
         if item == "gun" or item == "revolver" or item == "sheriff" then return "Sheriff" end
     end
@@ -2013,4 +2019,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF Fix)")
+Notify("Aura Hub V54 (Balanced + FTF V3)")
