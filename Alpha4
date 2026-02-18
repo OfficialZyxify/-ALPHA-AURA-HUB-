@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2)
+--// AuraHub V55: Enhanced NPC Detection & Anti-Ghost Fix
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -81,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V54_Balanced" 
+ScreenGui.Name = "AuraHub_V55_Fixed" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -121,6 +121,9 @@ local function RemoveESP(model)
         local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
         if i then i:Destroy() end
     end
+    -- Extra cleanup for highlights that might be parented directly
+    local h = model:FindFirstChild("AuraChams")
+    if h then h:Destroy() end
 end
 
 local function ClearAllESP()
@@ -144,7 +147,7 @@ local function ClearNPCESP()
     end
 end
 
---// UNIVERSAL ROLE DETECTOR (UPDATED: FTF SMART WELD DETECTION)
+--// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
     
@@ -892,7 +895,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         local function Optimize(v)
             if v:IsA("BasePart") then
                 if not optimizationCache[v] then
-                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
+                    optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
@@ -1175,6 +1178,24 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     return btn
 end
 
+--// NPC DETECTION FUNCTION (FIXED & IMPROVED)
+local function RegisterNPC(model)
+    if not espEnabled or not espShowNPCs then return end
+    if not model:IsA("Model") then return end
+    
+    -- Safety checks
+    if model == LocalPlayer.Character then return end
+    if Players:GetPlayerFromCharacter(model) then return end
+    
+    -- BROAD DETECTION: Check for Humanoid AND RootPart
+    local hum = model:FindFirstChild("Humanoid")
+    local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso") or model.PrimaryPart
+    
+    if hum and root then
+        NPCCache[model] = true
+    end
+end
+
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
@@ -1186,11 +1207,7 @@ MasterBtn.MouseButton1Click:Connect(function()
         -- Trigger instant scan when enabling
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and v:FindFirstChild("Humanoid") then
-                    if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
-                         NPCCache[v] = true
-                    end
-                end
+                 RegisterNPC(v)
             end
         end
     end
@@ -1204,15 +1221,12 @@ CreateSubToggle(EspRow1, "Show Players", true, function()
 end)
 CreateSubToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
-    if not espShowNPCs then ClearNPCESP() end
-    if espShowNPCs then
+    if not espShowNPCs then 
+        ClearNPCESP() 
+    else
         -- Instant population on toggle
         for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("Model") and v:FindFirstChild("Humanoid") then
-                if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
-                     NPCCache[v] = true
-                end
-            end
+            RegisterNPC(v)
         end
     end
     return espShowNPCs
@@ -1561,23 +1575,6 @@ end, GetNextOrder())
 --// LOOPS
 -------------------------------------------------------------------------
 
--- NEW: INSTANT NPC DETECTION (Replaces Slow Loop)
-local function RegisterNPC(model)
-    if not espEnabled or not espShowNPCs then return end
-    if not model:IsA("Model") then return end
-    
-    -- SELF-DETECTION FIX: Strict check
-    if model == LocalPlayer.Character then return end
-    if Players:GetPlayerFromCharacter(model) then return end
-    
-    local hum = model:FindFirstChild("Humanoid")
-    local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
-    
-    if hum and root then
-        NPCCache[model] = true
-    end
-end
-
 -- Listener for new spawns (Instant Load)
 workspace.DescendantAdded:Connect(function(v)
     if espEnabled and espShowNPCs then
@@ -1589,20 +1586,17 @@ workspace.DescendantAdded:Connect(function(v)
     end
 end)
 
--- Cleanup Loop (Anti-Ghost)
+-- Cleanup Loop (Anti-Ghost - Table Management)
 task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
             for model, _ in pairs(NPCCache) do
                 if not model or not model.Parent then
                     NPCCache[model] = nil
-                    RemoveESP(model)
                 else
                     local hum = model:FindFirstChild("Humanoid")
                     if not hum or hum.Health <= 0 then
-                        -- GHOST FIX: Dead NPC removal
-                        NPCCache[model] = nil
-                        RemoveESP(model)
+                         NPCCache[model] = nil
                     end
                 end
             end
@@ -1613,7 +1607,7 @@ task.spawn(function()
                  table.clear(NPCCache)
             end
         end
-        task.wait(1) -- Run cleanup every second
+        task.wait(0.5) -- Faster cleanup cycle
     end
 end)
 
@@ -1626,7 +1620,7 @@ RunService.RenderStepped:Connect(function()
             Camera.FieldOfView = currentFOV
         end
 
-        -- Time (FIXED: Does not conflict when disabled)
+        -- Time
         if timeChangerEnabled then
             if dynamicDayNightEnabled then
                 customClockTime = customClockTime + dayNightSpeed
@@ -1635,7 +1629,7 @@ RunService.RenderStepped:Connect(function()
             end
             Lighting.ClockTime = customClockTime
         else
-            -- When disabled, just read the time so the slider updates, but DON'T set it
+            -- When disabled, just read the time so the slider updates
             if Lighting.ClockTime ~= customClockTime then
                  customClockTime = Lighting.ClockTime
                  SetSliderVisualsTime(customClockTime)
@@ -1648,7 +1642,6 @@ RunService.RenderStepped:Connect(function()
             Lighting.Brightness = 2
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 100000
-            -- REMOVED: Force time causing conflict
         elseif shadowsDisabled then
             Lighting.GlobalShadows = false
         end
@@ -1778,7 +1771,7 @@ RunService.RenderStepped:Connect(function()
         -- PULSE CALCULATION
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
-             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
+            pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
         end
 
         -- Player ESP (Reads from Cache)
@@ -1932,87 +1925,102 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- NPC ESP
+        -- NPC ESP (FIXED)
         if espShowNPCs then
             for npc, _ in pairs(NPCCache) do
-                if npc and npc.Parent then
-                    local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
-                    if root then
-                        local color = Color3.fromRGB(255, 170, 0)
-                        if espShowBoxes then
-                            local box = root:FindFirstChild("AuraBox")
-                            if not box then
-                                box = Instance.new("BillboardGui", root)
-                                box.Name = "AuraBox"
-                                box.Size = UDim2.new(3.5, 0, 5, 0) 
-                                box.AlwaysOnTop = true 
-                                CollectionService:AddTag(box, "AuraESP")
-                                local frame = Instance.new("Frame", box)
-                                frame.Size = UDim2.new(1, 0, 1, 0)
-                                frame.BackgroundTransparency = 1
-                                local stroke = Instance.new("UIStroke", frame)
-                                stroke.Thickness = 2
-                            end
-                            box.Frame.UIStroke.Color = color
+                -- 1. INSTANT GHOST CHECK
+                if not npc or not npc.Parent then
+                    RemoveESP(npc)
+                    NPCCache[npc] = nil
+                    continue
+                end
+                
+                local hum = npc:FindFirstChild("Humanoid")
+                local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
+                
+                -- 2. INSTANT HEALTH CHECK
+                if not hum or hum.Health <= 0 or not root then
+                    RemoveESP(npc)
+                    NPCCache[npc] = nil
+                    continue
+                end
+
+                -- IF ALIVE: Draw
+                if root then
+                    local color = Color3.fromRGB(255, 170, 0)
+                    if espShowBoxes then
+                        local box = root:FindFirstChild("AuraBox")
+                        if not box then
+                            box = Instance.new("BillboardGui", root)
+                            box.Name = "AuraBox"
+                            box.Size = UDim2.new(3.5, 0, 5, 0) 
+                            box.AlwaysOnTop = true 
+                            CollectionService:AddTag(box, "AuraESP")
+                            local frame = Instance.new("Frame", box)
+                            frame.Size = UDim2.new(1, 0, 1, 0)
+                            frame.BackgroundTransparency = 1
+                            local stroke = Instance.new("UIStroke", frame)
+                            stroke.Thickness = 2
                         end
-                        if espShowChams then
-                            local highlight = npc:FindFirstChild("AuraChams")
-                            if not highlight then
-                                highlight = Instance.new("Highlight", npc)
-                                highlight.Name = "AuraChams"
-                                highlight.Adornee = npc
-                                CollectionService:AddTag(highlight, "AuraESP")
-                            end
-                            highlight.FillColor = color
-                            highlight.OutlineColor = Color3.new(1, 1, 1)
-                            highlight.FillTransparency = pulseAlpha 
-                            highlight.OutlineTransparency = 0
-                            highlight.Enabled = true
-                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        box.Frame.UIStroke.Color = color
+                    end
+                    if espShowChams then
+                        local highlight = npc:FindFirstChild("AuraChams")
+                        if not highlight then
+                            highlight = Instance.new("Highlight", npc)
+                            highlight.Name = "AuraChams"
+                            highlight.Adornee = npc
+                            CollectionService:AddTag(highlight, "AuraESP")
                         end
-                        if espShowTracers then
-                            local origin = TracerOriginAtt.Position
-                            local tracer = root:FindFirstChild("AuraTracer")
-                            if not tracer then
-                                tracer = Instance.new("BoxHandleAdornment", root)
-                                tracer.Name = "AuraTracer"
-                                tracer.Adornee = workspace.Terrain 
-                                tracer.AlwaysOnTop = true 
-                                tracer.ZIndex = 5
-                                tracer.Transparency = 0.2
-                                CollectionService:AddTag(tracer, "AuraESP")
-                            end
-                            tracer.Color3 = color
-                            local targetPos = root.Position - Vector3.new(0, 3, 0)
-                            local distance = (targetPos - origin).Magnitude
-                            tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                            local midPoint = (origin + targetPos) / 2
-                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                        highlight.FillColor = color
+                        highlight.OutlineColor = Color3.new(1, 1, 1)
+                        highlight.FillTransparency = pulseAlpha 
+                        highlight.OutlineTransparency = 0
+                        highlight.Enabled = true
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    end
+                    if espShowTracers then
+                        local origin = TracerOriginAtt.Position
+                        local tracer = root:FindFirstChild("AuraTracer")
+                        if not tracer then
+                            tracer = Instance.new("BoxHandleAdornment", root)
+                            tracer.Name = "AuraTracer"
+                            tracer.Adornee = workspace.Terrain 
+                            tracer.AlwaysOnTop = true 
+                            tracer.ZIndex = 5
+                            tracer.Transparency = 0.2
+                            CollectionService:AddTag(tracer, "AuraESP")
                         end
-                        if espShowNames then
-                            local tag = root:FindFirstChild("AuraTag")
-                            if not tag then
-                                tag = Instance.new("BillboardGui", root)
-                                tag.Name = "AuraTag"
-                                tag.Size = UDim2.new(0, 200, 0, 50)
-                                tag.StudsOffset = Vector3.new(0, 4, 0) 
-                                tag.AlwaysOnTop = true 
-                                CollectionService:AddTag(tag, "AuraESP")
-                                local t = Instance.new("TextLabel", tag)
-                                t.Size = UDim2.new(1, 0, 1, 0)
-                                t.BackgroundTransparency = 1
-                                t.TextStrokeTransparency = 0
-                                t.Font = Enum.Font.GothamBold
-                                t.TextSize = 13
-                            end
-                            local dist = 0
-                            if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
-                            else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
-                            local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
-                            tag.TextLabel.Text = txt
-                            tag.TextLabel.TextColor3 = color
+                        tracer.Color3 = color
+                        local targetPos = root.Position - Vector3.new(0, 3, 0)
+                        local distance = (targetPos - origin).Magnitude
+                        tracer.Size = Vector3.new(distance, 0.1, 0.1) 
+                        local midPoint = (origin + targetPos) / 2
+                        tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    end
+                    if espShowNames then
+                        local tag = root:FindFirstChild("AuraTag")
+                        if not tag then
+                            tag = Instance.new("BillboardGui", root)
+                            tag.Name = "AuraTag"
+                            tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, 4, 0) 
+                            tag.AlwaysOnTop = true 
+                            CollectionService:AddTag(tag, "AuraESP")
+                            local t = Instance.new("TextLabel", tag)
+                            t.Size = UDim2.new(1, 0, 1, 0)
+                            t.BackgroundTransparency = 1
+                            t.TextStrokeTransparency = 0
+                            t.Font = Enum.Font.GothamBold
+                            t.TextSize = 13
                         end
+                        local dist = 0
+                        if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                            dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                        else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
+                        local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
+                        tag.TextLabel.Text = txt
+                        tag.TextLabel.TextColor3 = color
                     end
                 end
             end
@@ -2097,4 +2105,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V2)")
+Notify("Aura Hub V55 (NPC Fix + Anti-Ghost)")
