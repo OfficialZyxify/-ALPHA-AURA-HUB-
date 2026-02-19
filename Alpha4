@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 - Smart Weld Detection)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -50,7 +50,7 @@ local dynamicChamsPulse = false
 
 -- Data Caches
 local ESP_Data_Cache = {} 
-local NPCCache = {}
+local NPCCache = {} -- Format: { [Model] = true }
 
 -- Time States
 local timeChangerEnabled = false
@@ -126,6 +126,10 @@ end
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     table.clear(ESP_Data_Cache)
+    -- Do not clear NPC Cache structure, just visuals
+    for model, _ in pairs(NPCCache) do
+        RemoveESP(model)
+    end
 end
 
 local function ClearPlayerESP()
@@ -135,8 +139,8 @@ local function ClearPlayerESP()
 end
 
 local function ClearNPCESP()
-    for _, npc in pairs(NPCCache) do
-        if npc then RemoveESP(npc) end
+    for model, _ in pairs(NPCCache) do
+        RemoveESP(model)
     end
 end
 
@@ -163,22 +167,18 @@ local function GetUniversalRole(player)
         end
 
         -- 3. INVENTORY & EQUIPMENT SCAN (FTF FIX)
-        -- We scan children of the Character.
-        -- If it is a Tool: It's equipped -> Beast.
-        -- If it is a Model (Custom Hammer): We check WELDS to see if it is on the Right Arm/Hand.
-        
         for _, child in pairs(player.Character:GetChildren()) do
             local name = child.Name:lower()
 
             -- >>> FTF HAMMER LOGIC <<<
             if name:find("hammer") then
-                -- Case A: It is a standard Tool object. If it's in Character, it's equipped.
+                -- Case A: It is a standard Tool object.
                 if child:IsA("Tool") then
                     return "Beast"
                 
                 -- Case B: It is a Model or MeshPart (Custom FTF Hammer)
                 elseif child:IsA("Model") or child:IsA("BasePart") then
-                    -- We must check if this hammer is welded to the HAND/ARM or the TORSO/BACK.
+                    -- We must check if this hammer is welded to the HAND/ARM.
                     local attachedToHand = false
                     
                     -- Scan all welds in the character
@@ -206,7 +206,6 @@ local function GetUniversalRole(player)
                     if attachedToHand then
                         return "Beast"
                     end
-                    -- If code reaches here, the hammer exists but is likely welded to Torso (Back) -> Ignored/Survivor.
                 end
             end
 
@@ -1184,6 +1183,16 @@ MasterBtn.MouseButton1Click:Connect(function()
         ClearAllESP()
     else
         Notify("ESP Master Active")
+        -- Trigger instant scan when enabling
+        if espShowNPCs then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("Model") and v:FindFirstChild("Humanoid") then
+                    if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
+                         NPCCache[v] = true
+                    end
+                end
+            end
+        end
     end
     UpdateMasterVisuals()
 end)
@@ -1196,6 +1205,16 @@ end)
 CreateSubToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
     if not espShowNPCs then ClearNPCESP() end
+    if espShowNPCs then
+        -- Instant population on toggle
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Model") and v:FindFirstChild("Humanoid") then
+                if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
+                     NPCCache[v] = true
+                end
+            end
+        end
+    end
     return espShowNPCs
 end)
 CreateSubToggle(EspRow2, "Boxes", true, function()
@@ -1542,27 +1561,62 @@ end, GetNextOrder())
 --// LOOPS
 -------------------------------------------------------------------------
 
--- NPC CACHE LOOP
+-- NEW: INSTANT NPC DETECTION (Replaces Slow Loop)
+local function RegisterNPC(model)
+    if not espEnabled or not espShowNPCs then return end
+    if not model:IsA("Model") then return end
+    
+    -- SELF-DETECTION FIX: Strict check
+    if model == LocalPlayer.Character then return end
+    if Players:GetPlayerFromCharacter(model) then return end
+    
+    local hum = model:FindFirstChild("Humanoid")
+    local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
+    
+    if hum and root then
+        NPCCache[model] = true
+    end
+end
+
+-- Listener for new spawns (Instant Load)
+workspace.DescendantAdded:Connect(function(v)
+    if espEnabled and espShowNPCs then
+        if v:IsA("Model") then
+             -- Wait briefly for Humanoid/RootPart to replicate
+             task.wait(0.1)
+             RegisterNPC(v)
+        end
+    end
+end)
+
+-- Cleanup Loop (Anti-Ghost)
 task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
-            local newCache = {}
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and v:FindFirstChild("Humanoid") and (v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso") or v.PrimaryPart) then
-                    -- Fix NPC Detection: Ignore if name matches a Player or is LocalPlayer
-                    if not Players:GetPlayerFromCharacter(v) and not Players:FindFirstChild(v.Name) then
-                        table.insert(newCache, v)
+            for model, _ in pairs(NPCCache) do
+                if not model or not model.Parent then
+                    NPCCache[model] = nil
+                    RemoveESP(model)
+                else
+                    local hum = model:FindFirstChild("Humanoid")
+                    if not hum or hum.Health <= 0 then
+                        -- GHOST FIX: Dead NPC removal
+                        NPCCache[model] = nil
+                        RemoveESP(model)
                     end
                 end
             end
-        
-            NPCCache = newCache
         else
-            NPCCache = {}
+            -- If disabled, clear cache
+            if next(NPCCache) then
+                 ClearNPCESP()
+                 table.clear(NPCCache)
+            end
         end
-        task.wait(2)
+        task.wait(1) -- Run cleanup every second
     end
 end)
+
 
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
@@ -1880,7 +1934,7 @@ RunService.RenderStepped:Connect(function()
 
         -- NPC ESP
         if espShowNPCs then
-            for _, npc in pairs(NPCCache) do
+            for npc, _ in pairs(NPCCache) do
                 if npc and npc.Parent then
                     local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
@@ -2043,4 +2097,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF V4 Fix)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V2)")
