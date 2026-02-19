@@ -1,4 +1,4 @@
---// AuraHub V55: Entity Fix & Ghost Patch
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2.1)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -51,7 +51,6 @@ local dynamicChamsPulse = false
 -- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
-local NPCConnections = {} -- To track cleanup events
 
 -- Time States
 local timeChangerEnabled = false
@@ -82,7 +81,7 @@ TracerOriginAtt.Parent = workspace.Terrain
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V55_Fixed" 
+ScreenGui.Name = "AuraHub_V54_Balanced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -116,24 +115,20 @@ end
 
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
-    if not model then return end
-    local items = {"AuraBox", "AuraTag", "AuraTracer", "AuraChams"}
-    for _, name in pairs(items) do
-        local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
-        if i then i:Destroy() end
+    if not model or typeof(model) ~= "Instance" then return end
+    for _, item in pairs(model:GetDescendants()) do
+        if item.Name == "AuraBox" or item.Name == "AuraTag" or item.Name == "AuraTracer" or item.Name == "AuraChams" then
+            item:Destroy()
+        end
     end
 end
 
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     table.clear(ESP_Data_Cache)
-    
-    -- Clear NPC connections
-    for _, conn in pairs(NPCConnections) do
-        if conn then conn:Disconnect() end
+    for model, _ in pairs(NPCCache) do
+        RemoveESP(model)
     end
-    table.clear(NPCConnections)
-    table.clear(NPCCache)
 end
 
 local function ClearPlayerESP()
@@ -146,11 +141,6 @@ local function ClearNPCESP()
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
     end
-    for _, conn in pairs(NPCConnections) do
-        if conn then conn:Disconnect() end
-    end
-    table.clear(NPCConnections)
-    table.clear(NPCCache)
 end
 
 --// UNIVERSAL ROLE DETECTOR
@@ -200,7 +190,9 @@ local function GetUniversalRole(player)
                             end
                         end
                     end
-                    if attachedToHand then return "Beast" end
+                    if attachedToHand then
+                        return "Beast"
+                    end
                 end
             end
 
@@ -227,12 +219,12 @@ local function GetSmartColor(role, player)
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     
-    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" or r == "criminal" then 
+    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
     
-    if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" or r == "guard" then return Color3.fromRGB(40, 100, 255) end
-    if r == "neutral" or r == "lobby" or r == "nil" or r == "prisoner" or r == "inmate" then return Color3.fromRGB(255, 255, 255) end
+    if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
+    if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
 
     return Color3.fromRGB(255, 255, 255)
@@ -627,7 +619,6 @@ CreatePresetFOV(70, "Default (70)")
 CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
 
--- UPDATED BUTTON WITH : OFF
 CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then Camera.FieldOfView = 70 end
@@ -635,7 +626,6 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     b.Text = "👁️ Toggle FOV Modifier: " .. (fovEnabled and "ON" or "OFF")
     b.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
-    -- Visual Update
     FOVNote.Text = fovEnabled and "Status: Active" or "⚠️ Enable FOV First"
     FOVNote.TextColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
     
@@ -837,15 +827,11 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
     Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
--- UPDATED BUTTON WITH : OFF
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     timeChangerEnabled = not timeChangerEnabled
     
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
-    -- REMOVED: if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
-    -- We now just let the game take over when disabled.
     
     UpdateTimeStatusVisuals()
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
@@ -886,7 +872,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         local function Optimize(v)
             if v:IsA("BasePart") then
                 if not optimizationCache[v] then
-                    optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
+                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
@@ -951,7 +937,7 @@ UtilLabel.LayoutOrder = GetNextOrder()
 
 --// MASTER ESP VISUALS
 local MasterFrame = Instance.new("Frame", ScrollContainer)
-MasterFrame.Size = UDim2.new(0.9, 0, 0, 55) -- REDUCED HEIGHT (Balanced)
+MasterFrame.Size = UDim2.new(0.9, 0, 0, 55)
 MasterFrame.BackgroundTransparency = 1
 MasterFrame.LayoutOrder = GetNextOrder()
 
@@ -975,15 +961,13 @@ MasterNote.Position = UDim2.new(0, 0, 0, 15)
 
 local MasterBtn = Instance.new("TextButton", MasterFrame)
 MasterBtn.Size = UDim2.new(1, 0, 0, 25)
-MasterBtn.Position = UDim2.new(0, 0, 0, 28) -- TIGHTENED UP
+MasterBtn.Position = UDim2.new(0, 0, 0, 28)
 MasterBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MasterBtn.Text = "Toggle Master ESP: OFF"
 MasterBtn.TextColor3 = Color3.new(1, 1, 1)
 MasterBtn.Font = Enum.Font.GothamSemibold
 MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
-
--- SPACER REMOVED to fix huge gap
 
 -- ESP SUB-BUTTONS (Dependent on Master)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
@@ -1042,7 +1026,7 @@ ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
 ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
 ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 ChamsMainBtn.Text = "Toggle Chams: OFF"
-ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Default Disabled Look
+ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
 ChamsMainBtn.Font = Enum.Font.GothamSemibold
 ChamsMainBtn.TextSize = 11
 Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
@@ -1069,9 +1053,7 @@ Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
 
 --// LOGIC FUNCTIONS
 local function UpdateChamsVisuals()
-    -- Only active if Master ESP is ON
     if espEnabled then
-        -- Step 2: Check if Chams is ON
         if espShowChams then
             ChamsNote.Text = "Status: Active"
             ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
@@ -1092,7 +1074,6 @@ local function UpdateChamsVisuals()
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
     else
-        -- If Master is OFF, disable everything
         ChamsNote.Text = "⚠️ Enable Master ESP First"
         ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
         
@@ -1107,7 +1088,6 @@ local function UpdateChamsVisuals()
     PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
 
--- Button References for Master Control
 local EspButtons = {}
 
 local function UpdateMasterVisuals()
@@ -1117,7 +1097,6 @@ local function UpdateMasterVisuals()
         MasterBtn.Text = "Toggle Master ESP: ON"
         MasterBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
         
-        -- Visually refresh standard ESP buttons
         for _, btn in pairs(EspButtons) do
              if btn.Text:find("ON") then
                  btn.TextColor3 = Color3.fromRGB(0, 255, 140)
@@ -1131,28 +1110,25 @@ local function UpdateMasterVisuals()
         MasterBtn.Text = "Toggle Master ESP: OFF"
         MasterBtn.TextColor3 = Color3.new(1, 1, 1)
         
-        -- Gray out standard ESP buttons
         for _, btn in pairs(EspButtons) do
              btn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
     end
-    UpdateChamsVisuals() -- Refresh downstream
+    UpdateChamsVisuals() 
 end
 
--- SUB-TOGGLE CREATOR
 local function CreateSubToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.48, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
-    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Start Gray
+    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 8
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     table.insert(EspButtons, btn)
     
-    -- Initial Visual Check
     if defaultState and espEnabled then 
         btn.TextColor3 = Color3.fromRGB(0, 255, 140)
     elseif espEnabled then
@@ -1160,7 +1136,7 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     end
 
     btn.MouseButton1Click:Connect(function()
-        if not espEnabled then return end -- Strict Dependency
+        if not espEnabled then return end 
         local newState = callback()
         btn.Text = text .. ": " .. (newState and "ON" or "OFF")
         btn.TextColor3 = newState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
@@ -1177,6 +1153,15 @@ MasterBtn.MouseButton1Click:Connect(function()
         ClearAllESP()
     else
         Notify("ESP Master Active")
+        if espShowNPCs then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if v:IsA("Model") and v:FindFirstChild("Humanoid") then
+                    if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
+                         NPCCache[v] = true
+                    end
+                end
+            end
+        end
     end
     UpdateMasterVisuals()
 end)
@@ -1189,6 +1174,15 @@ end)
 CreateSubToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
     if not espShowNPCs then ClearNPCESP() end
+    if espShowNPCs then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Model") and v:FindFirstChild("Humanoid") then
+                if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
+                     NPCCache[v] = true
+                end
+            end
+        end
+    end
     return espShowNPCs
 end)
 CreateSubToggle(EspRow2, "Boxes", true, function()
@@ -1212,7 +1206,7 @@ end)
 
 -- CHAMS CONNECTS
 ChamsMainBtn.MouseButton1Click:Connect(function()
-    if not espEnabled then return end -- Strict Master Dependency
+    if not espEnabled then return end
     espShowChams = not espShowChams
     if not espShowChams then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraChams" then item:Destroy() end end end
     UpdateChamsVisuals()
@@ -1275,7 +1269,7 @@ SpeedFrame.LayoutOrder = GetNextOrder()
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
 SpeedLabel.Text = "Subtle Speed: 16 (Default)"
-SpeedLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
+SpeedLabel.TextColor3 = Color3.new(1, 1, 1) 
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Font = Enum.Font.Gotham
 SpeedLabel.TextSize = 10
@@ -1390,7 +1384,6 @@ CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
 
--- UPDATED BUTTON WITH : OFF
 CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
     
@@ -1532,89 +1525,88 @@ CreateButton("FLY (RISK: HIGH)", function(b)
 end, GetNextOrder())
 
 -------------------------------------------------------------------------
---// LOOPS & CONNECTORS (FIXED FOR GHOSTING & ENTITIES)
+--// LOOPS
 -------------------------------------------------------------------------
 
--- FIXED: ENTITY DETECTION (HUMANOID CENTERED)
-local function SetupNPC(model)
+-- NEW: INSTANT NPC DETECTION (Replaces Slow Loop)
+local function RegisterNPC(model)
     if not espEnabled or not espShowNPCs then return end
-    if not model then return end
+    if not model:IsA("Model") then return end
     
-    -- Exclude Players
+    -- SELF-DETECTION FIX: Strict check
+    if model == LocalPlayer.Character then return end
     if Players:GetPlayerFromCharacter(model) then return end
     
-    local hum = model:FindFirstChild("Humanoid") or model:FindFirstChildOfClass("Humanoid")
+    local hum = model:FindFirstChild("Humanoid")
     local root = model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Torso")
     
     if hum and root then
         NPCCache[model] = true
-        
-        -- Anti-Ghost Connections (Instant Cleanup)
-        local diedConn = hum.Died:Connect(function()
-            NPCCache[model] = nil
-            RemoveESP(model)
-        end)
-        local destroyConn = model.Destroying:Connect(function()
-            NPCCache[model] = nil
-            RemoveESP(model)
-        end)
-        
-        NPCConnections[model] = diedConn
     end
 end
 
--- Monitor Workspace for ANY Humanoid (Catches mobs inside folders/models)
+-- Listener for new spawns (Instant Load)
 workspace.DescendantAdded:Connect(function(v)
     if espEnabled and espShowNPCs then
-        if v:IsA("Humanoid") then
-             -- A Humanoid was added, check its parent (the model)
-             SetupNPC(v.Parent)
-        elseif v:IsA("Model") then
-             -- A Model was added, check if it already has humanoid
-             task.wait(0.1) -- Allow load time
-             SetupNPC(v)
+        if v:IsA("Model") then
+             -- Wait briefly for Humanoid/RootPart to replicate
+             task.wait(0.1)
+             RegisterNPC(v)
         end
-    end
+     end
 end)
 
--- Initial Scan
-local function ScanForNPCs()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("Humanoid") then
-            SetupNPC(v.Parent)
+-- Cleanup Loop (Anti-Ghost)
+task.spawn(function()
+    while true do
+        -- 1. Cache Cleanup
+        if espEnabled and espShowNPCs then
+            for model, _ in pairs(NPCCache) do
+                if not model or not model.Parent then
+                    NPCCache[model] = nil
+                    RemoveESP(model)
+                else
+                    local hum = model:FindFirstChild("Humanoid")
+                    if not hum or hum.Health <= 0 then
+                        -- GHOST FIX: Dead NPC removal
+                        NPCCache[model] = nil
+                        RemoveESP(model)
+                    end
+                end
+            end
+        else
+            -- If disabled, clear cache
+            if next(NPCCache) then
+                 ClearNPCESP()
+                 table.clear(NPCCache)
+            end
         end
-    end
-end
 
--- PLAYER REFRESH FIX (PRISON LIFE FIX)
-local function SetupPlayerHandlers()
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer then
-            p.CharacterAdded:Connect(function(c)
-                -- Clear old cache to force fresh role calculation
-                ESP_Data_Cache[p] = nil
-                RemoveESP(c)
-            end)
-            p.CharacterRemoving:Connect(function(c)
-                -- Instantly wipe on death
-                ESP_Data_Cache[p] = nil
-                RemoveESP(c)
-            end)
+        -- 2. GLOBAL ORPHAN CLEANUP (Fixes Player Team Change Overlaps)
+        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+            local charModel = item:FindFirstAncestorWhichIsA("Model")
+            if charModel then
+                local playerOwner = Players:GetPlayerFromCharacter(charModel)
+                if playerOwner then
+                    -- Destroy if ESP is off, or if this model is no longer the active character
+                    if not espEnabled or not espShowPlayers or playerOwner.Character ~= charModel then
+                        item:Destroy()
+                    end
+                else
+                    -- It's an NPC or an old player corpse
+                    if not espEnabled or not espShowNPCs or not NPCCache[charModel] then
+                        item:Destroy()
+                    end
+                end
+            else
+                -- Item is orphaned in Workspace entirely
+                item:Destroy()
+            end
         end
+
+        task.wait(1) -- Run cleanup every second
     end
-    
-    Players.PlayerAdded:Connect(function(p)
-        p.CharacterAdded:Connect(function(c)
-            ESP_Data_Cache[p] = nil
-            RemoveESP(c)
-        end)
-        p.CharacterRemoving:Connect(function(c)
-            ESP_Data_Cache[p] = nil
-            RemoveESP(c)
-        end)
-    end)
-end
-SetupPlayerHandlers()
+end)
 
 
 -- LOGIC LOOP (Protected)
@@ -1625,7 +1617,7 @@ RunService.RenderStepped:Connect(function()
             Camera.FieldOfView = currentFOV
         end
 
-        -- Time (FIXED: Does not conflict when disabled)
+        -- Time
         if timeChangerEnabled then
             if dynamicDayNightEnabled then
                 customClockTime = customClockTime + dayNightSpeed
@@ -1634,7 +1626,6 @@ RunService.RenderStepped:Connect(function()
             end
             Lighting.ClockTime = customClockTime
         else
-            -- When disabled, just read the time so the slider updates, but DON'T set it
             if Lighting.ClockTime ~= customClockTime then
                  customClockTime = Lighting.ClockTime
                  SetSliderVisualsTime(customClockTime)
@@ -1647,7 +1638,6 @@ RunService.RenderStepped:Connect(function()
             Lighting.Brightness = 2
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 100000
-            -- REMOVED: Force time causing conflict
         elseif shadowsDisabled then
             Lighting.GlobalShadows = false
         end
@@ -1658,7 +1648,7 @@ RunService.RenderStepped:Connect(function()
 
         if dynamicActivated and not fullbrightEnabled then
             if dynamicEnabled then
-                Lighting.EnvironmentDiffuseScale = 1
+                 Lighting.EnvironmentDiffuseScale = 1
                 Lighting.EnvironmentSpecularScale = 1
             else
                 Lighting.EnvironmentDiffuseScale = 0
@@ -1763,6 +1753,12 @@ task.spawn(function()
     end
 end)
 
+-- Clear Cache on Player Leave
+Players.PlayerRemoving:Connect(function(p)
+    ESP_Data_Cache[p] = nil
+end)
+
+
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
@@ -1771,7 +1767,7 @@ RunService.RenderStepped:Connect(function()
         -- PULSE CALCULATION
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
-            pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
+              pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
         end
 
         -- Player ESP (Reads from Cache)
@@ -1930,9 +1926,7 @@ RunService.RenderStepped:Connect(function()
             for npc, _ in pairs(NPCCache) do
                 if npc and npc.Parent then
                     local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
-                    local hum = npc:FindFirstChild("Humanoid")
-                    
-                    if root and hum and hum.Health > 0 then
+                    if root then
                         local color = Color3.fromRGB(255, 170, 0)
                         if espShowBoxes then
                             local box = root:FindFirstChild("AuraBox")
@@ -2007,12 +2001,6 @@ RunService.RenderStepped:Connect(function()
                             local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                             tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
-                        end
-                    else
-                        -- Cleanup dead NPC if found in loop
-                        if not hum or hum.Health <= 0 then
-                             NPCCache[npc] = nil
-                             RemoveESP(npc)
                         end
                     end
                 end
@@ -2098,4 +2086,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V55 (Fixed Entities + Anti-Ghost)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V2.1)")
