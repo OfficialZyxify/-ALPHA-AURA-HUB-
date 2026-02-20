@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 + Smart ESP Engine)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 + Anti-Ghosting Engine)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -118,7 +118,6 @@ end
 local function RemoveESP(model)
     if not model then return end
     local items = {"AuraBox", "AuraTag", "AuraTracer", "AuraChams"}
-    -- Aggressive sweep to prevent ghosting
     for _, v in pairs(model:GetDescendants()) do
         if table.find(items, v.Name) then
             v:Destroy()
@@ -1738,6 +1737,25 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
              pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
+        end
+
+        -- GARBAGE COLLECTION (GHOST ESP FIX)
+        -- Cleans orphaned ESP parts from corpses and despawned models instantly
+        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+            local model = item:FindFirstAncestorOfClass("Model")
+            if item:IsA("Highlight") and item.Adornee then
+                if typeof(item.Adornee) == "Instance" and item.Adornee:IsA("Model") then
+                    model = item.Adornee
+                end
+            end
+            
+            if model then
+                local p = Players:GetPlayerFromCharacter(model)
+                -- If it's a player's character, but no longer their CURRENT character, obliterate the ESP
+                if p and p.Character ~= model then
+                    item:Destroy()
+                end
+            end
         end
 
         -- Player ESP (Reads from Cache)
