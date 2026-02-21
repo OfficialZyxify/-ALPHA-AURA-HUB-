@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (2D HUD Tracer Engine for Graphics 1)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (2D Projected Feet Tracers)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1815,7 +1815,7 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- 2D TRACER ESP (Bypasses Graphics 1 Culling)
+                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1827,19 +1827,31 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position)
-                    if onScreen then
+                    -- Target projection (feet)
+                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
+                    
+                    if onScreen and targetPos.Z > 0 then
                         tracer.Visible = true
                         tracer.BackgroundColor3 = forcedColor
                         tracer.BackgroundTransparency = 0.2
                         
-                        local origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- Bottom center of screen
-                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
+                        local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
+                            local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
+                            -- Only draw from feet if feet are actually in front of camera
+                            if screenPos.Z > 0 then
+                                origin2D = Vector2.new(screenPos.X, screenPos.Y)
+                            end
+                        end
                         
-                        local distance = (origin - targetVec).Magnitude
+                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        local distance = (origin2D - targetVec).Magnitude
+                        
                         tracer.Size = UDim2.new(0, distance, 0, 1.5)
-                        tracer.Position = UDim2.new(0, (origin.X + targetVec.X) / 2, 0, (origin.Y + targetVec.Y) / 2)
-                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin.Y, targetVec.X - origin.X))
+                        tracer.Position = UDim2.new(0, (origin2D.X + targetVec.X) / 2, 0, (origin2D.Y + targetVec.Y) / 2)
+                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin2D.Y, targetVec.X - origin2D.X))
                     else
                         tracer.Visible = false
                     end
@@ -1885,7 +1897,7 @@ RunService.RenderStepped:Connect(function()
                      if h then h:Destroy() end
                 end
                 
-                -- Chams ESP
+                -- Chams ESP (Only renders if streamed in)
                 if espShowChams and not data.StreamedOut and p.Character then
                     local highlight = GetESPItem(p.Character, "AuraChams")
                     if not highlight then
@@ -1959,7 +1971,7 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- 2D TRACER ESP (Bypasses Graphics 1 Culling)
+                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1971,19 +1983,31 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position)
-                    if onScreen then
+                    -- Target projection (feet)
+                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
+                    
+                    if onScreen and targetPos.Z > 0 then
                         tracer.Visible = true
                         tracer.BackgroundColor3 = color
                         tracer.BackgroundTransparency = 0.2
                         
-                        local origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- Bottom center of screen
-                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
+                        local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
+                            local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
+                            -- Only draw from feet if feet are actually in front of camera
+                            if screenPos.Z > 0 then
+                                origin2D = Vector2.new(screenPos.X, screenPos.Y)
+                            end
+                        end
                         
-                        local distance = (origin - targetVec).Magnitude
+                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        local distance = (origin2D - targetVec).Magnitude
+                        
                         tracer.Size = UDim2.new(0, distance, 0, 1.5)
-                        tracer.Position = UDim2.new(0, (origin.X + targetVec.X) / 2, 0, (origin.Y + targetVec.Y) / 2)
-                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin.Y, targetVec.X - origin.X))
+                        tracer.Position = UDim2.new(0, (origin2D.X + targetVec.X) / 2, 0, (origin2D.Y + targetVec.Y) / 2)
+                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin2D.Y, targetVec.X - origin2D.X))
                     else
                         tracer.Visible = false
                     end
@@ -2119,4 +2143,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (2D Tracers Enabled)")
+Notify("Aura Hub V54 (2D Projected Feet Tracers)")
