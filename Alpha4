@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Smart Game Detector + Seeker Role)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Smooth 60FPS ESP + Infinite Range Tracers)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -24,26 +24,6 @@ local function DeepClean()
     if oldFolder then oldFolder:Destroy() end
 end
 DeepClean() 
-
---// GAME DETECTOR (Prevents Role Overlap Across Games)
-local GameData = {
-    isMM2 = (game.PlaceId == 142823291),
-    isFTF = (game.PlaceId == 893973440),
-    isSeekerVsHider = false
-}
-
-task.spawn(function()
-    pcall(function()
-        local MarketService = game:GetService("MarketplaceService")
-        local info = MarketService:GetProductInfo(game.PlaceId)
-        if info then
-            local title = info.Name:lower()
-            if title:find("murder mystery") then GameData.isMM2 = true end
-            if title:find("flee the facility") then GameData.isFTF = true end
-            if title:find("seeker vs hider") then GameData.isSeekerVsHider = true end
-        end
-    end)
-end)
 
 --// Global States
 local currentFOV = 70
@@ -187,9 +167,15 @@ end
 
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
-    for _, data in pairs(ESP_Data_Cache) do if data.Proxy then data.Proxy:Destroy() end end
+    for _, data in pairs(ESP_Data_Cache) do 
+        if data.Proxy then data.Proxy:Destroy() end 
+        if data.Tracer then data.Tracer:Destroy() end
+    end
     table.clear(ESP_Data_Cache)
-    for _, data in pairs(NPCCache) do if data.Proxy then data.Proxy:Destroy() end end
+    for _, data in pairs(NPCCache) do 
+        if data.Proxy then data.Proxy:Destroy() end 
+        if data.Tracer then data.Tracer:Destroy() end
+    end
     table.clear(NPCCache)
     local f = workspace.Terrain:FindFirstChild("AuraProxyFolder")
     if f then f:ClearAllChildren() end
@@ -198,6 +184,7 @@ end
 local function ClearPlayerESP()
     for _, data in pairs(ESP_Data_Cache) do
         if data.Proxy then data.Proxy:Destroy() end
+        if data.Tracer then data.Tracer:Destroy() end
     end
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then RemoveESP(p.Character) end
@@ -208,6 +195,7 @@ end
 local function ClearNPCESP()
     for model, data in pairs(NPCCache) do
         if data.Proxy then data.Proxy:Destroy() end
+        if data.Tracer then data.Tracer:Destroy() end
         if typeof(model) == "Instance" then RemoveESP(model) end
     end
     table.clear(NPCCache)
@@ -245,30 +233,11 @@ local function GetUniversalRole(player)
         -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then return "Dead" end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (GAME ISOLATED)
-        local function CheckToolRole(child)
-            local name = child.Name:lower()
-            -- MM2 Logic
-            if GameData.isMM2 then
-                if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
-                if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
-            end
-            -- Seeker vs Hider Logic
-            if GameData.isSeekerVsHider then
-                if child:IsA("Tool") and (name:find("gun") or name:find("revolver") or name:find("pistol") or name:find("weapon") or name:find("shotgun") or name:find("rifle")) then 
-                    return "Seeker" 
-                end
-            end
-            return nil
-        end
-
+        -- 3. INVENTORY & EQUIPMENT SCAN (FTF FIX)
         for _, child in pairs(player.Character:GetChildren()) do
-            local toolRole = CheckToolRole(child)
-            if toolRole then return toolRole end
-
             local name = child.Name:lower()
             -- FTF HAMMER LOGIC
-            if GameData.isFTF and name:find("hammer") then
+            if name:find("hammer") then
                 if child:IsA("Tool") then
                     return "Beast"
                 elseif child:IsA("Model") or child:IsA("BasePart") then
@@ -291,25 +260,15 @@ local function GetUniversalRole(player)
                     if attachedToHand then return "Beast" end
                 end
             end
-        end
-
-        -- Check Backpack for hidden weapons (MM2/Seeker)
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            for _, child in pairs(backpack:GetChildren()) do
-                local toolRole = CheckToolRole(child)
-                if toolRole then return toolRole end
-            end
+            -- MM2 / SHERIFF LOGIC
+            if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
+            if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
         end
     end
 
     -- 4. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
-        if GameData.isSeekerVsHider then
-            if tName:find("seeker") or tName:find("it") then return "Seeker" end
-            if tName:find("hider") or tName:find("hide") then return "Hider" end
-        end
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
         return player.Team.Name
     end
@@ -323,8 +282,6 @@ local function GetSmartColor(role, player)
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
-    if r == "seeker" then return Color3.fromRGB(255, 40, 40) end
-    if r == "hider" then return Color3.fromRGB(40, 255, 140) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player and player.TeamColor then return player.TeamColor.Color end
@@ -1256,7 +1213,8 @@ local function AddToNPCCache(model)
             StreamedOut = false,
             LastSeen = tick(),
             Name = model.Name,
-            Model = model
+            Model = model,
+            Tracer = nil
         }
     end
 end
@@ -1740,7 +1698,8 @@ task.spawn(function()
                                 Proxy = CreateProxy(p.Name),
                                 Role = "Unknown",
                                 Color = Color3.new(1,1,1),
-                                StreamedOut = false
+                                StreamedOut = false,
+                                Tracer = nil
                             }
                             ESP_Data_Cache[p] = data
                         end
@@ -1765,11 +1724,13 @@ task.spawn(function()
                         local hum = model:FindFirstChildOfClass("Humanoid")
                         if hum and hum.Health <= 0 then
                             data.Proxy:Destroy()
+                            if data.Tracer then data.Tracer:Destroy() end
                             NPCCache[model] = nil
                         end
                     else
                         if tick() - data.LastSeen > 300 then -- Drop ghost after 5 minutes
                             data.Proxy:Destroy()
+                            if data.Tracer then data.Tracer:Destroy() end
                             NPCCache[model] = nil
                         end
                     end
@@ -1781,7 +1742,10 @@ task.spawn(function()
 end)
 
 Players.PlayerRemoving:Connect(function(p)
-    if ESP_Data_Cache[p] and ESP_Data_Cache[p].Proxy then ESP_Data_Cache[p].Proxy:Destroy() end
+    if ESP_Data_Cache[p] then 
+        if ESP_Data_Cache[p].Proxy then ESP_Data_Cache[p].Proxy:Destroy() end
+        if ESP_Data_Cache[p].Tracer then ESP_Data_Cache[p].Tracer:Destroy() end
+    end
     ESP_Data_Cache[p] = nil
 end)
 
@@ -1857,18 +1821,20 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- Tracer ESP
+                -- Tracer ESP (ANTI-CULLING FIX: Attached to origin)
                 if espShowTracers then
                     local origin = TracerOriginAtt.Position
-                    local tracer = GetESPItem(proxy, "AuraTracer")
-                    if not tracer then
-                        tracer = Instance.new("BoxHandleAdornment", proxy)
+                    local tracer = data.Tracer
+                    if not tracer or not tracer.Parent then
+                        tracer = Instance.new("BoxHandleAdornment")
                         tracer.Name = "AuraTracer"
                         tracer.Adornee = workspace.Terrain 
                         tracer.AlwaysOnTop = true 
                         tracer.ZIndex = 5
                         tracer.Transparency = 0.2
+                        tracer.Parent = TracerOriginAtt 
                         CollectionService:AddTag(tracer, "AuraESP")
+                        data.Tracer = tracer
                     end
                     tracer.Color3 = forcedColor
                     local targetPos = proxy.Position - Vector3.new(0, 3, 0)
@@ -1877,6 +1843,7 @@ RunService.RenderStepped:Connect(function()
                     local midPoint = (origin + targetPos) / 2
                     tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
                 else
+                    if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
                     local h = GetESPItem(proxy, "AuraTracer")
                     if h then h:Destroy() end
                 end
@@ -1909,9 +1876,7 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Dead" then topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
                     elseif data.Role == "Beast" then topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                     elseif data.Role == "Murderer" then topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
-                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" 
-                    elseif data.Role == "Seeker" then topText = "<font color='rgb(255,0,0)'>[SEEKER]</font>\n" 
-                    elseif data.Role == "Hider" then topText = "<font color='rgb(40,255,140)'>[HIDER]</font>\n" end
+                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" end
 
                     tag.TextLabel.RichText = true
                     tag.TextLabel.Text = statusText .. topText .. p.Name .. "\n[" .. dist .. "m]"
@@ -1995,17 +1960,20 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
+                -- Tracer ESP (ANTI-CULLING FIX: Attached to origin)
                 if espShowTracers then
                     local origin = TracerOriginAtt.Position
-                    local tracer = GetESPItem(proxy, "AuraTracer")
-                    if not tracer then
-                        tracer = Instance.new("BoxHandleAdornment", proxy)
+                    local tracer = data.Tracer
+                    if not tracer or not tracer.Parent then
+                        tracer = Instance.new("BoxHandleAdornment")
                         tracer.Name = "AuraTracer"
                         tracer.Adornee = workspace.Terrain 
                         tracer.AlwaysOnTop = true 
                         tracer.ZIndex = 5
                         tracer.Transparency = 0.2
+                        tracer.Parent = TracerOriginAtt 
                         CollectionService:AddTag(tracer, "AuraESP")
+                        data.Tracer = tracer
                     end
                     tracer.Color3 = color
                     local targetPos = proxy.Position - Vector3.new(0, 3, 0)
@@ -2014,6 +1982,7 @@ RunService.RenderStepped:Connect(function()
                     local midPoint = (origin + targetPos) / 2
                     tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
                 else
+                    if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
                     local h = GetESPItem(proxy, "AuraTracer")
                     if h then h:Destroy() end
                 end
@@ -2146,4 +2115,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Smart Game Detector + Seeker Logic)")
+Notify("Aura Hub V54 (Smooth 60FPS Base + Infinite Tracers)")
