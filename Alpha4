@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (2D Projected Feet Tracers)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Tracer Sensitivity + Name Replacement)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -166,6 +166,21 @@ local function GetESPItem(parent, name)
     return item
 end
 
+local function RestoreDefaultNames()
+    for _, p in pairs(Players:GetPlayers()) do
+        if p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+        end
+    end
+    for model, _ in pairs(NPCCache) do
+        if typeof(model) == "Instance" and model.Parent then
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+        end
+    end
+end
+
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     for _, data in pairs(ESP_Data_Cache) do 
@@ -181,6 +196,7 @@ local function ClearAllESP()
     local f = workspace.Terrain:FindFirstChild("AuraProxyFolder")
     if f then f:ClearAllChildren() end
     if TracerGui then TracerGui:ClearAllChildren() end
+    RestoreDefaultNames()
 end
 
 local function ClearPlayerESP()
@@ -189,7 +205,11 @@ local function ClearPlayerESP()
         if data.Tracer then data.Tracer:Destroy() end
     end
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then RemoveESP(p.Character) end
+        if p.Character then 
+            RemoveESP(p.Character) 
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+        end
     end
     table.clear(ESP_Data_Cache)
 end
@@ -198,7 +218,11 @@ local function ClearNPCESP()
     for model, data in pairs(NPCCache) do
         if data.Proxy then data.Proxy:Destroy() end
         if data.Tracer then data.Tracer:Destroy() end
-        if typeof(model) == "Instance" then RemoveESP(model) end
+        if typeof(model) == "Instance" then 
+            RemoveESP(model) 
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+        end
     end
     table.clear(NPCCache)
 end
@@ -1183,11 +1207,8 @@ end
 -- NEW NPC STRICT CACHE ENGINE 
 local function IsValidNPC(model)
     if not model or not model:IsA("Model") then return false end
-    
-    -- STOPS FAKE CORPSES: If this model EVER belonged to a player, reject it entirely.
     if CollectionService:HasTag(model, "PlayerCharacter_Aura") then return false end
     
-    -- STOPS SERVER RAGDOLLS
     local lowerName = model.Name:lower()
     if lowerName:find("ragdoll") or lowerName:find("corpse") then return false end
 
@@ -1217,9 +1238,7 @@ end
 
 local function RefreshNPCCache()
     for _, v in pairs(workspace:GetDescendants()) do
-        if IsValidNPC(v) then
-            AddToNPCCache(v)
-        end
+        if IsValidNPC(v) then AddToNPCCache(v) end
     end
 end
 
@@ -1273,9 +1292,7 @@ end)
 
 CreateSubToggle(EspRow2, "Name & Dist", true, function()
     espShowNames = not espShowNames
-    if not espShowNames then 
-        for _, p in pairs(Players:GetPlayers()) do if p.Character and p.Character:FindFirstChild("Humanoid") then p.Character.Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end end
-    end
+    if not espShowNames then RestoreDefaultNames() end
     return espShowNames
 end)
 
@@ -1682,7 +1699,6 @@ end)
 task.spawn(function()
     while true do
         if espEnabled then
-            -- PLAYER DATA
             if espShowPlayers then
                 for _, p in pairs(Players:GetPlayers()) do
                     if p ~= LocalPlayer then
@@ -1711,7 +1727,6 @@ task.spawn(function()
                 end
             end
             
-            -- NPC DATA
             if espShowNPCs then
                 for model, data in pairs(NPCCache) do
                     if model and model.Parent then
@@ -1722,7 +1737,7 @@ task.spawn(function()
                             NPCCache[model] = nil
                         end
                     else
-                        if tick() - data.LastSeen > 300 then -- Drop ghost after 5 minutes
+                        if tick() - data.LastSeen > 300 then
                             data.Proxy:Destroy()
                             if data.Tracer then data.Tracer:Destroy() end
                             NPCCache[model] = nil
@@ -1752,7 +1767,6 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2) end
 
-        -- CHAMS GARBAGE COLLECTION
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
             if item:IsA("Highlight") and item.Adornee then
                 local model = item.Adornee
@@ -1763,7 +1777,6 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Player ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p == LocalPlayer then continue end
@@ -1773,7 +1786,6 @@ RunService.RenderStepped:Connect(function()
                 local proxy = data.Proxy
                 local forcedColor = data.Color
                 
-                -- Sync proxy position smoothly every frame
                 if p.Character and p.Character.Parent then
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
                     if root then
@@ -1794,7 +1806,6 @@ RunService.RenderStepped:Connect(function()
                     dist = math.floor((proxy.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                 else dist = math.floor((proxy.Position - Camera.CFrame.Position).Magnitude) end
 
-                -- Box ESP
                 if espShowBoxes then
                     local box = GetESPItem(proxy, "AuraBox")
                     if not box then
@@ -1815,7 +1826,6 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1827,20 +1837,18 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    -- Target projection (feet)
-                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
+                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit)
+                    local targetPos, _ = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
                     
-                    if onScreen and targetPos.Z > 0 then
+                    if targetPos.Z > 0 then
                         tracer.Visible = true
                         tracer.BackgroundColor3 = forcedColor
                         tracer.BackgroundTransparency = 0.2
                         
-                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
                         local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
                             local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
-                            -- Only draw from feet if feet are actually in front of camera
                             if screenPos.Z > 0 then
                                 origin2D = Vector2.new(screenPos.X, screenPos.Y)
                             end
@@ -1859,8 +1867,12 @@ RunService.RenderStepped:Connect(function()
                     if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
                 end
 
-                -- Name ESP
                 if espShowNames then
+                    if p.Character then
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if hum and not data.StreamedOut then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                    end
+                    
                     local tag = GetESPItem(proxy, "AuraTag")
                     if not tag then
                         tag = Instance.new("BillboardGui", proxy)
@@ -1893,11 +1905,14 @@ RunService.RenderStepped:Connect(function()
                     tag.TextLabel.Text = statusText .. topText .. p.Name .. "\n[" .. dist .. "m]"
                     tag.TextLabel.TextColor3 = forcedColor
                 else
-                     local h = GetESPItem(proxy, "AuraTag")
-                     if h then h:Destroy() end
+                    if p.Character then
+                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                    end
+                    local h = GetESPItem(proxy, "AuraTag")
+                    if h then h:Destroy() end
                 end
                 
-                -- Chams ESP (Only renders if streamed in)
                 if espShowChams and not data.StreamedOut and p.Character then
                     local highlight = GetESPItem(p.Character, "AuraChams")
                     if not highlight then
@@ -1926,13 +1941,11 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- NPC ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowNPCs then
             for model, data in pairs(NPCCache) do
                 local proxy = data.Proxy
                 local color = Color3.fromRGB(255, 170, 0)
                 
-                -- Sync proxy position smoothly every frame
                 if model and model.Parent then
                     local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
                     if root then
@@ -1971,7 +1984,6 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1983,20 +1995,18 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    -- Target projection (feet)
-                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
+                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit)
+                    local targetPos, _ = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
                     
-                    if onScreen and targetPos.Z > 0 then
+                    if targetPos.Z > 0 then
                         tracer.Visible = true
                         tracer.BackgroundColor3 = color
                         tracer.BackgroundTransparency = 0.2
                         
-                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
                         local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
                             local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
-                            -- Only draw from feet if feet are actually in front of camera
                             if screenPos.Z > 0 then
                                 origin2D = Vector2.new(screenPos.X, screenPos.Y)
                             end
@@ -2016,6 +2026,11 @@ RunService.RenderStepped:Connect(function()
                 end
                 
                 if espShowNames then
+                    if model and model.Parent and not data.StreamedOut then
+                        local hum = model:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+                    end
+
                     local tag = GetESPItem(proxy, "AuraTag")
                     if not tag then
                         tag = Instance.new("BillboardGui", proxy)
@@ -2037,6 +2052,10 @@ RunService.RenderStepped:Connect(function()
                     tag.TextLabel.Text = prefix .. data.Name .. "\n[" .. dist .. "m]"
                     tag.TextLabel.TextColor3 = color
                 else
+                    if model and model.Parent then
+                        local hum = model:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+                    end
                     local h = GetESPItem(proxy, "AuraTag")
                     if h then h:Destroy() end
                 end
@@ -2143,4 +2162,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (2D Projected Feet Tracers)")
+Notify("Aura Hub V54 (Name ESP Cleaned + Tracer Fix)")
