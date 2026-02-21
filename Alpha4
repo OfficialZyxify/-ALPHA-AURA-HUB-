@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Display Name Fix + Tracer Engine)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Evade Fix + Ghost Wipe + Display Names)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -24,6 +24,28 @@ local function DeepClean()
     if oldFolder then oldFolder:Destroy() end
 end
 DeepClean() 
+
+--// GAME DETECTOR
+local GameData = {
+    isMM2 = (game.PlaceId == 142823291),
+    isFTF = (game.PlaceId == 893973440),
+    isSeekerVsHider = false,
+    isEvade = false
+}
+
+task.spawn(function()
+    pcall(function()
+        local MarketService = game:GetService("MarketplaceService")
+        local info = MarketService:GetProductInfo(game.PlaceId)
+        if info then
+            local title = info.Name:lower()
+            if title:find("murder mystery") then GameData.isMM2 = true end
+            if title:find("flee the facility") then GameData.isFTF = true end
+            if title:find("seeker vs hider") then GameData.isSeekerVsHider = true end
+            if title:find("evade") then GameData.isEvade = true end
+        end
+    end)
+end)
 
 --// Global States
 local currentFOV = 70
@@ -140,6 +162,21 @@ local function Notify(msg)
     end)
 end
 
+--// SMART CHARACTER ENGINE (Fixes Evade & Custom Games Ghosting)
+local function GetCharacter(p)
+    if not p then return nil end
+    if p.Character and p.Character.Parent then return p.Character end
+    
+    -- Evade / Custom Folder Catch
+    local evadeFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Players")
+    if evadeFolder then
+        local evadeChar = evadeFolder:FindFirstChild(p.Name)
+        if evadeChar then return evadeChar end
+    end
+    
+    return nil
+end
+
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
     if not model then return end
@@ -156,11 +193,7 @@ local function GetESPItem(parent, name)
     local item = nil
     for _, child in pairs(parent:GetChildren()) do
         if child.Name == name then
-            if item then
-                child:Destroy() 
-            else
-                item = child
-            end
+            if item then child:Destroy() else item = child end
         end
     end
     return item
@@ -168,8 +201,9 @@ end
 
 local function RestoreDefaultNames()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+        local char = GetCharacter(p)
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
         end
     end
@@ -205,9 +239,10 @@ local function ClearPlayerESP()
         if data.Tracer then data.Tracer:Destroy() end
     end
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then 
-            RemoveESP(p.Character) 
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+        local char = GetCharacter(p)
+        if char then 
+            RemoveESP(char) 
+            local hum = char:FindFirstChildOfClass("Humanoid")
             if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
         end
     end
@@ -240,55 +275,95 @@ Players.PlayerAdded:Connect(SetupCharacterTracking)
 for _, p in pairs(Players:GetPlayers()) do SetupCharacterTracking(p) end
 
 --// UNIVERSAL ROLE DETECTOR
-local function GetUniversalRole(player)
-    if not player then return "Unknown" end
+local function GetUniversalRole(player, char)
+    if not player or not char then return "Unknown" end
     
-    if player.Character then
-        local hum = player.Character:FindFirstChild("Humanoid")
-        
-        local attrDown = player.Character:GetAttribute("Downed")
-        local attrRev = player.Character:GetAttribute("Revive")
-        local attrState = player.Character:GetAttribute("State")
-        local findRev = player.Character:FindFirstChild("Revive")
-        
-        if attrDown == true or attrRev == true or (type(attrState) == "string" and attrState:lower():find("down")) or findRev then
-            return "Downed"
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    
+    -- 1. DOWNED CHECKS (Robust Evade Support)
+    local isDown = false
+    if char:GetAttribute("Downed") == true then isDown = true end
+    
+    local attrState = char:GetAttribute("State")
+    if attrState and (tostring(attrState):lower() == "downed" or tostring(attrState) == "2") then isDown = true end
+    
+    local valDown = char:FindFirstChild("Downed")
+    if valDown and valDown:IsA("BoolValue") and valDown.Value == true then isDown = true end
+    
+    local valState = char:FindFirstChild("State")
+    if valState and (tostring(valState.Value):lower() == "downed" or tostring(valState.Value) == "2") then isDown = true end
+    
+    local findRev = char:FindFirstChild("Revive") or char:GetAttribute("Revive")
+    if findRev then isDown = true end
+
+    if isDown then return "Downed" end
+
+    -- 2. DEAD CHECKS
+    if hum and hum.Health <= 0 then return "Dead" end
+    if char:GetAttribute("Dead") == true then return "Dead" end
+    if attrState and (tostring(attrState):lower() == "dead" or tostring(attrState) == "3") then return "Dead" end
+    if valState and (tostring(valState.Value):lower() == "dead" or tostring(valState.Value) == "3") then return "Dead" end
+
+    -- 3. INVENTORY & EQUIPMENT SCAN
+    local function CheckToolRole(child)
+        local name = child.Name:lower()
+        if GameData.isMM2 then
+            if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
+            if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
         end
+        if GameData.isSeekerVsHider then
+            if child:IsA("Tool") and (name:find("gun") or name:find("revolver") or name:find("pistol") or name:find("weapon") or name:find("shotgun") or name:find("rifle")) then 
+                return "Seeker" 
+            end
+        end
+        return nil
+    end
 
-        if hum and hum.Health <= 0 then return "Dead" end
+    for _, child in pairs(char:GetChildren()) do
+        local toolRole = CheckToolRole(child)
+        if toolRole then return toolRole end
 
-        for _, child in pairs(player.Character:GetChildren()) do
-            local name = child.Name:lower()
-            if name:find("hammer") then
-                if child:IsA("Tool") then
-                    return "Beast"
-                elseif child:IsA("Model") or child:IsA("BasePart") then
-                    local attachedToHand = false
-                    for _, weld in pairs(player.Character:GetDescendants()) do
-                        if weld:IsA("Weld") or weld:IsA("Motor6D") or weld:IsA("WeldConstraint") then
-                            if weld.Part0 and weld.Part1 then
-                                local isHammerPart = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) or (weld.Part1:IsDescendantOf(child) or weld.Part1 == child)
-                                if isHammerPart then
-                                    local limb = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) and weld.Part1 or weld.Part0
-                                    local limbName = limb.Name:lower()
-                                    if limbName:find("right") and (limbName:find("arm") or limbName:find("hand")) then
-                                        attachedToHand = true
-                                        break
-                                    end
+        local name = child.Name:lower()
+        if GameData.isFTF and name:find("hammer") then
+            if child:IsA("Tool") then
+                return "Beast"
+            elseif child:IsA("Model") or child:IsA("BasePart") then
+                local attachedToHand = false
+                for _, weld in pairs(char:GetDescendants()) do
+                    if weld:IsA("Weld") or weld:IsA("Motor6D") or weld:IsA("WeldConstraint") then
+                        if weld.Part0 and weld.Part1 then
+                            local isHammerPart = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) or (weld.Part1:IsDescendantOf(child) or weld.Part1 == child)
+                            if isHammerPart then
+                                local limb = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) and weld.Part1 or weld.Part0
+                                local limbName = limb.Name:lower()
+                                if limbName:find("right") and (limbName:find("arm") or limbName:find("hand")) then
+                                    attachedToHand = true
+                                    break
                                 end
                             end
                         end
                     end
-                    if attachedToHand then return "Beast" end
                 end
+                if attachedToHand then return "Beast" end
             end
-            if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
-            if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
         end
     end
 
+    local backpack = player:FindFirstChild("Backpack")
+    if backpack then
+        for _, child in pairs(backpack:GetChildren()) do
+            local toolRole = CheckToolRole(child)
+            if toolRole then return toolRole end
+        end
+    end
+
+    -- 4. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
+        if GameData.isSeekerVsHider then
+            if tName:find("seeker") or tName:find("it") then return "Seeker" end
+            if tName:find("hider") or tName:find("hide") then return "Hider" end
+        end
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
         return player.Team.Name
     end
@@ -302,6 +377,8 @@ local function GetSmartColor(role, player)
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
+    if r == "seeker" then return Color3.fromRGB(255, 40, 40) end
+    if r == "hider" then return Color3.fromRGB(40, 255, 140) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player and player.TeamColor then return player.TeamColor.Color end
@@ -1207,6 +1284,8 @@ end
 -- NEW NPC STRICT CACHE ENGINE 
 local function IsValidNPC(model)
     if not model or not model:IsA("Model") then return false end
+    
+    -- STOPS FAKE CORPSES: If this model EVER belonged to a player, reject it entirely.
     if CollectionService:HasTag(model, "PlayerCharacter_Aura") then return false end
     
     local lowerName = model.Name:lower()
@@ -1695,11 +1774,10 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// 🛑 SLOW DATA LOOP (Only assigns roles/health/cache, NO positioning)
+--// 🛑 SLOW DATA LOOP (Assigns roles/cache - NO positioning)
 task.spawn(function()
     while true do
         if espEnabled then
-            -- PLAYER DATA
             if espShowPlayers then
                 for _, p in pairs(Players:GetPlayers()) do
                     if p ~= LocalPlayer then
@@ -1715,11 +1793,12 @@ task.spawn(function()
                             ESP_Data_Cache[p] = data
                         end
                         
-                        data.Role = GetUniversalRole(p)
+                        local char = GetCharacter(p)
+                        data.Role = GetUniversalRole(p, char)
                         data.Color = GetSmartColor(data.Role, p)
                         
-                        if p.Character and p.Character.Parent then
-                            local hum = p.Character:FindFirstChild("Humanoid")
+                        if char then
+                            local hum = char:FindFirstChildOfClass("Humanoid")
                             if hum and hum.Health <= 0 then data.Role = "Dead" end
                         else
                             data.Role = "Dead"
@@ -1728,7 +1807,6 @@ task.spawn(function()
                 end
             end
             
-            -- NPC DATA
             if espShowNPCs then
                 for model, data in pairs(NPCCache) do
                     if model and model.Parent then
@@ -1769,18 +1847,30 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2) end
 
-        -- CHAMS GARBAGE COLLECTION
+        -- ROBUST GARBAGE COLLECTION (Stops Ghost Items instantly)
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
+            if item.Name == "AuraTracer2D" or item.Name == "AuraTag" or item.Name == "AuraBox" or item.Name == "AuraTracer" then
+                continue
+            end
+            
+            local model = item:FindFirstAncestorOfClass("Model")
             if item:IsA("Highlight") and item.Adornee then
-                local model = item.Adornee
-                if typeof(model) == "Instance" and model:IsA("Model") then
-                    local p = Players:GetPlayerFromCharacter(model)
-                    if p and p.Character ~= model then item:Destroy() end
+                if typeof(item.Adornee) == "Instance" and item.Adornee:IsA("Model") then
+                    model = item.Adornee
+                end
+            end
+            
+            if model and typeof(model) == "Instance" then
+                if CollectionService:HasTag(model, "PlayerCharacter_Aura") then
+                    local isCurrent = false
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if GetCharacter(p) == model then isCurrent = true; break end
+                    end
+                    if not isCurrent then item:Destroy() end
                 end
             end
         end
 
-        -- Player ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p == LocalPlayer then continue end
@@ -1789,10 +1879,10 @@ RunService.RenderStepped:Connect(function()
 
                 local proxy = data.Proxy
                 local forcedColor = data.Color
+                local char = GetCharacter(p)
                 
-                -- Sync proxy position smoothly every frame
-                if p.Character and p.Character.Parent then
-                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
+                if char then
+                    local root = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
                     if root then
                         proxy.CFrame = root.CFrame
                         data.StreamedOut = false
@@ -1811,7 +1901,6 @@ RunService.RenderStepped:Connect(function()
                     dist = math.floor((proxy.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                 else dist = math.floor((proxy.Position - Camera.CFrame.Position).Magnitude) end
 
-                -- Box ESP
                 if espShowBoxes then
                     local box = GetESPItem(proxy, "AuraBox")
                     if not box then
@@ -1832,7 +1921,7 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
+                -- 2D TRACER ESP (Pure Z-Depth Check for less sensitivity)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1844,20 +1933,18 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit for less sensitivity)
                     local targetPos, _ = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
                     
+                    -- Z > 0 means the target is anywhere in front of the camera
                     if targetPos.Z > 0 then
                         tracer.Visible = true
                         tracer.BackgroundColor3 = forcedColor
                         tracer.BackgroundTransparency = 0.2
                         
-                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
                         local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
                             local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
-                            -- Only draw from feet if feet are actually in front of camera
                             if screenPos.Z > 0 then
                                 origin2D = Vector2.new(screenPos.X, screenPos.Y)
                             end
@@ -1876,10 +1963,9 @@ RunService.RenderStepped:Connect(function()
                     if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
                 end
 
-                -- Name ESP
                 if espShowNames then
-                    if p.Character then
-                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if char then
+                        local hum = char:FindFirstChildOfClass("Humanoid")
                         if hum and not data.StreamedOut then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
                     end
                     
@@ -1909,7 +1995,9 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Dead" then topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
                     elseif data.Role == "Beast" then topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                     elseif data.Role == "Murderer" then topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
-                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" end
+                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" 
+                    elseif data.Role == "Seeker" then topText = "<font color='rgb(255,0,0)'>[SEEKER]</font>\n" 
+                    elseif data.Role == "Hider" then topText = "<font color='rgb(40,255,140)'>[HIDER]</font>\n" end
 
                     local formattedName = p.Name
                     if p.DisplayName and p.DisplayName ~= p.Name then
@@ -1920,21 +2008,20 @@ RunService.RenderStepped:Connect(function()
                     tag.TextLabel.Text = statusText .. topText .. formattedName .. "\n[" .. dist .. "m]"
                     tag.TextLabel.TextColor3 = forcedColor
                 else
-                    if p.Character then
-                        local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                    if char then
+                        local hum = char:FindFirstChildOfClass("Humanoid")
                         if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
                     end
                     local h = GetESPItem(proxy, "AuraTag")
                     if h then h:Destroy() end
                 end
                 
-                -- Chams ESP
-                if espShowChams and not data.StreamedOut and p.Character then
-                    local highlight = GetESPItem(p.Character, "AuraChams")
+                if espShowChams and not data.StreamedOut and char then
+                    local highlight = GetESPItem(char, "AuraChams")
                     if not highlight then
-                        highlight = Instance.new("Highlight", p.Character)
+                        highlight = Instance.new("Highlight", char)
                         highlight.Name = "AuraChams"
-                        highlight.Adornee = p.Character
+                        highlight.Adornee = char
                         CollectionService:AddTag(highlight, "AuraESP")
                     end
                     highlight.FillColor = forcedColor
@@ -1942,22 +2029,21 @@ RunService.RenderStepped:Connect(function()
                     highlight.FillTransparency = pulseAlpha 
 
                     if espWallsOnly then
-                        local isVisible = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
+                        local isVisible = IsVisible(char, {LocalPlayer.Character, char})
                         if isVisible then highlight.Enabled = false 
                         else highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop end
                     else
                         highlight.Enabled = true; highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                     end
                 else
-                    if p.Character then
-                        local h = GetESPItem(p.Character, "AuraChams")
+                    if char then
+                        local h = GetESPItem(char, "AuraChams")
                         if h then h:Destroy() end
                     end
                 end
             end
         end
 
-        -- NPC ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowNPCs then
             for model, data in pairs(NPCCache) do
                 local proxy = data.Proxy
@@ -2178,4 +2264,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Name Formatting Fixed + Tracer Sensitivity Fixed)")
+Notify("Aura Hub V54 (Evade Support + Display Names + Clean ESP)")
