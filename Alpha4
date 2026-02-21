@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Smooth 60FPS ESP + Infinite Range Tracers)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (2D HUD Tracer Engine for Graphics 1)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -17,7 +17,7 @@ local Camera = workspace.CurrentCamera
 --// 🛑 DEEP CLEANUP
 local function DeepClean()
     for _, oldGui in pairs(PlayerGui:GetChildren()) do
-        if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
+        if oldGui.Name:match("AuraHub") or oldGui.Name:match("AuraTracers") then oldGui:Destroy() end
     end
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     local oldFolder = workspace.Terrain:FindFirstChild("AuraProxyFolder")
@@ -76,10 +76,12 @@ local originalFogStart = Lighting.FogStart
 local originalFogColor = Lighting.FogColor
 local originalClockTime = Lighting.ClockTime 
 
---// TRACER ORIGIN
-local TracerOriginAtt = Instance.new("Attachment")
-TracerOriginAtt.Name = "GlobalAuraOrigin"
-TracerOriginAtt.Parent = workspace.Terrain 
+--// TRACER HUD (2D UI Layer to bypass Graphics 1 limits)
+local TracerGui = Instance.new("ScreenGui")
+TracerGui.Name = "AuraTracers_V54"
+TracerGui.Parent = PlayerGui
+TracerGui.ResetOnSpawn = false
+TracerGui.IgnoreGuiInset = true
 
 --// PROXY ANCHOR SYSTEM (Bypasses StreamingEnabled distance limits)
 local function GetProxyFolder()
@@ -141,7 +143,7 @@ end
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
     if not model then return end
-    local items = {"AuraBox", "AuraTag", "AuraTracer", "AuraChams"}
+    local items = {"AuraBox", "AuraTag", "AuraChams"}
     for _, v in pairs(model:GetDescendants()) do
         if table.find(items, v.Name) then
             v:Destroy()
@@ -149,14 +151,13 @@ local function RemoveESP(model)
     end
 end
 
--- Safely get an ESP item and destroy any duplicates to prevent UI overlapping
 local function GetESPItem(parent, name)
     if not parent then return nil end
     local item = nil
     for _, child in pairs(parent:GetChildren()) do
         if child.Name == name then
             if item then
-                child:Destroy() -- Clean duplicate/ghost
+                child:Destroy() 
             else
                 item = child
             end
@@ -179,6 +180,7 @@ local function ClearAllESP()
     table.clear(NPCCache)
     local f = workspace.Terrain:FindFirstChild("AuraProxyFolder")
     if f then f:ClearAllChildren() end
+    if TracerGui then TracerGui:ClearAllChildren() end
 end
 
 local function ClearPlayerESP()
@@ -220,7 +222,6 @@ local function GetUniversalRole(player)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
         
-        -- 1. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
@@ -230,13 +231,10 @@ local function GetUniversalRole(player)
             return "Downed"
         end
 
-        -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then return "Dead" end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (FTF FIX)
         for _, child in pairs(player.Character:GetChildren()) do
             local name = child.Name:lower()
-            -- FTF HAMMER LOGIC
             if name:find("hammer") then
                 if child:IsA("Tool") then
                     return "Beast"
@@ -260,13 +258,11 @@ local function GetUniversalRole(player)
                     if attachedToHand then return "Beast" end
                 end
             end
-            -- MM2 / SHERIFF LOGIC
             if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
             if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
         end
     end
 
-    -- 4. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
@@ -1285,6 +1281,10 @@ end)
 
 local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
     espShowTracers = not espShowTracers
+    if not espShowTracers then
+        for _, data in pairs(ESP_Data_Cache) do if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end end
+        for _, data in pairs(NPCCache) do if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end end
+    end
     return espShowTracers
 end)
 
@@ -1675,12 +1675,6 @@ RunService.RenderStepped:Connect(function()
                  else hum.AutoRotate = true end
             end
         end
-        
-        -- TRACER ORIGIN UPDATE
-        if LocalPlayer.Character then
-             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
-            if hrp then TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0) end
-        end
     end)
 end)
 
@@ -1821,31 +1815,36 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- Tracer ESP (ANTI-CULLING FIX: Attached to origin)
+                -- 2D TRACER ESP (Bypasses Graphics 1 Culling)
                 if espShowTracers then
-                    local origin = TracerOriginAtt.Position
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
-                        tracer = Instance.new("BoxHandleAdornment")
-                        tracer.Name = "AuraTracer"
-                        tracer.Adornee = workspace.Terrain 
-                        tracer.AlwaysOnTop = true 
-                        tracer.ZIndex = 5
-                        tracer.Transparency = 0.2
-                        tracer.Parent = TracerOriginAtt 
-                        CollectionService:AddTag(tracer, "AuraESP")
+                        tracer = Instance.new("Frame")
+                        tracer.Name = "AuraTracer2D"
+                        tracer.AnchorPoint = Vector2.new(0.5, 0.5)
+                        tracer.BorderSizePixel = 0
+                        tracer.Parent = TracerGui
                         data.Tracer = tracer
                     end
-                    tracer.Color3 = forcedColor
-                    local targetPos = proxy.Position - Vector3.new(0, 3, 0)
-                    local distance = (targetPos - origin).Magnitude
-                    tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                    local midPoint = (origin + targetPos) / 2
-                    tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    
+                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position)
+                    if onScreen then
+                        tracer.Visible = true
+                        tracer.BackgroundColor3 = forcedColor
+                        tracer.BackgroundTransparency = 0.2
+                        
+                        local origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- Bottom center of screen
+                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        
+                        local distance = (origin - targetVec).Magnitude
+                        tracer.Size = UDim2.new(0, distance, 0, 1.5)
+                        tracer.Position = UDim2.new(0, (origin.X + targetVec.X) / 2, 0, (origin.Y + targetVec.Y) / 2)
+                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin.Y, targetVec.X - origin.X))
+                    else
+                        tracer.Visible = false
+                    end
                 else
                     if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
-                    local h = GetESPItem(proxy, "AuraTracer")
-                    if h then h:Destroy() end
                 end
 
                 -- Name ESP
@@ -1886,7 +1885,7 @@ RunService.RenderStepped:Connect(function()
                      if h then h:Destroy() end
                 end
                 
-                -- Chams ESP (Only renders if streamed in)
+                -- Chams ESP
                 if espShowChams and not data.StreamedOut and p.Character then
                     local highlight = GetESPItem(p.Character, "AuraChams")
                     if not highlight then
@@ -1960,31 +1959,36 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
-                -- Tracer ESP (ANTI-CULLING FIX: Attached to origin)
+                -- 2D TRACER ESP (Bypasses Graphics 1 Culling)
                 if espShowTracers then
-                    local origin = TracerOriginAtt.Position
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
-                        tracer = Instance.new("BoxHandleAdornment")
-                        tracer.Name = "AuraTracer"
-                        tracer.Adornee = workspace.Terrain 
-                        tracer.AlwaysOnTop = true 
-                        tracer.ZIndex = 5
-                        tracer.Transparency = 0.2
-                        tracer.Parent = TracerOriginAtt 
-                        CollectionService:AddTag(tracer, "AuraESP")
+                        tracer = Instance.new("Frame")
+                        tracer.Name = "AuraTracer2D"
+                        tracer.AnchorPoint = Vector2.new(0.5, 0.5)
+                        tracer.BorderSizePixel = 0
+                        tracer.Parent = TracerGui
                         data.Tracer = tracer
                     end
-                    tracer.Color3 = color
-                    local targetPos = proxy.Position - Vector3.new(0, 3, 0)
-                    local distance = (targetPos - origin).Magnitude
-                    tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                    local midPoint = (origin + targetPos) / 2
-                    tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                    
+                    local targetPos, onScreen = Camera:WorldToViewportPoint(proxy.Position)
+                    if onScreen then
+                        tracer.Visible = true
+                        tracer.BackgroundColor3 = color
+                        tracer.BackgroundTransparency = 0.2
+                        
+                        local origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y) -- Bottom center of screen
+                        local targetVec = Vector2.new(targetPos.X, targetPos.Y)
+                        
+                        local distance = (origin - targetVec).Magnitude
+                        tracer.Size = UDim2.new(0, distance, 0, 1.5)
+                        tracer.Position = UDim2.new(0, (origin.X + targetVec.X) / 2, 0, (origin.Y + targetVec.Y) / 2)
+                        tracer.Rotation = math.deg(math.atan2(targetVec.Y - origin.Y, targetVec.X - origin.X))
+                    else
+                        tracer.Visible = false
+                    end
                 else
                     if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
-                    local h = GetESPItem(proxy, "AuraTracer")
-                    if h then h:Destroy() end
                 end
                 
                 if espShowNames then
@@ -2115,4 +2119,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Smooth 60FPS Base + Infinite Tracers)")
+Notify("Aura Hub V54 (2D Tracers Enabled)")
