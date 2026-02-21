@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (LKP Engine + Smooth 60FPS ESP Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Smart Game Detector + Seeker Role)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -24,6 +24,26 @@ local function DeepClean()
     if oldFolder then oldFolder:Destroy() end
 end
 DeepClean() 
+
+--// GAME DETECTOR (Prevents Role Overlap Across Games)
+local GameData = {
+    isMM2 = (game.PlaceId == 142823291),
+    isFTF = (game.PlaceId == 893973440),
+    isSeekerVsHider = false
+}
+
+task.spawn(function()
+    pcall(function()
+        local MarketService = game:GetService("MarketplaceService")
+        local info = MarketService:GetProductInfo(game.PlaceId)
+        if info then
+            local title = info.Name:lower()
+            if title:find("murder mystery") then GameData.isMM2 = true end
+            if title:find("flee the facility") then GameData.isFTF = true end
+            if title:find("seeker vs hider") then GameData.isSeekerVsHider = true end
+        end
+    end)
+end)
 
 --// Global States
 local currentFOV = 70
@@ -195,22 +215,15 @@ end
 
 --// ANTI-GHOSTING & CORPSE TAGGER
 local function SetupCharacterTracking(player)
-    -- Tag characters immediately so they are NEVER flagged as NPCs
     local function onChar(char)
         CollectionService:AddTag(char, "PlayerCharacter_Aura")
     end
-    
     if player.Character then onChar(player.Character) end
     player.CharacterAdded:Connect(onChar)
-    
-    player.CharacterRemoving:Connect(function(char)
-        RemoveESP(char)
-    end)
+    player.CharacterRemoving:Connect(function(char) RemoveESP(char) end)
 end
 Players.PlayerAdded:Connect(SetupCharacterTracking)
-for _, p in pairs(Players:GetPlayers()) do
-    SetupCharacterTracking(p)
-end
+for _, p in pairs(Players:GetPlayers()) do SetupCharacterTracking(p) end
 
 --// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
@@ -232,11 +245,30 @@ local function GetUniversalRole(player)
         -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then return "Dead" end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (FTF FIX)
+        -- 3. INVENTORY & EQUIPMENT SCAN (GAME ISOLATED)
+        local function CheckToolRole(child)
+            local name = child.Name:lower()
+            -- MM2 Logic
+            if GameData.isMM2 then
+                if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
+                if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
+            end
+            -- Seeker vs Hider Logic
+            if GameData.isSeekerVsHider then
+                if child:IsA("Tool") and (name:find("gun") or name:find("revolver") or name:find("pistol") or name:find("weapon") or name:find("shotgun") or name:find("rifle")) then 
+                    return "Seeker" 
+                end
+            end
+            return nil
+        end
+
         for _, child in pairs(player.Character:GetChildren()) do
+            local toolRole = CheckToolRole(child)
+            if toolRole then return toolRole end
+
             local name = child.Name:lower()
             -- FTF HAMMER LOGIC
-            if name:find("hammer") then
+            if GameData.isFTF and name:find("hammer") then
                 if child:IsA("Tool") then
                     return "Beast"
                 elseif child:IsA("Model") or child:IsA("BasePart") then
@@ -259,15 +291,25 @@ local function GetUniversalRole(player)
                     if attachedToHand then return "Beast" end
                 end
             end
-            -- MM2 / SHERIFF LOGIC
-            if name == "knife" or name == "dagger" or name:find("knife") then return "Murderer" end
-            if name == "gun" or name == "revolver" or name == "sheriff" then return "Sheriff" end
+        end
+
+        -- Check Backpack for hidden weapons (MM2/Seeker)
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, child in pairs(backpack:GetChildren()) do
+                local toolRole = CheckToolRole(child)
+                if toolRole then return toolRole end
+            end
         end
     end
 
     -- 4. TEAM CHECK
     if player.Team then
         local tName = player.Team.Name:lower()
+        if GameData.isSeekerVsHider then
+            if tName:find("seeker") or tName:find("it") then return "Seeker" end
+            if tName:find("hider") or tName:find("hide") then return "Hider" end
+        end
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
         return player.Team.Name
     end
@@ -281,6 +323,8 @@ local function GetSmartColor(role, player)
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then return Color3.fromRGB(255, 40, 40) end
+    if r == "seeker" then return Color3.fromRGB(255, 40, 40) end
+    if r == "hider" then return Color3.fromRGB(40, 255, 140) end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player and player.TeamColor then return player.TeamColor.Color end
@@ -1190,7 +1234,7 @@ local function IsValidNPC(model)
     -- STOPS FAKE CORPSES: If this model EVER belonged to a player, reject it entirely.
     if CollectionService:HasTag(model, "PlayerCharacter_Aura") then return false end
     
-    -- STOPS SERVER RAGDOLLS (Seeker vs Hider Fix)
+    -- STOPS SERVER RAGDOLLS
     local lowerName = model.Name:lower()
     if lowerName:find("ragdoll") or lowerName:find("corpse") then return false end
 
@@ -1865,7 +1909,9 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Dead" then topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
                     elseif data.Role == "Beast" then topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                     elseif data.Role == "Murderer" then topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
-                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" end
+                    elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" 
+                    elseif data.Role == "Seeker" then topText = "<font color='rgb(255,0,0)'>[SEEKER]</font>\n" 
+                    elseif data.Role == "Hider" then topText = "<font color='rgb(40,255,140)'>[HIDER]</font>\n" end
 
                     tag.TextLabel.RichText = true
                     tag.TextLabel.Text = statusText .. topText .. p.Name .. "\n[" .. dist .. "m]"
@@ -2100,4 +2146,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Smooth 60FPS ESP Engine)")
+Notify("Aura Hub V54 (Smart Game Detector + Seeker Logic)")
