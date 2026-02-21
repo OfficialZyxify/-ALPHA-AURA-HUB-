@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 + Anti-Ghosting Engine)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF Fix V4 + Anti-Ghosting + Smart NPC Scanner)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -160,15 +160,23 @@ local function ClearNPCESP()
     end
 end
 
---// ANTI-GHOSTING CHARACTER SETUP
-local function SetupCharacterCleanup(player)
+--// ANTI-GHOSTING & CORPSE TAGGER
+local function SetupCharacterTracking(player)
+    -- Tag characters immediately so they are NEVER flagged as NPCs
+    local function onChar(char)
+        CollectionService:AddTag(char, "PlayerCharacter_Aura")
+    end
+    
+    if player.Character then onChar(player.Character) end
+    player.CharacterAdded:Connect(onChar)
+    
     player.CharacterRemoving:Connect(function(char)
         RemoveESP(char)
     end)
 end
-Players.PlayerAdded:Connect(SetupCharacterCleanup)
+Players.PlayerAdded:Connect(SetupCharacterTracking)
 for _, p in pairs(Players:GetPlayers()) do
-    SetupCharacterCleanup(p)
+    SetupCharacterTracking(p)
 end
 
 --// UNIVERSAL ROLE DETECTOR
@@ -1169,11 +1177,15 @@ end
 -- NEW NPC CACHE ENGINE (Instant load, strict filtering to stop player overlap)
 local function IsValidNPC(model)
     if not model or not model:IsA("Model") then return false end
-    if model == LocalPlayer.Character then return false end
+    
+    -- STOPS FAKE CORPSES: If this model EVER belonged to a player, reject it.
+    if CollectionService:HasTag(model, "PlayerCharacter_Aura") then return false end
+
     if Players:GetPlayerFromCharacter(model) then return false end
     for _, p in pairs(Players:GetPlayers()) do
         if p.Name == model.Name or p.DisplayName == model.Name then return false end
     end
+    
     local hum = model:FindFirstChildOfClass("Humanoid")
     local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
     if hum and root and hum.Health > 0 then return true end
@@ -1190,23 +1202,25 @@ local function RefreshNPCCache()
     NPCCache = newCache
 end
 
-local NPCTrackerConn = nil
 local function ToggleNPCTracker(state)
+    espShowNPCs = state
     if state then
         RefreshNPCCache()
-        NPCTrackerConn = workspace.DescendantAdded:Connect(function(desc)
-            task.delay(0.5, function()
-                if espEnabled and espShowNPCs and IsValidNPC(desc) then
-                    table.insert(NPCCache, desc)
-                end
-            end)
-        end)
     else
-        if NPCTrackerConn then NPCTrackerConn:Disconnect() NPCTrackerConn = nil end
         ClearNPCESP()
         NPCCache = {}
     end
 end
+
+-- BACKGROUND NPC SCANNER (Fixes far-away streaming issues)
+task.spawn(function()
+    while true do
+        if espEnabled and espShowNPCs then
+            RefreshNPCCache()
+        end
+        task.wait(3) -- Sweeps every 3 seconds to catch NPCs that stream in
+    end
+end)
 
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
@@ -2088,4 +2102,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Balanced + FTF V4 Fix + Anti-Ghosting)")
+Notify("Aura Hub V54 (Smart NPC Scanner + Corpse Fix)")
