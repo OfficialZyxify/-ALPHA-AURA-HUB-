@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (LKP Memory Engine + Corpse Filter)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (LKP Engine + Smooth 60FPS ESP Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1682,7 +1682,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// 🛑 LAST KNOWN POSITION (LKP) DATA LOOP
+--// 🛑 SLOW DATA LOOP (Only assigns roles/health/cache, NO positioning)
 task.spawn(function()
     while true do
         if espEnabled then
@@ -1707,17 +1707,8 @@ task.spawn(function()
                         if p.Character and p.Character.Parent then
                             local hum = p.Character:FindFirstChild("Humanoid")
                             if hum and hum.Health <= 0 then data.Role = "Dead" end
-                            local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
-                            
-                            if root then
-                                data.Proxy.Position = root.Position
-                                data.StreamedOut = false
-                            else
-                                data.StreamedOut = true
-                            end
                         else
                             data.Role = "Dead"
-                            data.StreamedOut = true
                         end
                     end
                 end
@@ -1731,19 +1722,8 @@ task.spawn(function()
                         if hum and hum.Health <= 0 then
                             data.Proxy:Destroy()
                             NPCCache[model] = nil
-                            continue
-                        end
-                        
-                        local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-                        if root then
-                            data.Proxy.Position = root.Position
-                            data.StreamedOut = false
-                            data.LastSeen = tick()
-                        else
-                            data.StreamedOut = true
                         end
                     else
-                        data.StreamedOut = true
                         if tick() - data.LastSeen > 300 then -- Drop ghost after 5 minutes
                             data.Proxy:Destroy()
                             NPCCache[model] = nil
@@ -1752,7 +1732,7 @@ task.spawn(function()
                 end
             end
         end
-        task.wait(0.1) 
+        task.wait(0.2) 
     end
 end)
 
@@ -1762,7 +1742,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 
---// 🟢 VISUAL LOOP (60 FPS)
+--// 🟢 VISUAL LOOP (SMOOTH 60 FPS UPDATES)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
@@ -1781,7 +1761,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- Player ESP (Draws on LKP Proxy Anchor)
+        -- Player ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p == LocalPlayer then continue end
@@ -1790,6 +1770,20 @@ RunService.RenderStepped:Connect(function()
 
                 local proxy = data.Proxy
                 local forcedColor = data.Color
+                
+                -- Sync proxy position smoothly every frame
+                if p.Character and p.Character.Parent then
+                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
+                    if root then
+                        proxy.CFrame = root.CFrame
+                        data.StreamedOut = false
+                    else
+                        data.StreamedOut = true
+                    end
+                else
+                    data.StreamedOut = true
+                end
+
                 if data.Role == "Downed" then forcedColor = Color3.fromRGB(255, 170, 0) end
                 if data.Role == "Dead" then forcedColor = Color3.fromRGB(150, 150, 150) end
 
@@ -1910,11 +1904,25 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- NPC ESP (Draws on LKP Proxy Anchor)
+        -- NPC ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowNPCs then
             for model, data in pairs(NPCCache) do
                 local proxy = data.Proxy
                 local color = Color3.fromRGB(255, 170, 0)
+                
+                -- Sync proxy position smoothly every frame
+                if model and model.Parent then
+                    local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+                    if root then
+                        proxy.CFrame = root.CFrame
+                        data.StreamedOut = false
+                        data.LastSeen = tick()
+                    else
+                        data.StreamedOut = true
+                    end
+                else
+                    data.StreamedOut = true
+                end
                 
                 local dist = 0
                 if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
@@ -2092,4 +2100,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (LKP Memory Engine Enabled)")
+Notify("Aura Hub V54 (Smooth 60FPS ESP Engine)")
