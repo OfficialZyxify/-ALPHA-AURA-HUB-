@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Evade Fix + Ghost Wipe + Display Names)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Evade Downed Fix + Ghost Wipe + Display Names)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -274,35 +274,61 @@ end
 Players.PlayerAdded:Connect(SetupCharacterTracking)
 for _, p in pairs(Players:GetPlayers()) do SetupCharacterTracking(p) end
 
---// UNIVERSAL ROLE DETECTOR
+--// UNIVERSAL ROLE DETECTOR (Robust Evade Support)
 local function GetUniversalRole(player, char)
     if not player or not char then return "Unknown" end
     
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    
-    -- 1. DOWNED CHECKS (Robust Evade Support)
     local isDown = false
-    if char:GetAttribute("Downed") == true then isDown = true end
+    local isDead = false
     
-    local attrState = char:GetAttribute("State")
-    if attrState and (tostring(attrState):lower() == "downed" or tostring(attrState) == "2") then isDown = true end
+    -- 1. AGGRESSIVE DOWNED CHECKS
+    -- Attributes
+    if char:GetAttribute("Downed") == true or player:GetAttribute("Downed") == true then isDown = true end
+    if char:GetAttribute("IsDowned") == true or player:GetAttribute("IsDowned") == true then isDown = true end
     
-    local valDown = char:FindFirstChild("Downed")
-    if valDown and valDown:IsA("BoolValue") and valDown.Value == true then isDown = true end
+    local stateAttr = char:GetAttribute("State") or player:GetAttribute("State")
+    if stateAttr and (tostring(stateAttr):lower() == "downed" or tostring(stateAttr) == "2") then isDown = true end
     
-    local valState = char:FindFirstChild("State")
-    if valState and (tostring(valState.Value):lower() == "downed" or tostring(valState.Value) == "2") then isDown = true end
-    
-    local findRev = char:FindFirstChild("Revive") or char:GetAttribute("Revive")
-    if findRev then isDown = true end
+    local statusAttr = char:GetAttribute("Status") or player:GetAttribute("Status")
+    if statusAttr and tostring(statusAttr):lower() == "downed" then isDown = true end
+
+    -- Values inside Character/Player
+    local function checkVals(parent)
+        if not parent then return end
+        for _, vName in pairs({"Downed", "IsDowned", "State", "Status"}) do
+            local val = parent:FindFirstChild(vName)
+            if val then
+                if val:IsA("BoolValue") and val.Value == true then isDown = true end
+                if (val:IsA("StringValue") or val:IsA("IntValue")) and (tostring(val.Value):lower() == "downed" or tostring(val.Value) == "2") then isDown = true end
+            end
+        end
+    end
+    checkVals(char)
+    checkVals(player)
+
+    -- Proximity Prompt (Evade / Rescue games uses Prompts to revive players)
+    if not isDown then
+        for _, desc in pairs(char:GetDescendants()) do
+            if desc:IsA("ProximityPrompt") then
+                local action = desc.ActionText:lower()
+                local name = desc.Name:lower()
+                if action:find("revive") or action:find("help") or action:find("rescue") or action:find("carry") or name:find("revive") then
+                    isDown = true
+                    break
+                end
+            end
+        end
+    end
 
     if isDown then return "Downed" end
 
     -- 2. DEAD CHECKS
-    if hum and hum.Health <= 0 then return "Dead" end
-    if char:GetAttribute("Dead") == true then return "Dead" end
-    if attrState and (tostring(attrState):lower() == "dead" or tostring(attrState) == "3") then return "Dead" end
-    if valState and (tostring(valState.Value):lower() == "dead" or tostring(valState.Value) == "3") then return "Dead" end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if hum and hum.Health <= 0 then isDead = true end
+    if char:GetAttribute("Dead") == true or player:GetAttribute("Dead") == true then isDead = true end
+    if stateAttr and (tostring(stateAttr):lower() == "dead" or tostring(stateAttr) == "3") then isDead = true end
+    
+    if isDead then return "Dead" end
 
     -- 3. INVENTORY & EQUIPMENT SCAN
     local function CheckToolRole(child)
@@ -1284,8 +1310,6 @@ end
 -- NEW NPC STRICT CACHE ENGINE 
 local function IsValidNPC(model)
     if not model or not model:IsA("Model") then return false end
-    
-    -- STOPS FAKE CORPSES: If this model EVER belonged to a player, reject it entirely.
     if CollectionService:HasTag(model, "PlayerCharacter_Aura") then return false end
     
     local lowerName = model.Name:lower()
@@ -2264,4 +2288,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Evade Support + Display Names + Clean ESP)")
+Notify("Aura Hub V54 (Evade Support + Downed Engine + Ghost Fix)")
