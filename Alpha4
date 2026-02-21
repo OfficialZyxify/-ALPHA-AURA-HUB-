@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (Tracer Sensitivity + Name Replacement)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (Display Name Fix + Tracer Engine)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1699,6 +1699,7 @@ end)
 task.spawn(function()
     while true do
         if espEnabled then
+            -- PLAYER DATA
             if espShowPlayers then
                 for _, p in pairs(Players:GetPlayers()) do
                     if p ~= LocalPlayer then
@@ -1727,6 +1728,7 @@ task.spawn(function()
                 end
             end
             
+            -- NPC DATA
             if espShowNPCs then
                 for model, data in pairs(NPCCache) do
                     if model and model.Parent then
@@ -1767,6 +1769,7 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2) end
 
+        -- CHAMS GARBAGE COLLECTION
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do
             if item:IsA("Highlight") and item.Adornee then
                 local model = item.Adornee
@@ -1777,6 +1780,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
+        -- Player ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p == LocalPlayer then continue end
@@ -1786,6 +1790,7 @@ RunService.RenderStepped:Connect(function()
                 local proxy = data.Proxy
                 local forcedColor = data.Color
                 
+                -- Sync proxy position smoothly every frame
                 if p.Character and p.Character.Parent then
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
                     if root then
@@ -1806,6 +1811,7 @@ RunService.RenderStepped:Connect(function()
                     dist = math.floor((proxy.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                 else dist = math.floor((proxy.Position - Camera.CFrame.Position).Magnitude) end
 
+                -- Box ESP
                 if espShowBoxes then
                     local box = GetESPItem(proxy, "AuraBox")
                     if not box then
@@ -1826,6 +1832,7 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
+                -- 2D TRACER ESP (Originates from LocalPlayer feet in 2D Space)
                 if espShowTracers then
                     local tracer = data.Tracer
                     if not tracer or not tracer.Parent then
@@ -1837,7 +1844,7 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit)
+                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit for less sensitivity)
                     local targetPos, _ = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
                     
                     if targetPos.Z > 0 then
@@ -1845,10 +1852,12 @@ RunService.RenderStepped:Connect(function()
                         tracer.BackgroundColor3 = forcedColor
                         tracer.BackgroundTransparency = 0.2
                         
+                        -- Origin projection (LocalPlayer feet, default to bottom screen if not found)
                         local origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
                         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
                             local origin3D = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3, 0)
                             local screenPos, _ = Camera:WorldToViewportPoint(origin3D)
+                            -- Only draw from feet if feet are actually in front of camera
                             if screenPos.Z > 0 then
                                 origin2D = Vector2.new(screenPos.X, screenPos.Y)
                             end
@@ -1867,6 +1876,7 @@ RunService.RenderStepped:Connect(function()
                     if data.Tracer then data.Tracer:Destroy(); data.Tracer = nil end
                 end
 
+                -- Name ESP
                 if espShowNames then
                     if p.Character then
                         local hum = p.Character:FindFirstChildOfClass("Humanoid")
@@ -1901,8 +1911,13 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Murderer" then topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                     elseif data.Role == "Sheriff" then topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n" end
 
+                    local formattedName = p.Name
+                    if p.DisplayName and p.DisplayName ~= p.Name then
+                        formattedName = p.DisplayName .. " (@" .. p.Name .. ")"
+                    end
+
                     tag.TextLabel.RichText = true
-                    tag.TextLabel.Text = statusText .. topText .. p.Name .. "\n[" .. dist .. "m]"
+                    tag.TextLabel.Text = statusText .. topText .. formattedName .. "\n[" .. dist .. "m]"
                     tag.TextLabel.TextColor3 = forcedColor
                 else
                     if p.Character then
@@ -1913,6 +1928,7 @@ RunService.RenderStepped:Connect(function()
                     if h then h:Destroy() end
                 end
                 
+                -- Chams ESP
                 if espShowChams and not data.StreamedOut and p.Character then
                     local highlight = GetESPItem(p.Character, "AuraChams")
                     if not highlight then
@@ -1941,6 +1957,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
+        -- NPC ESP (Updates Proxy Position smoothly at 60FPS)
         if espShowNPCs then
             for model, data in pairs(NPCCache) do
                 local proxy = data.Proxy
@@ -1995,7 +2012,6 @@ RunService.RenderStepped:Connect(function()
                         data.Tracer = tracer
                     end
                     
-                    -- Pure Z-Depth Check (Removes 'onScreen' strict border limit)
                     local targetPos, _ = Camera:WorldToViewportPoint(proxy.Position - Vector3.new(0, 3, 0))
                     
                     if targetPos.Z > 0 then
@@ -2162,4 +2178,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Name ESP Cleaned + Tracer Fix)")
+Notify("Aura Hub V54 (Name Formatting Fixed + Tracer Sensitivity Fixed)")
