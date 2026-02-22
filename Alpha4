@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Physical Tracers)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Anti-Cull Tracers)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -21,12 +21,23 @@ local function DeepClean()
     end
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     if Camera:FindFirstChild("AuraESP_Visuals") then Camera.AuraESP_Visuals:Destroy() end
+    if Camera:FindFirstChild("AuraAntiCull") then Camera.AuraAntiCull:Destroy() end
 end
 DeepClean() 
 
 local EspFolder = Instance.new("Folder")
 EspFolder.Name = "AuraESP_Visuals"
 EspFolder.Parent = Camera
+
+-- ANTI-CULL TRICK BASE
+local AntiCullPart = Instance.new("Part")
+AntiCullPart.Name = "AuraAntiCull"
+AntiCullPart.Transparency = 1
+AntiCullPart.Size = Vector3.new(1, 1, 1)
+AntiCullPart.Anchored = true
+AntiCullPart.CanCollide = false
+AntiCullPart.CanQuery = false
+AntiCullPart.Parent = Camera
 
 --// Global States
 local currentFOV = 70
@@ -1597,6 +1608,9 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
+        -- ANTI CULL MAGIC: Keep the Adornee physically attached to the camera 0 studs away
+        if AntiCullPart then AntiCullPart.CFrame = Camera.CFrame end
+
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
             Camera.FieldOfView = currentFOV
         end
@@ -1746,7 +1760,6 @@ RunService.RenderStepped:Connect(function()
                 if p ~= LocalPlayer then
                     local char = p.Character
                     
-                    -- Anti-Ghosting Core Logic
                     if not char or not char.Parent then
                         CleanPlayerVisuals(p)
                         continue
@@ -1754,17 +1767,14 @@ RunService.RenderStepped:Connect(function()
                     
                     local hum = char:FindFirstChild("Humanoid")
                     if hum and hum.Health <= 0 then
-                        -- Player is dead, clean up immediately to prep for respawn
                         CleanPlayerVisuals(p)
                         continue
                     end
                     
-                    -- If character model changed (respawn), nuke the old visuals!
                     if PlayerVisuals[p] and PlayerVisuals[p].Char ~= char then
                         CleanPlayerVisuals(p)
                     end
                     
-                    -- Initialize visual cache for this character
                     if not PlayerVisuals[p] then
                         PlayerVisuals[p] = { Char = char }
                     end
@@ -1825,29 +1835,29 @@ RunService.RenderStepped:Connect(function()
                         if visuals.Chams then visuals.Chams:Destroy(); visuals.Chams = nil end
                     end
                     
-                    -- PHYSICAL TRACER ESP
+                    -- ANTI-CULL TRACER ESP (BoxHandleAdornment tied to Camera)
                     if espShowTracers then
                         local origin = TracerOriginAtt.Position
                         local targetPos = root.Position - Vector3.new(0, 3, 0)
                         local distance = (targetPos - origin).Magnitude
 
                         if not visuals.Tracer then
-                            visuals.Tracer = Instance.new("Part")
-                            visuals.Tracer.Name = "AuraTracer_3D"
-                            visuals.Tracer.Anchored = true
-                            visuals.Tracer.CanCollide = false
-                            visuals.Tracer.CanQuery = false
-                            visuals.Tracer.CanTouch = false
-                            visuals.Tracer.CastShadow = false
-                            visuals.Tracer.Material = Enum.Material.Neon
+                            visuals.Tracer = Instance.new("BoxHandleAdornment")
+                            visuals.Tracer.Name = "AuraTracer_AntiCull"
+                            visuals.Tracer.AlwaysOnTop = true
+                            visuals.Tracer.ZIndex = 5
+                            visuals.Tracer.Adornee = AntiCullPart -- Bound to the Camera 0 studs away
                             visuals.Tracer.Parent = EspFolder
                         end
                         
                         if distance > 0.1 then
-                            visuals.Tracer.Color = forcedColor
-                            visuals.Tracer.Size = Vector3.new(0.08, 0.08, distance) 
+                            visuals.Tracer.Color3 = forcedColor
+                            visuals.Tracer.Size = Vector3.new(distance, 0.08, 0.08) 
                             local midPoint = (origin + targetPos) / 2
-                            visuals.Tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                            local worldCF = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                            
+                            -- Offset the visual rendering from the Adornee (Camera) to the actual world coordinates
+                            visuals.Tracer.CFrame = AntiCullPart.CFrame:ToObjectSpace(worldCF)
                             visuals.Tracer.Transparency = 0.2
                         else
                             visuals.Tracer.Transparency = 1
@@ -1901,7 +1911,6 @@ RunService.RenderStepped:Connect(function()
         -- NPC ESP
         if espShowNPCs then
             for npc, _ in pairs(NPCCache) do
-                -- Anti-Ghosting for NPCs
                 if not npc or not npc.Parent then
                     CleanNPCVisuals(npc)
                     NPCCache[npc] = nil
@@ -1960,29 +1969,28 @@ RunService.RenderStepped:Connect(function()
                         if visuals.Chams then visuals.Chams:Destroy(); visuals.Chams = nil end
                     end
                     
-                    -- PHYSICAL TRACER ESP
+                    -- ANTI-CULL TRACER ESP (NPCs)
                     if espShowTracers then
                         local origin = TracerOriginAtt.Position
                         local targetPos = root.Position - Vector3.new(0, 3, 0)
                         local distance = (targetPos - origin).Magnitude
 
                         if not visuals.Tracer then
-                            visuals.Tracer = Instance.new("Part")
-                            visuals.Tracer.Name = "AuraTracer_3D"
-                            visuals.Tracer.Anchored = true
-                            visuals.Tracer.CanCollide = false
-                            visuals.Tracer.CanQuery = false
-                            visuals.Tracer.CanTouch = false
-                            visuals.Tracer.CastShadow = false
-                            visuals.Tracer.Material = Enum.Material.Neon
+                            visuals.Tracer = Instance.new("BoxHandleAdornment")
+                            visuals.Tracer.Name = "AuraTracer_AntiCull"
+                            visuals.Tracer.AlwaysOnTop = true
+                            visuals.Tracer.ZIndex = 5
+                            visuals.Tracer.Adornee = AntiCullPart 
                             visuals.Tracer.Parent = EspFolder
                         end
                         
                         if distance > 0.1 then
-                            visuals.Tracer.Color = color
-                            visuals.Tracer.Size = Vector3.new(0.08, 0.08, distance) 
+                            visuals.Tracer.Color3 = color
+                            visuals.Tracer.Size = Vector3.new(distance, 0.08, 0.08) 
                             local midPoint = (origin + targetPos) / 2
-                            visuals.Tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                            local worldCF = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+                            
+                            visuals.Tracer.CFrame = AntiCullPart.CFrame:ToObjectSpace(worldCF)
                             visuals.Tracer.Transparency = 0.2
                         else
                             visuals.Tracer.Transparency = 1
@@ -2100,4 +2108,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Physical Tracers)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Anti-Cull Tracers)")
