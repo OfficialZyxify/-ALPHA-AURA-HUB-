@@ -52,7 +52,7 @@ local dynamicChamsPulse = false
 -- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
-local VF_Tracers = {} -- Cache for Drawing API Tracers
+local VF_Tracers = {} -- Cache for ViewportFrame Tracer Parts
 
 -- Time States
 local timeChangerEnabled = false
@@ -76,12 +76,29 @@ local originalFogStart = Lighting.FogStart
 local originalFogColor = Lighting.FogColor
 local originalClockTime = Lighting.ClockTime 
 
+--// TRACER ORIGIN
+local TracerOriginAtt = Instance.new("Attachment")
+TracerOriginAtt.Name = "GlobalAuraOrigin"
+TracerOriginAtt.Parent = workspace.Terrain 
+
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AuraHub_V54_Balanced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+--// ViewportFrame Tracer Setup (Bypasses Graphics 1 Culling)
+local TracerGui = Instance.new("ScreenGui")
+TracerGui.Name = "AuraHub_Tracers_VF"
+TracerGui.Parent = PlayerGui
+TracerGui.IgnoreGuiInset = true
+TracerGui.ResetOnSpawn = false
+
+local TracerVF = Instance.new("ViewportFrame", TracerGui)
+TracerVF.Size = UDim2.new(1, 0, 1, 0)
+TracerVF.BackgroundTransparency = 1
+TracerVF.CurrentCamera = Camera
 
 local _layoutOrder = 0
 local function GetNextOrder()
@@ -118,13 +135,9 @@ local function RemoveESP(model)
         local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
         if i then i:Destroy() end
     end
-    -- Clean up Drawing Tracer
+    -- Clean up VF Tracer
     if VF_Tracers[model] then
-        if typeof(VF_Tracers[model]) == "Instance" then
-            VF_Tracers[model]:Destroy()
-        else
-            VF_Tracers[model]:Remove()
-        end
+        VF_Tracers[model]:Destroy()
         VF_Tracers[model] = nil
     end
 end
@@ -132,12 +145,8 @@ end
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     table.clear(ESP_Data_Cache)
-    
-    for _, tracer in pairs(VF_Tracers) do
-        if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
-    end
+    for _, tracer in pairs(VF_Tracers) do tracer:Destroy() end
     table.clear(VF_Tracers)
-    
     -- Do not clear NPC Cache structure, just visuals
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -1233,9 +1242,6 @@ local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do 
             if item.Name == "AuraTracer_VF" then item:Destroy() end 
         end 
-        for _, tracer in pairs(VF_Tracers) do 
-            if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
-        end
         table.clear(VF_Tracers)
     end
     return espShowTracers
@@ -1625,6 +1631,9 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
+        -- Sync Camera to ViewportFrame for Tracers
+        if TracerVF then TracerVF.CurrentCamera = Camera end
+
         -- FOV
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
             Camera.FieldOfView = currentFOV
@@ -1716,6 +1725,14 @@ RunService.RenderStepped:Connect(function()
                      hum.AutoRotate = true
                 end
             end
+        end
+        
+        -- TRACER ORIGIN UPDATE (Fixes Ghost Origin on Death)
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            TracerOriginAtt.Position = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
+        else
+            -- Snap to bottom of camera view if character is missing/dead
+            TracerOriginAtt.Position = Camera.CFrame.Position - Vector3.new(0, 2, 0)
         end
     end)
 end)
@@ -1872,42 +1889,41 @@ RunService.RenderStepped:Connect(function()
                         if h then h:Destroy() end
                     end
                     
-                    -- TRACER ESP (2D Drawing API for Pixel/Lag/Detachment Fix)
+                    -- TRACER ESP (ViewportFrame Bypass - Pixel Fix)
                     if espShowTracers then
+                        local origin = TracerOriginAtt.Position
+                        local targetPos = root.Position - Vector3.new(0, 3, 0)
+                        local distance = (targetPos - origin).Magnitude
+
                         local tracer = VF_Tracers[p.Character]
                         if not tracer then
-                            tracer = Drawing.new("Line")
-                            tracer.Thickness = 1.5
-                            tracer.Transparency = 1
+                            tracer = Instance.new("Part")
+                            tracer.Name = "AuraTracer_VF"
+                            tracer.Anchored = true
+                            tracer.CanCollide = false
+                            tracer.Material = Enum.Material.Neon
+                            tracer.Parent = TracerVF
+                            
+                            -- FIX: CylinderMesh makes lines smooth instead of blocky/pixelated
+                            local mesh = Instance.new("CylinderMesh", tracer)
+                            
+                            CollectionService:AddTag(tracer, "AuraESP")
                             VF_Tracers[p.Character] = tracer
                         end
-
-                        local targetPos = root.Position - Vector3.new(0, 3, 0)
-                        local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
-
-                        local originPos
-                        local screenOrigin
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            originPos = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
-                            local so, _ = Camera:WorldToViewportPoint(originPos)
-                            screenOrigin = Vector2.new(so.X, so.Y)
-                        else
-                            -- Fallback if local player dead to prevent detaching
-                            screenOrigin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                        end
-
-                        if targetOnScreen then
-                            tracer.From = screenOrigin
-                            tracer.To = Vector2.new(screenTarget.X, screenTarget.Y)
+                        
+                        if distance > 0.1 then
                             tracer.Color = forcedColor
-                            tracer.Visible = true
-                            tracer.Transparency = 0.8
+                            -- Length goes on the Z axis, made slightly thicker for better AA (0.08 to 0.1)
+                            tracer.Size = Vector3.new(0.1, 0.1, distance) 
+                            local midPoint = (origin + targetPos) / 2
+                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                            tracer.Transparency = 0.2
                         else
-                            tracer.Visible = false
+                            tracer.Transparency = 1
                         end
                     else
                         if VF_Tracers[p.Character] then
-                            VF_Tracers[p.Character]:Remove()
+                            VF_Tracers[p.Character]:Destroy()
                             VF_Tracers[p.Character] = nil
                         end
                     end
@@ -1946,7 +1962,6 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
                         end
 
-                        -- Name format fixed
                         local txt = topText .. (data.DisplayName or p.DisplayName) .. " (@" .. (data.Name or p.Name) .. ")\n[" .. data.Dist .. "m]"
                         tag.TextLabel.RichText = true
                         tag.TextLabel.Text = txt
@@ -2000,41 +2015,39 @@ RunService.RenderStepped:Connect(function()
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
                         
-                        -- TRACER ESP (2D Drawing API)
+                        -- TRACER ESP (ViewportFrame Bypass - Pixel Fix)
                         if espShowTracers then
+                            local origin = TracerOriginAtt.Position
+                            local targetPos = root.Position - Vector3.new(0, 3, 0)
+                            local distance = (targetPos - origin).Magnitude
+
                             local tracer = VF_Tracers[npc]
                             if not tracer then
-                                tracer = Drawing.new("Line")
-                                tracer.Thickness = 1.5
-                                tracer.Transparency = 1
+                                tracer = Instance.new("Part")
+                                tracer.Name = "AuraTracer_VF"
+                                tracer.Anchored = true
+                                tracer.CanCollide = false
+                                tracer.Material = Enum.Material.Neon
+                                tracer.Parent = TracerVF
+                                
+                                local mesh = Instance.new("CylinderMesh", tracer)
+
+                                CollectionService:AddTag(tracer, "AuraESP")
                                 VF_Tracers[npc] = tracer
                             end
-
-                            local targetPos = root.Position - Vector3.new(0, 3, 0)
-                            local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
-
-                            local originPos
-                            local screenOrigin
-                            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                                originPos = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
-                                local so, _ = Camera:WorldToViewportPoint(originPos)
-                                screenOrigin = Vector2.new(so.X, so.Y)
-                            else
-                                screenOrigin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-                            end
-
-                            if targetOnScreen then
-                                tracer.From = screenOrigin
-                                tracer.To = Vector2.new(screenTarget.X, screenTarget.Y)
+                            
+                            if distance > 0.1 then
                                 tracer.Color = color
-                                tracer.Visible = true
-                                tracer.Transparency = 0.8
+                                tracer.Size = Vector3.new(0.1, 0.1, distance) 
+                                local midPoint = (origin + targetPos) / 2
+                                tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                                tracer.Transparency = 0.2
                             else
-                                tracer.Visible = false
+                                tracer.Transparency = 1
                             end
                         else
                             if VF_Tracers[npc] then
-                                VF_Tracers[npc]:Remove()
+                                VF_Tracers[npc]:Destroy()
                                 VF_Tracers[npc] = nil
                             end
                         end
