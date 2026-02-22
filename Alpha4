@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers Fixed)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -135,7 +135,7 @@ local function RemoveESP(model)
         local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
         if i then i:Destroy() end
     end
-    -- Clean up VF Tracer
+    -- Clean up VF Tracer for NPCs
     if VF_Tracers[model] then
         VF_Tracers[model]:Destroy()
         VF_Tracers[model] = nil
@@ -145,9 +145,12 @@ end
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     table.clear(ESP_Data_Cache)
-    for _, tracer in pairs(VF_Tracers) do tracer:Destroy() end
+    
+    for _, tracer in pairs(VF_Tracers) do
+        if tracer then tracer:Destroy() end
+    end
     table.clear(VF_Tracers)
-    -- Do not clear NPC Cache structure, just visuals
+
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
     end
@@ -223,6 +226,7 @@ local function GetUniversalRole(player)
                             end
                         end
                     end
+                    
                     if attachedToHand then
                         return "Beast"
                     end
@@ -276,6 +280,7 @@ local function IsVisible(targetModel, ignoreList)
         root.Position - Vector3.new(0, 1.5, 0)
     }
     local origin = Camera.CFrame.Position
+ 
     local params = RaycastParams.new()
     params.FilterDescendantsInstances = ignoreList
     params.FilterType = Enum.RaycastFilterType.Exclude
@@ -1500,6 +1505,7 @@ local function ToggleFly(state)
                     flyButtonRef.TextColor3 = Color3.new(1, 1, 1)
                     flyButtonRef.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
                 end
+                
                 if flyConnection then flyConnection:Disconnect() flyConnection = nil end
                 deathConnection:Disconnect()
             end
@@ -1727,30 +1733,23 @@ RunService.RenderStepped:Connect(function()
             end
         end
         
-        -- TRACER ORIGIN UPDATE (Fixes Ghost Origin on Death)
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            TracerOriginAtt.Position = LocalPlayer.Character.HumanoidRootPart.Position - Vector3.new(0, 3.5, 0)
-        else
-            -- Snap to bottom of camera view if character is missing/dead
-            TracerOriginAtt.Position = Camera.CFrame.Position - Vector3.new(0, 2, 0)
+        -- TRACER ORIGIN UPDATE
+        if LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
+            if hrp then
+                TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0)
+            end
         end
     end)
 end)
 
---// 🛑 DATA LOOP (GHOST FIX ADDED)
+--// 🛑 DATA LOOP
 task.spawn(function()
     while true do
         if espEnabled and espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
-                    if p.Character and p.Character.Parent then
-                        
-                        -- Ghost Fix: Track specific character instance and remove ESP if changed
-                        local oldData = ESP_Data_Cache[p]
-                        if oldData and oldData.Character and oldData.Character ~= p.Character then
-                            RemoveESP(oldData.Character)
-                        end
-
+                    if p.Character then
                         -- Fetch Data
                         local role = GetUniversalRole(p)
                         local color = GetSmartColor(role, p)
@@ -1770,16 +1769,10 @@ task.spawn(function()
                             Role = role,
                             Color = color,
                             Dist = dist,
-                            Name = p.Name,
-                            DisplayName = p.DisplayName,
-                            Character = p.Character
+                            Name = p.DisplayName .. " (@" .. p.Name .. ")"
                         }
                     else
-                        -- Remove from Cache if character missing (Ghost Fix)
-                        local oldData = ESP_Data_Cache[p]
-                        if oldData and oldData.Character then
-                            RemoveESP(oldData.Character)
-                        end
+                        -- Remove from Cache if character missing
                         ESP_Data_Cache[p] = nil
                     end
                 end
@@ -1791,9 +1784,11 @@ end)
 
 -- Clear Cache on Player Leave
 Players.PlayerRemoving:Connect(function(p)
-    local data = ESP_Data_Cache[p]
-    if data and data.Character then RemoveESP(data.Character) end
     ESP_Data_Cache[p] = nil
+    if VF_Tracers[p] then
+        VF_Tracers[p]:Destroy()
+        VF_Tracers[p] = nil
+    end
 end)
 
 
@@ -1815,16 +1810,18 @@ RunService.RenderStepped:Connect(function()
                     -- VALIDITY CHECK (Prevents Ghosting)
                     if not p.Character or not p.Character.Parent then
                         RemoveESP(p.Character)
+                        if VF_Tracers[p] then VF_Tracers[p].Transparency = 1 end
                         continue 
                     end
 
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                     if not root then
                         RemoveESP(p.Character)
+                        if VF_Tracers[p] then VF_Tracers[p].Transparency = 1 end
                         continue
                     end
 
-                    local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName }
+                    local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.DisplayName .. " (@" .. p.Name .. ")" }
                     
                     -- FORCE RE-CALCULATION OF COLOR IF DEAD
                     local forcedColor = data.Color
@@ -1889,32 +1886,29 @@ RunService.RenderStepped:Connect(function()
                         if h then h:Destroy() end
                     end
                     
-                    -- TRACER ESP (ViewportFrame Bypass - Pixel Fix)
+                    -- TRACER ESP (ViewportFrame Bypass)
                     if espShowTracers then
                         local origin = TracerOriginAtt.Position
                         local targetPos = root.Position - Vector3.new(0, 3, 0)
                         local distance = (targetPos - origin).Magnitude
 
-                        local tracer = VF_Tracers[p.Character]
+                        local tracer = VF_Tracers[p]
                         if not tracer then
                             tracer = Instance.new("Part")
                             tracer.Name = "AuraTracer_VF"
                             tracer.Anchored = true
                             tracer.CanCollide = false
-                            tracer.Material = Enum.Material.Neon
+                            tracer.Material = Enum.Material.Plastic
+                            tracer.Reflectance = 0
                             tracer.Parent = TracerVF
-                            
-                            -- FIX: CylinderMesh makes lines smooth instead of blocky/pixelated
-                            local mesh = Instance.new("CylinderMesh", tracer)
-                            
                             CollectionService:AddTag(tracer, "AuraESP")
-                            VF_Tracers[p.Character] = tracer
+                            VF_Tracers[p] = tracer
                         end
                         
                         if distance > 0.1 then
                             tracer.Color = forcedColor
-                            -- Length goes on the Z axis, made slightly thicker for better AA (0.08 to 0.1)
-                            tracer.Size = Vector3.new(0.1, 0.1, distance) 
+                            -- Length goes on the Z axis for CFrame.lookAt
+                            tracer.Size = Vector3.new(0.08, 0.08, distance) 
                             local midPoint = (origin + targetPos) / 2
                             tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
                             tracer.Transparency = 0.2
@@ -1922,9 +1916,9 @@ RunService.RenderStepped:Connect(function()
                             tracer.Transparency = 1
                         end
                     else
-                        if VF_Tracers[p.Character] then
-                            VF_Tracers[p.Character]:Destroy()
-                            VF_Tracers[p.Character] = nil
+                        if VF_Tracers[p] then
+                            VF_Tracers[p]:Destroy()
+                            VF_Tracers[p] = nil
                         end
                     end
 
@@ -1962,7 +1956,7 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
                         end
 
-                        local txt = topText .. (data.DisplayName or p.DisplayName) .. " (@" .. (data.Name or p.Name) .. ")\n[" .. data.Dist .. "m]"
+                        local txt = topText .. data.Name .. "\n[" .. data.Dist .. "m]"
                         tag.TextLabel.RichText = true
                         tag.TextLabel.Text = txt
                        
@@ -2015,7 +2009,7 @@ RunService.RenderStepped:Connect(function()
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
                         
-                        -- TRACER ESP (ViewportFrame Bypass - Pixel Fix)
+                        -- TRACER ESP (ViewportFrame Bypass)
                         if espShowTracers then
                             local origin = TracerOriginAtt.Position
                             local targetPos = root.Position - Vector3.new(0, 3, 0)
@@ -2027,18 +2021,16 @@ RunService.RenderStepped:Connect(function()
                                 tracer.Name = "AuraTracer_VF"
                                 tracer.Anchored = true
                                 tracer.CanCollide = false
-                                tracer.Material = Enum.Material.Neon
+                                tracer.Material = Enum.Material.Plastic
+                                tracer.Reflectance = 0
                                 tracer.Parent = TracerVF
-                                
-                                local mesh = Instance.new("CylinderMesh", tracer)
-
                                 CollectionService:AddTag(tracer, "AuraESP")
                                 VF_Tracers[npc] = tracer
                             end
                             
                             if distance > 0.1 then
                                 tracer.Color = color
-                                tracer.Size = Vector3.new(0.1, 0.1, distance) 
+                                tracer.Size = Vector3.new(0.08, 0.08, distance) 
                                 local midPoint = (origin + targetPos) / 2
                                 tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
                                 tracer.Transparency = 0.2
@@ -2160,4 +2152,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V2 + Tracers Fixed)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V2 + VF Tracers)")
