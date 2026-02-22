@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + 2D Tracers)
+--// AuraHub V55: True Foot Tracers & Ghost Fixes
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -76,7 +76,7 @@ local originalClockTime = Lighting.ClockTime
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V54_Balanced" 
+ScreenGui.Name = "AuraHub_V55_Balanced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -164,7 +164,7 @@ Players.PlayerAdded:Connect(SetupPlayer)
 --// 2D TRACER ENGINE
 local function Draw2DTracer(id, p1, p2, color, visible)
     local line = ActiveTracers[id]
-    if not visible then
+    if not visible or not p1 or not p2 then
         if line then line.Visible = false end
         return
     end
@@ -1707,8 +1707,25 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2) end
 
-        -- Fetch our own root for 2D Tracers
+        -- Calculate our exact feet position for 2D Tracers
         local myRoot = LocalPlayer.Character and (LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart)
+        local origin2D = nil
+        
+        if espShowTracers and myRoot then
+            local myBottom = myRoot.Position - Vector3.new(0, 2.7, 0)
+            local myPos, v1 = Camera:WorldToViewportPoint(myBottom)
+            
+            -- If camera is extremely close (1st person), fallback to bottom center
+            if (Camera.CFrame.Position - myRoot.Position).Magnitude < 3 then
+                origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            elseif v1 then
+                -- Feet are mathematically visible on screen
+                origin2D = Vector2.new(myPos.X, myPos.Y)
+            else
+                -- Camera angle places feet out of viewport bounds; fallback to bottom center
+                origin2D = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            end
+        end
 
         -- Player ESP (Instant Roles + Duplicate Nuke)
         if espShowPlayers then
@@ -1730,12 +1747,22 @@ RunService.RenderStepped:Connect(function()
                         continue
                     end
                     
-                    -- CLEAN DUPLICATES (Fixes Overlapping Tags)
-                    local tags = {}
+                    -- CLEAN DUPLICATES (Instant Overlap Fix)
+                    local foundTag, foundBox = nil, nil
                     for _, child in pairs(root:GetChildren()) do
-                        if child.Name == "AuraTag" then table.insert(tags, child) end
+                        if child.Name == "AuraTag" then
+                            if foundTag then child:Destroy() else foundTag = child end
+                        elseif child.Name == "AuraBox" then
+                            if foundBox then child:Destroy() else foundBox = child end
+                        end
                     end
-                    if #tags > 1 then for i = 2, #tags do tags[i]:Destroy() end end
+                    
+                    local foundChams = nil
+                    for _, child in pairs(p.Character:GetChildren()) do
+                        if child.Name == "AuraChams" then
+                            if foundChams then child:Destroy() else foundChams = child end
+                        end
+                    end
 
                     -- INSTANT ROLE CALC
                     local role = GetUniversalRole(p)
@@ -1748,7 +1775,7 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     if espShowBoxes then
-                        local box = root:FindFirstChild("AuraBox")
+                        local box = foundBox
                         if not box then
                             box = Instance.new("BillboardGui", root)
                             box.Name = "AuraBox"
@@ -1765,7 +1792,7 @@ RunService.RenderStepped:Connect(function()
                     end
                     
                     if espShowChams then
-                        local highlight = p.Character:FindFirstChild("AuraChams")
+                        local highlight = foundChams
                         if not highlight then
                             highlight = Instance.new("Highlight", p.Character)
                             highlight.Name = "AuraChams"
@@ -1788,18 +1815,17 @@ RunService.RenderStepped:Connect(function()
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
-                    else
-                        local h = p.Character:FindFirstChild("AuraChams")
-                        if h then h:Destroy() end
+                    elseif foundChams then
+                        foundChams:Destroy()
                     end
                     
-                    if espShowTracers and myRoot then
-                        local myPos, v1 = Camera:WorldToViewportPoint(myRoot.Position - Vector3.new(0, 3, 0))
-                        local targetPos, v2 = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                    if espShowTracers and origin2D then
+                        local targetBottom = root.Position - Vector3.new(0, 2.7, 0)
+                        local targetPos, v2 = Camera:WorldToViewportPoint(targetBottom)
                         
                         -- Only draw if target is in front of camera
                         if v2 then
-                            Draw2DTracer(tracerId, Vector2.new(myPos.X, myPos.Y), Vector2.new(targetPos.X, targetPos.Y), forcedColor, true)
+                            Draw2DTracer(tracerId, origin2D, Vector2.new(targetPos.X, targetPos.Y), forcedColor, true)
                         else
                             Draw2DTracer(tracerId, nil, nil, nil, false)
                         end
@@ -1809,7 +1835,7 @@ RunService.RenderStepped:Connect(function()
 
                     if espShowNames then
                         if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-                        local tag = root:FindFirstChild("AuraTag")
+                        local tag = foundTag
                         if not tag then
                             tag = Instance.new("BillboardGui", root)
                             tag.Name = "AuraTag"
@@ -1857,14 +1883,24 @@ RunService.RenderStepped:Connect(function()
                     if root then
                         local color = Color3.fromRGB(255, 170, 0)
                         
-                        local tags = {}
+                        local foundTag, foundBox = nil, nil
                         for _, child in pairs(root:GetChildren()) do
-                            if child.Name == "AuraTag" then table.insert(tags, child) end
+                            if child.Name == "AuraTag" then
+                                if foundTag then child:Destroy() else foundTag = child end
+                            elseif child.Name == "AuraBox" then
+                                if foundBox then child:Destroy() else foundBox = child end
+                            end
                         end
-                        if #tags > 1 then for i = 2, #tags do tags[i]:Destroy() end end
+                        
+                        local foundChams = nil
+                        for _, child in pairs(npc:GetChildren()) do
+                            if child.Name == "AuraChams" then
+                                if foundChams then child:Destroy() else foundChams = child end
+                            end
+                        end
 
                         if espShowBoxes then
-                            local box = root:FindFirstChild("AuraBox")
+                            local box = foundBox
                             if not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
@@ -1880,7 +1916,7 @@ RunService.RenderStepped:Connect(function()
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
-                            local highlight = npc:FindFirstChild("AuraChams")
+                            local highlight = foundChams
                             if not highlight then
                                 highlight = Instance.new("Highlight", npc)
                                 highlight.Name = "AuraChams"
@@ -1893,21 +1929,25 @@ RunService.RenderStepped:Connect(function()
                             highlight.OutlineTransparency = 0
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                        elseif foundChams then
+                            foundChams:Destroy()
                         end
-                        if espShowTracers and myRoot then
-                            local myPos, v1 = Camera:WorldToViewportPoint(myRoot.Position - Vector3.new(0, 3, 0))
-                            local targetPos, v2 = Camera:WorldToViewportPoint(root.Position - Vector3.new(0, 3, 0))
+                        
+                        if espShowTracers and origin2D then
+                            local targetBottom = root.Position - Vector3.new(0, 2.7, 0)
+                            local targetPos, v2 = Camera:WorldToViewportPoint(targetBottom)
                             
                             if v2 then
-                                Draw2DTracer(tracerId, Vector2.new(myPos.X, myPos.Y), Vector2.new(targetPos.X, targetPos.Y), color, true)
+                                Draw2DTracer(tracerId, origin2D, Vector2.new(targetPos.X, targetPos.Y), color, true)
                             else
                                 Draw2DTracer(tracerId, nil, nil, nil, false)
                             end
                         else
                             Draw2DTracer(tracerId, nil, nil, nil, false)
                         end
+                        
                         if espShowNames then
-                            local tag = root:FindFirstChild("AuraTag")
+                            local tag = foundTag
                             if not tag then
                                 tag = Instance.new("BillboardGui", root)
                                 tag.Name = "AuraTag"
@@ -2015,4 +2055,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3)")
+Notify("Aura Hub V55 (True Foot Tracers + Ghost Fix)")
