@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -18,6 +18,7 @@ local Camera = workspace.CurrentCamera
 local function DeepClean()
     for _, oldGui in pairs(PlayerGui:GetChildren()) do
         if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
+        if oldGui.Name == "AuraHub_Tracers_VF" then oldGui:Destroy() end
     end
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
 end
@@ -51,6 +52,7 @@ local dynamicChamsPulse = false
 -- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
+local VF_Tracers = {} -- Cache for ViewportFrame Tracer Parts
 
 -- Time States
 local timeChangerEnabled = false
@@ -86,6 +88,18 @@ ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
+--// ViewportFrame Tracer Setup (Bypasses Graphics 1 Culling)
+local TracerGui = Instance.new("ScreenGui")
+TracerGui.Name = "AuraHub_Tracers_VF"
+TracerGui.Parent = PlayerGui
+TracerGui.IgnoreGuiInset = true
+TracerGui.ResetOnSpawn = false
+
+local TracerVF = Instance.new("ViewportFrame", TracerGui)
+TracerVF.Size = UDim2.new(1, 0, 1, 0)
+TracerVF.BackgroundTransparency = 1
+TracerVF.CurrentCamera = Camera
+
 local _layoutOrder = 0
 local function GetNextOrder()
     _layoutOrder = _layoutOrder + 1
@@ -116,16 +130,22 @@ end
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
     if not model then return end
-    local items = {"AuraBox", "AuraTag", "AuraTracer", "AuraChams"}
+    local items = {"AuraBox", "AuraTag", "AuraChams"}
     for _, name in pairs(items) do
         local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
         if i then i:Destroy() end
+    end
+    -- Clean up VF Tracer
+    if VF_Tracers[model] then
+        VF_Tracers[model]:Destroy()
+        VF_Tracers[model] = nil
     end
 end
 
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     table.clear(ESP_Data_Cache)
+    table.clear(VF_Tracers)
     -- Do not clear NPC Cache structure, just visuals
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -156,7 +176,7 @@ local function GetUniversalRole(player)
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
         local findRev = player.Character:FindFirstChild("Revive")
-        
+ 
         if attrDown == true or attrRev == true or (type(attrState) == "string" and attrState:lower():find("down")) or findRev then
             return "Downed"
         end
@@ -191,6 +211,7 @@ local function GetUniversalRole(player)
                                 if isHammerPart then
                                     -- Identify the body part it is attached to
                                     local limb = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) and weld.Part1 or weld.Part0
+                    
                                     local limbName = limb.Name:lower()
                                     
                                     -- If attached to Right Arm, RightHand, etc -> BEAST
@@ -850,9 +871,6 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
-    -- REMOVED: if not timeChangerEnabled then Lighting.ClockTime = originalClockTime end
-    -- We now just let the game take over when disabled.
-    
     UpdateTimeStatusVisuals()
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
@@ -892,7 +910,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         local function Optimize(v)
             if v:IsA("BasePart") then
                 if not optimizationCache[v] then
-                     optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
+                    optimizationCache[v] = { Material = v.Material, Reflectance = v.Reflectance }
                 end
                 v.Material = Enum.Material.Plastic
                 v.Reflectance = 0
@@ -957,7 +975,7 @@ UtilLabel.LayoutOrder = GetNextOrder()
 
 --// MASTER ESP VISUALS
 local MasterFrame = Instance.new("Frame", ScrollContainer)
-MasterFrame.Size = UDim2.new(0.9, 0, 0, 55) -- REDUCED HEIGHT (Balanced)
+MasterFrame.Size = UDim2.new(0.9, 0, 0, 55) 
 MasterFrame.BackgroundTransparency = 1
 MasterFrame.LayoutOrder = GetNextOrder()
 
@@ -981,7 +999,7 @@ MasterNote.Position = UDim2.new(0, 0, 0, 15)
 
 local MasterBtn = Instance.new("TextButton", MasterFrame)
 MasterBtn.Size = UDim2.new(1, 0, 0, 25)
-MasterBtn.Position = UDim2.new(0, 0, 0, 28) -- TIGHTENED UP
+MasterBtn.Position = UDim2.new(0, 0, 0, 28) 
 MasterBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 MasterBtn.Text = "Toggle Master ESP: OFF"
 MasterBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -989,7 +1007,6 @@ MasterBtn.Font = Enum.Font.GothamSemibold
 MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
 
--- SPACER REMOVED to fix huge gap
 
 -- ESP SUB-BUTTONS (Dependent on Master)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
@@ -1048,7 +1065,7 @@ ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
 ChamsMainBtn.Position = UDim2.new(0, 0, 0, 30)
 ChamsMainBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 ChamsMainBtn.Text = "Toggle Chams: OFF"
-ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Default Disabled Look
+ChamsMainBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
 ChamsMainBtn.Font = Enum.Font.GothamSemibold
 ChamsMainBtn.TextSize = 11
 Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
@@ -1075,9 +1092,7 @@ Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
 
 --// LOGIC FUNCTIONS
 local function UpdateChamsVisuals()
-    -- Only active if Master ESP is ON
     if espEnabled then
-        -- Step 2: Check if Chams is ON
         if espShowChams then
             ChamsNote.Text = "Status: Active"
             ChamsNote.TextColor3 = Color3.fromRGB(0, 255, 140)
@@ -1098,7 +1113,6 @@ local function UpdateChamsVisuals()
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
     else
-        -- If Master is OFF, disable everything
         ChamsNote.Text = "⚠️ Enable Master ESP First"
         ChamsNote.TextColor3 = Color3.fromRGB(255, 100, 100)
         
@@ -1113,7 +1127,6 @@ local function UpdateChamsVisuals()
     PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
 
--- Button References for Master Control
 local EspButtons = {}
 
 local function UpdateMasterVisuals()
@@ -1123,7 +1136,6 @@ local function UpdateMasterVisuals()
         MasterBtn.Text = "Toggle Master ESP: ON"
         MasterBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
         
-        -- Visually refresh standard ESP buttons
         for _, btn in pairs(EspButtons) do
              if btn.Text:find("ON") then
                  btn.TextColor3 = Color3.fromRGB(0, 255, 140)
@@ -1137,28 +1149,25 @@ local function UpdateMasterVisuals()
         MasterBtn.Text = "Toggle Master ESP: OFF"
         MasterBtn.TextColor3 = Color3.new(1, 1, 1)
         
-        -- Gray out standard ESP buttons
         for _, btn in pairs(EspButtons) do
              btn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
     end
-    UpdateChamsVisuals() -- Refresh downstream
+    UpdateChamsVisuals() 
 end
 
--- SUB-TOGGLE CREATOR
 local function CreateSubToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.48, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
-    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) -- Start Gray
+    btn.TextColor3 = Color3.new(0.5, 0.5, 0.5) 
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 8
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     table.insert(EspButtons, btn)
     
-    -- Initial Visual Check
     if defaultState and espEnabled then 
         btn.TextColor3 = Color3.fromRGB(0, 255, 140)
     elseif espEnabled then
@@ -1166,7 +1175,7 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     end
 
     btn.MouseButton1Click:Connect(function()
-        if not espEnabled then return end -- Strict Dependency
+        if not espEnabled then return end 
         local newState = callback()
         btn.Text = text .. ": " .. (newState and "ON" or "OFF")
         btn.TextColor3 = newState and Color3.fromRGB(0, 255, 140) or Color3.new(0.8, 0.8, 0.8)
@@ -1183,7 +1192,6 @@ MasterBtn.MouseButton1Click:Connect(function()
         ClearAllESP()
     else
         Notify("ESP Master Active")
-        -- Trigger instant scan when enabling
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1206,7 +1214,6 @@ CreateSubToggle(EspRow1, "Show NPCs", false, function()
     espShowNPCs = not espShowNPCs
     if not espShowNPCs then ClearNPCESP() end
     if espShowNPCs then
-        -- Instant population on toggle
         for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("Model") and v:FindFirstChild("Humanoid") then
                 if v ~= LocalPlayer.Character and not Players:GetPlayerFromCharacter(v) then
@@ -1232,13 +1239,18 @@ CreateSubToggle(EspRow2, "Name & Dist", true, function()
 end)
 local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
     espShowTracers = not espShowTracers
-    if not espShowTracers then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTracer" then item:Destroy() end end end
+    if not espShowTracers then 
+        for _, item in pairs(CollectionService:GetTagged("AuraESP")) do 
+            if item.Name == "AuraTracer_VF" then item:Destroy() end 
+        end 
+        table.clear(VF_Tracers)
+    end
     return espShowTracers
 end)
 
 -- CHAMS CONNECTS
 ChamsMainBtn.MouseButton1Click:Connect(function()
-    if not espEnabled then return end -- Strict Master Dependency
+    if not espEnabled then return end 
     espShowChams = not espShowChams
     if not espShowChams then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraChams" then item:Destroy() end end end
     UpdateChamsVisuals()
@@ -1621,6 +1633,9 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
+        -- Sync Camera to ViewportFrame for Tracers
+        if TracerVF then TracerVF.CurrentCamera = Camera end
+
         -- FOV
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
             Camera.FieldOfView = currentFOV
@@ -1648,7 +1663,6 @@ RunService.RenderStepped:Connect(function()
             Lighting.Brightness = 2
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 100000
-            -- REMOVED: Force time causing conflict
         elseif shadowsDisabled then
             Lighting.GlobalShadows = false
         end
@@ -1778,7 +1792,7 @@ RunService.RenderStepped:Connect(function()
         -- PULSE CALCULATION
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
-             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
+            pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
         end
 
         -- Player ESP (Reads from Cache)
@@ -1862,26 +1876,39 @@ RunService.RenderStepped:Connect(function()
                         if h then h:Destroy() end
                     end
                     
-                    -- TRACER ESP
+                    -- TRACER ESP (ViewportFrame Bypass)
                     if espShowTracers then
                         local origin = TracerOriginAtt.Position
-                        local tracer = root:FindFirstChild("AuraTracer")
-                        if not tracer then
-                            tracer = Instance.new("BoxHandleAdornment", root)
-                            tracer.Name = "AuraTracer"
-                            tracer.Adornee = workspace.Terrain 
-                            tracer.AlwaysOnTop = true 
-                            tracer.ZIndex = 5
-                            tracer.Transparency = 0.2
-                            CollectionService:AddTag(tracer, "AuraESP")
-                        end
-                        -- ALWAYS UPDATE COLOR
-                        tracer.Color3 = forcedColor
                         local targetPos = root.Position - Vector3.new(0, 3, 0)
                         local distance = (targetPos - origin).Magnitude
-                        tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                        local midPoint = (origin + targetPos) / 2
-                        tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+
+                        local tracer = VF_Tracers[p.Character]
+                        if not tracer then
+                            tracer = Instance.new("Part")
+                            tracer.Name = "AuraTracer_VF"
+                            tracer.Anchored = true
+                            tracer.CanCollide = false
+                            tracer.Material = Enum.Material.Neon
+                            tracer.Parent = TracerVF
+                            CollectionService:AddTag(tracer, "AuraESP")
+                            VF_Tracers[p.Character] = tracer
+                        end
+                        
+                        if distance > 0.1 then
+                            tracer.Color = forcedColor
+                            -- Length goes on the Z axis for CFrame.lookAt
+                            tracer.Size = Vector3.new(0.08, 0.08, distance) 
+                            local midPoint = (origin + targetPos) / 2
+                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                            tracer.Transparency = 0.2
+                        else
+                            tracer.Transparency = 1
+                        end
+                    else
+                        if VF_Tracers[p.Character] then
+                            VF_Tracers[p.Character]:Destroy()
+                            VF_Tracers[p.Character] = nil
+                        end
                     end
 
                     -- NAME ESP
@@ -1970,25 +1997,41 @@ RunService.RenderStepped:Connect(function()
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
+                        
+                        -- TRACER ESP (ViewportFrame Bypass)
                         if espShowTracers then
                             local origin = TracerOriginAtt.Position
-                            local tracer = root:FindFirstChild("AuraTracer")
-                            if not tracer then
-                                tracer = Instance.new("BoxHandleAdornment", root)
-                                tracer.Name = "AuraTracer"
-                                tracer.Adornee = workspace.Terrain 
-                                tracer.AlwaysOnTop = true 
-                                tracer.ZIndex = 5
-                                tracer.Transparency = 0.2
-                                CollectionService:AddTag(tracer, "AuraESP")
-                            end
-                            tracer.Color3 = color
                             local targetPos = root.Position - Vector3.new(0, 3, 0)
                             local distance = (targetPos - origin).Magnitude
-                            tracer.Size = Vector3.new(distance, 0.1, 0.1) 
-                            local midPoint = (origin + targetPos) / 2
-                            tracer.CFrame = CFrame.lookAt(midPoint, targetPos) * CFrame.Angles(0, math.rad(90), 0)
+
+                            local tracer = VF_Tracers[npc]
+                            if not tracer then
+                                tracer = Instance.new("Part")
+                                tracer.Name = "AuraTracer_VF"
+                                tracer.Anchored = true
+                                tracer.CanCollide = false
+                                tracer.Material = Enum.Material.Neon
+                                tracer.Parent = TracerVF
+                                CollectionService:AddTag(tracer, "AuraESP")
+                                VF_Tracers[npc] = tracer
+                            end
+                            
+                            if distance > 0.1 then
+                                tracer.Color = color
+                                tracer.Size = Vector3.new(0.08, 0.08, distance) 
+                                local midPoint = (origin + targetPos) / 2
+                                tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
+                                tracer.Transparency = 0.2
+                            else
+                                tracer.Transparency = 1
+                            end
+                        else
+                            if VF_Tracers[npc] then
+                                VF_Tracers[npc]:Destroy()
+                                VF_Tracers[npc] = nil
+                            end
                         end
+                        
                         if espShowNames then
                             local tag = root:FindFirstChild("AuraTag")
                             if not tag then
@@ -2007,7 +2050,7 @@ RunService.RenderStepped:Connect(function()
                             end
                             local dist = 0
                             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
+                                dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) end
                             local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                             tag.TextLabel.Text = txt
@@ -2097,4 +2140,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V2)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V2 + VF Tracers)")
