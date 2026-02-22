@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + VF Tracers Optimized)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -76,11 +76,6 @@ local originalFogStart = Lighting.FogStart
 local originalFogColor = Lighting.FogColor
 local originalClockTime = Lighting.ClockTime 
 
---// TRACER ORIGIN
-local TracerOriginAtt = Instance.new("Attachment")
-TracerOriginAtt.Name = "GlobalAuraOrigin"
-TracerOriginAtt.Parent = workspace.Terrain 
-
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AuraHub_V54_Balanced" 
@@ -127,15 +122,18 @@ local function Notify(msg)
     end)
 end
 
---// CLEANUP FUNCTIONS
+--// CLEANUP FUNCTIONS (UPDATED: Deep Sweep to prevent ghosts)
 local function RemoveESP(model)
     if not model then return end
-    local items = {"AuraBox", "AuraTag", "AuraChams"}
-    for _, name in pairs(items) do
-        local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
-        if i then i:Destroy() end
+    
+    -- Forceful sweep of all descendants to catch misparented ESP parts
+    for _, v in pairs(model:GetDescendants()) do
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" then
+            v:Destroy()
+        end
     end
-    -- Clean up VF Tracer for NPCs
+    
+    -- Clean up VF Tracer
     if VF_Tracers[model] then
         VF_Tracers[model]:Destroy()
         VF_Tracers[model] = nil
@@ -1732,14 +1730,6 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
-        
-        -- TRACER ORIGIN UPDATE
-        if LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
-            if hrp then
-                TracerOriginAtt.Position = hrp.Position - Vector3.new(0, 3.5, 0)
-            end
-        end
     end)
 end)
 
@@ -1801,6 +1791,15 @@ RunService.RenderStepped:Connect(function()
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
+        end
+        
+        -- TRACER ORIGIN CALCULATION (Frame-Perfect Sync to prevent Jitter)
+        local originPos = Camera.CFrame.Position
+        if LocalPlayer.Character then
+            local localHrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character.PrimaryPart
+            if localHrp then
+                originPos = localHrp.Position - Vector3.new(0, 3.5, 0)
+            end
         end
 
         -- Player ESP (Reads from Cache)
@@ -1886,11 +1885,10 @@ RunService.RenderStepped:Connect(function()
                         if h then h:Destroy() end
                     end
                     
-                    -- TRACER ESP (ViewportFrame Bypass)
+                    -- TRACER ESP (ViewportFrame Bypass Frame-Perfect Sync)
                     if espShowTracers then
-                        local origin = TracerOriginAtt.Position
                         local targetPos = root.Position - Vector3.new(0, 3, 0)
-                        local distance = (targetPos - origin).Magnitude
+                        local distance = (targetPos - originPos).Magnitude
 
                         local tracer = VF_Tracers[p]
                         if not tracer then
@@ -1909,7 +1907,7 @@ RunService.RenderStepped:Connect(function()
                             tracer.Color = forcedColor
                             -- Length goes on the Z axis for CFrame.lookAt
                             tracer.Size = Vector3.new(0.08, 0.08, distance) 
-                            local midPoint = (origin + targetPos) / 2
+                            local midPoint = (originPos + targetPos) / 2
                             tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
                             tracer.Transparency = 0.2
                         else
@@ -2009,11 +2007,10 @@ RunService.RenderStepped:Connect(function()
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
                         
-                        -- TRACER ESP (ViewportFrame Bypass)
+                        -- TRACER ESP (ViewportFrame Bypass Frame-Perfect Sync)
                         if espShowTracers then
-                            local origin = TracerOriginAtt.Position
                             local targetPos = root.Position - Vector3.new(0, 3, 0)
-                            local distance = (targetPos - origin).Magnitude
+                            local distance = (targetPos - originPos).Magnitude
 
                             local tracer = VF_Tracers[npc]
                             if not tracer then
@@ -2031,7 +2028,7 @@ RunService.RenderStepped:Connect(function()
                             if distance > 0.1 then
                                 tracer.Color = color
                                 tracer.Size = Vector3.new(0.08, 0.08, distance) 
-                                local midPoint = (origin + targetPos) / 2
+                                local midPoint = (originPos + targetPos) / 2
                                 tracer.CFrame = CFrame.lookAt(midPoint, targetPos)
                                 tracer.Transparency = 0.2
                             else
@@ -2152,4 +2149,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V2 + VF Tracers)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + VF Tracers Optimized)")
