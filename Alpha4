@@ -270,10 +270,58 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
+--// BODY BOUNDING BOX CALCULATOR (Ignores Accessories)
+local function GetBodyBoundingBox(character)
+    local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    if not root then return character:GetBoundingBox() end
+
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    local hasParts = false
+
+    local rootInv = root.CFrame:Inverse()
+
+    -- Only check direct BasePart children (ignores Accessories and Tools)
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            local size = part.Size
+            local cf = rootInv * part.CFrame
+            
+            local corners = {
+                cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
+                cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
+                cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
+                cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
+                cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+            }
+            for _, pos in ipairs(corners) do
+                minX = math.min(minX, pos.X)
+                minY = math.min(minY, pos.Y)
+                minZ = math.min(minZ, pos.Z)
+                maxX = math.max(maxX, pos.X)
+                maxY = math.max(maxY, pos.Y)
+                maxZ = math.max(maxZ, pos.Z)
+            end
+            hasParts = true
+        end
+    end
+
+    if hasParts then
+        local centerLocal = Vector3.new((minX + maxX)/2, (minY + maxY)/2, (minZ + maxZ)/2)
+        local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
+        return root.CFrame * CFrame.new(centerLocal), size
+    else
+        return character:GetBoundingBox()
+    end
+end
+
 --// TRACER ORIGIN CALCULATOR
 local function GetTracerOrigin()
     if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-        local cframe, size = LocalPlayer.Character:GetBoundingBox()
+        local cframe, size = GetBodyBoundingBox(LocalPlayer.Character)
         local feetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
         local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
         if onScreen then
@@ -530,7 +578,7 @@ FOVFrame.LayoutOrder = GetNextOrder()
 local FOVLabel = Instance.new("TextLabel", FOVFrame)
 FOVLabel.Size = UDim2.new(1, 0, 0, 15)
 FOVLabel.Text = "Field of View: 70 (Default)"
-FOVLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
+FOVLabel.TextColor3 = Color3.new(1, 1, 1)
 FOVLabel.BackgroundTransparency = 1
 FOVLabel.Font = Enum.Font.Gotham
 FOVLabel.TextSize = 10
@@ -651,7 +699,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     if not fovEnabled then 
         Camera.FieldOfView = 70 
         currentFOV = 70
-        SetSliderVisualsFOV(70) -- FIX: Visually resets slider back to 70 when toggled off
+        SetSliderVisualsFOV(70) 
     end
     
     b.Text = "👁️ Toggle FOV Modifier: " .. (fovEnabled and "ON" or "OFF")
@@ -864,7 +912,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     timeChangerEnabled = not timeChangerEnabled
     if not timeChangerEnabled then
         customClockTime = originalClockTime
-        SetSliderVisualsTime(originalClockTime) -- FIX: Visually resets slider when disabled
+        SetSliderVisualsTime(originalClockTime) 
         Lighting.ClockTime = originalClockTime
     end
     
@@ -1834,7 +1882,9 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName }
-                    local cframe, size = p.Character:GetBoundingBox()
+                    
+                    -- Use the new Body Bounding Box
+                    local cframe, size = GetBodyBoundingBox(p.Character)
                     
                     -- FORCE RE-CALCULATION OF COLOR IF DEAD
                     local forcedColor = data.Color
@@ -1985,7 +2035,8 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                     local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                        local cframe, size = npc:GetBoundingBox()
+                        -- Use the new Body Bounding Box
+                        local cframe, size = GetBodyBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                         
                         if espShowBoxes then
