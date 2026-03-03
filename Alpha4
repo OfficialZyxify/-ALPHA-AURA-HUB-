@@ -391,6 +391,97 @@ local function GetHDREffects()
     return b, c
 end
 
+
+--// MASTER TOGGLE CLEAR SYSTEM
+local flyEnabled = false
+local flyConnection = nil
+local ToggleFly
+
+local function DisableAllFeatures()
+    -- Disable ESP System
+    espEnabled = false
+    espShowPlayers = true 
+    espShowNPCs = false   
+    espShowNames = true
+    espShowBoxes = true 
+    espShowTracers = true
+    espShowChams = false 
+    espWallsOnly = false 
+    dynamicChamsPulse = false
+    ClearAllESP()
+
+    -- Revert Field of View
+    fovEnabled = false
+    Camera.FieldOfView = 70 
+
+    -- Revert Subtly Speed
+    subtleSpeedEnabled = false
+    subtleSpeedValue = 16
+
+    -- Revert Movement / Camera Locks
+    forceThirdPerson = false
+    shiftLockEnabled = false
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+        if hum then hum.AutoRotate = true end
+    end
+    LocalPlayer.CameraMode = Enum.CameraMode.Classic
+    LocalPlayer.CameraMaxZoomDistance = 400 -- Default Roblox max
+    LocalPlayer.CameraMinZoomDistance = 0.5
+
+    -- Revert Time and Day/Night
+    timeChangerEnabled = false
+    dynamicDayNightEnabled = false
+    Lighting.ClockTime = originalClockTime
+
+    -- Revert Visuals / Lighting
+    noFogEnabled = false
+    fullbrightEnabled = false
+    shadowsDisabled = false
+    dynamicEnabled = false
+    dynamicActivated = false
+    hdrEnabled = false
+    
+    Lighting.FogEnd = originalFogEnd
+    Lighting.FogStart = originalFogStart
+    Lighting.FogColor = originalFogColor
+    local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
+    if atmo and originalAtmosphereDensity ~= nil then
+        atmo.Density = originalAtmosphereDensity
+        atmo.Offset = originalAtmosphereOffset
+    end
+    Lighting.Ambient = originalAmbient
+    Lighting.Brightness = originalBrightness
+    Lighting.GlobalShadows = originalShadows
+    Lighting.EnvironmentDiffuseScale = 0
+    Lighting.EnvironmentSpecularScale = 0
+    
+    local Bloom = Lighting:FindFirstChild("AuraBloom")
+    local ColorCorr = Lighting:FindFirstChild("AuraHDR")
+    if Bloom then Bloom.Enabled = false end
+    if ColorCorr then ColorCorr.Enabled = false end
+    
+    -- Disable Optimization
+    if optimizationEnabled then
+        optimizationEnabled = false
+        pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
+        if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
+        for obj, data in pairs(optimizationCache) do
+            if obj and obj.Parent then 
+                 if data.Material then obj.Material = data.Material end
+                 if data.Reflectance then obj.Reflectance = data.Reflectance end
+            end
+        end
+        table.clear(optimizationCache)
+    end
+
+    -- Disable Fly
+    if flyEnabled then
+        flyEnabled = false
+        if ToggleFly then ToggleFly(false) end
+    end
+end
+
 -------------------------------------------------------------------------
 --// CONFIRMATION MODAL
 -------------------------------------------------------------------------
@@ -501,10 +592,10 @@ CloseTitle.Parent = CloseModal
 local CloseDesc = Instance.new("TextLabel", CloseModal)
 CloseDesc.Size = UDim2.new(0.9, 0, 0, 40)
 CloseDesc.Position = UDim2.new(0.05, 0, 0, 65)
-CloseDesc.Text = "Are you sure to stop using Aura Hub?"
+CloseDesc.Text = "Are you sure to stop using Aura Hub?\nAll active features will be disabled."
 CloseDesc.TextColor3 = Color3.fromRGB(230, 230, 230)
 CloseDesc.Font = Enum.Font.Gotham
-CloseDesc.TextSize = 12
+CloseDesc.TextSize = 11
 CloseDesc.TextWrapped = true
 CloseDesc.BackgroundTransparency = 1
 CloseDesc.Parent = CloseModal
@@ -588,11 +679,11 @@ StatsLabel.TextSize = 9
 StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatsLabel.Parent = MainPanel
 
---// CLOSE BUTTON (Red X on Top Right)
+--// CLOSE BUTTON (Red X on Top Right, moved further right)
 local ExitUIBtn = Instance.new("TextButton")
 ExitUIBtn.Name = "ExitButton"
 ExitUIBtn.Size = UDim2.new(0, 24, 0, 24)
-ExitUIBtn.Position = UDim2.new(1, -34, 0, 10)
+ExitUIBtn.Position = UDim2.new(1, -29, 0, 8) 
 ExitUIBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
 ExitUIBtn.Text = "X"
 ExitUIBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -608,7 +699,7 @@ end)
 
 CloseYesBtn.MouseButton1Click:Connect(function()
     CloseModal.Visible = false
-    ClearAllESP()
+    DisableAllFeatures() 
     DeepClean()
     ScreenGui:Destroy()
 end)
@@ -1622,9 +1713,7 @@ end, GetNextOrder())
 CreateSpacer(GetNextOrder())
 
 -- FLY BUTTON LOGIC
-local flyEnabled = false
 local flySpeed = 50
-local flyConnection = nil
 local Controls = nil
 local flyButtonRef = nil 
 
@@ -1636,7 +1725,7 @@ local function GetControls()
     return Controls
 end
 
-local function ToggleFly(state)
+ToggleFly = function(state)
     local char = LocalPlayer.Character
     if not char then return end
     local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1895,7 +1984,7 @@ RunService.RenderStepped:Connect(function()
                     Camera.CFrame = Camera.CFrame * CFrame.new(2, 0.5, 0)
                 else
                     if LocalPlayer.CameraMaxZoomDistance == 8 then
-                          LocalPlayer.CameraMaxZoomDistance = 128
+                          LocalPlayer.CameraMaxZoomDistance = 400
                          LocalPlayer.CameraMinZoomDistance = 0.5
                     end
                 end
@@ -1905,7 +1994,7 @@ RunService.RenderStepped:Connect(function()
                     local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
                     hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
                 else
-                      hum.AutoRotate = true
+                      if not forceThirdPerson then hum.AutoRotate = true end
                 end
             end
         end
