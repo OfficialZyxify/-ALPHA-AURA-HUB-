@@ -34,7 +34,7 @@ local shiftLockEnabled = false
 local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
-local subtleSpeedEnabled = true -- Defaulted to true for presets
+local subtleSpeedEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
 
@@ -413,7 +413,7 @@ local function DisableAllFeatures()
     fovEnabled = false
     Camera.FieldOfView = 70 
 
-    subtleSpeedEnabled = true
+    subtleSpeedEnabled = false
     subtleSpeedValue = 16
 
     forceThirdPerson = false
@@ -913,7 +913,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "Enabled" or "FOV Modifier Disabled")
+    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1103,7 +1103,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Enabled" or "Dynamic Cycle Paused (Default Time)")
+    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1118,7 +1118,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Enabled" or "Game Time Restored")
+    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1138,7 +1138,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Enabled" or "Fog Restored")
+    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1152,14 +1152,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Enabled" or "Lighting Restored")
+    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
-        Notify("Enabled")
+        Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1192,7 +1192,7 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Enabled")
+        Notify("Global Shadows Disabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
@@ -1204,13 +1204,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Enabled" or "Dynamic Shadows Disabled")
+    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "Enabled" or "HDR Disabled")
+    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1445,7 +1445,7 @@ MasterBtn.MouseButton1Click:Connect(function()
         Notify("ESP Disabled (Clearing...)")
         ClearAllESP()
     else
-        Notify("Enabled")
+        Notify("ESP Master Active")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1522,19 +1522,19 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Enabled" or "Shiftlock Disabled")
+    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Enabled" or "Standard View Restored")
+    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Enabled" or "Anti-AFK Protection Off")
+    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
@@ -1578,6 +1578,15 @@ SpeedLabel.TextSize = 10
 SpeedLabel.Position = UDim2.new(0, 0, 0, 0)
 table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
 
+local SpeedNote = Instance.new("TextLabel", SpeedFrame)
+SpeedNote.Size = UDim2.new(1, 0, 0, 10)
+SpeedNote.Text = "⚠️ Enable Speed First"
+SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+SpeedNote.BackgroundTransparency = 1
+SpeedNote.Font = Enum.Font.GothamBold
+SpeedNote.TextSize = 9
+SpeedNote.Position = UDim2.new(0, 0, 0, 15)
+
 local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
 RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
@@ -1610,7 +1619,7 @@ Instance.new("UICorner", SliderBarSpeed)
 local SliderDotSpeed = Instance.new("Frame", SliderBarSpeed)
 SliderDotSpeed.Size = UDim2.new(0, 16, 0, 16)
 SliderDotSpeed.Position = UDim2.new(0, -8, 0.5, -8) 
-SliderDotSpeed.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
+SliderDotSpeed.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 Instance.new("UICorner", SliderDotSpeed).CornerRadius = UDim.new(1, 0)
 SpeedVisuals.SliderDot = SliderDotSpeed
 
@@ -1657,24 +1666,42 @@ local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
     btn.Size = UDim2.new(0.23, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.BackgroundTransparency = 0.7
     btn.Text = label
     btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 10
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     table.insert(SpeedVisuals.ActiveItems, btn)
+    table.insert(SpeedVisuals.DimItems, btn)
    
     btn.MouseButton1Click:Connect(function()
-        subtleSpeedEnabled = true
+        if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
         SetSliderVisualsSpeed(val)
-        Notify("Enabled")
     end)
 end
 CreatePresetSpeed(16, "16")
 CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
+
+CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
+    subtleSpeedEnabled = not subtleSpeedEnabled
+    
+    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
+    b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
+    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
+    SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
+    
+    for _, item in pairs(SpeedVisuals.DimItems) do
+         item.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
+    end
+    SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
+    
+    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
+end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
 
@@ -1698,7 +1725,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("Enabled")
+        Notify("🚀 Fly Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
