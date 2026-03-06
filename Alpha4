@@ -34,7 +34,7 @@ local shiftLockEnabled = false
 local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
-local subtleSpeedEnabled = false 
+local subtleSpeedEnabled = true 
 local fovEnabled = false 
 local fullbrightEnabled = false
 
@@ -205,7 +205,7 @@ local function GetUniversalRole(player)
                         for _, weld in pairs(player.Character:GetDescendants()) do
                             if weld:IsA("Weld") or weld:IsA("Motor6D") or weld:IsA("WeldConstraint") then
                                 if weld.Part0 and weld.Part1 then
-                                    local isHammerPart = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) or (weld.Part1:IsDescendantOf(child) or weld.Part1 == child)
+                                  local isHammerPart = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) or (weld.Part1:IsDescendantOf(child) or weld.Part1 == child)
                                     if isHammerPart then
                                         local limb = (weld.Part0:IsDescendantOf(child) or weld.Part0 == child) and weld.Part1 or weld.Part0
                                         local limbName = limb.Name:lower()
@@ -413,7 +413,7 @@ local function DisableAllFeatures()
     fovEnabled = false
     Camera.FieldOfView = 70 
 
-    subtleSpeedEnabled = false
+    subtleSpeedEnabled = true
     subtleSpeedValue = 16
 
     forceThirdPerson = false
@@ -896,6 +896,7 @@ CreatePresetFOV(120, "Max (120)")
 
 CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     fovEnabled = not fovEnabled
+    
     if not fovEnabled then 
         Camera.FieldOfView = 70 
         currentFOV = 70
@@ -913,7 +914,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
+    Notify(fovEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1084,6 +1085,7 @@ end
 local DynamicTimeBtn = Instance.new("TextButton", ScrollContainer)
 DynamicTimeBtn.Name = "DynamicBtn"
 DynamicTimeBtn.Size = UDim2.new(0.9, 0, 0, 25) 
+
 DynamicTimeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 DynamicTimeBtn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
 DynamicTimeBtn.Font = Enum.Font.GothamSemibold
@@ -1103,7 +1105,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
+    Notify(dynamicDayNightEnabled and "Enabled" or "Disabled")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1116,9 +1118,9 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
+   
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
+    Notify(timeChangerEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1138,7 +1140,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
+    Notify(noFogEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1152,14 +1154,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
+    Notify(fullbrightEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(optimizationEnabled and "Enabled" or "Disabled")
     if optimizationEnabled then
-        Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1174,7 +1176,6 @@ CreateButton("📈 Natural FPS Boost", function(b)
         if optimizationConnection then optimizationConnection:Disconnect() end
         optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
     else
-        Notify("Restoring Original Quality...")
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
@@ -1192,11 +1193,11 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Global Shadows Disabled")
+        Notify("Enabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
-        Notify("Global Shadows Restored")
+        Notify("Disabled")
     end
 end, GetNextOrder())
 
@@ -1204,13 +1205,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
+    Notify(dynamicEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
+    Notify(hdrEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1362,7 +1363,7 @@ local function UpdateChamsVisuals()
             
             ChamsMainBtn.Text = "Toggle Chams: OFF"
             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-            
+           
             WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
@@ -1441,11 +1442,10 @@ end
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
+    Notify(espEnabled and "Enabled" or "Disabled")
     if not espEnabled then
-        Notify("ESP Disabled (Clearing...)")
         ClearAllESP()
     else
-        Notify("ESP Master Active")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1522,19 +1522,19 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
+    Notify(shiftLockEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
+    Notify(forceThirdPerson and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
+    Notify(antiAfkEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
@@ -1571,7 +1571,7 @@ SpeedFrame.LayoutOrder = GetNextOrder()
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
 SpeedLabel.Text = "Subtle Speed: 16 (Default)"
-SpeedLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
+SpeedLabel.TextColor3 = Color3.new(1, 1, 1) 
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Font = Enum.Font.Gotham
 SpeedLabel.TextSize = 10
@@ -1580,8 +1580,8 @@ table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
 
 local SpeedNote = Instance.new("TextLabel", SpeedFrame)
 SpeedNote.Size = UDim2.new(1, 0, 0, 10)
-SpeedNote.Text = "⚠️ Enable Speed First"
-SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+SpeedNote.Text = "Status: Active"
+SpeedNote.TextColor3 = Color3.fromRGB(0, 255, 140)
 SpeedNote.BackgroundTransparency = 1
 SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
@@ -1619,7 +1619,7 @@ Instance.new("UICorner", SliderBarSpeed)
 local SliderDotSpeed = Instance.new("Frame", SliderBarSpeed)
 SliderDotSpeed.Size = UDim2.new(0, 16, 0, 16)
 SliderDotSpeed.Position = UDim2.new(0, -8, 0.5, -8) 
-SliderDotSpeed.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+SliderDotSpeed.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
 Instance.new("UICorner", SliderDotSpeed).CornerRadius = UDim.new(1, 0)
 SpeedVisuals.SliderDot = SliderDotSpeed
 
@@ -1666,7 +1666,7 @@ local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
     btn.Size = UDim2.new(0.23, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.BackgroundTransparency = 0.7
+    btn.BackgroundTransparency = 0
     btn.Text = label
     btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
     btn.Font = Enum.Font.GothamBold
@@ -1676,7 +1676,6 @@ local function CreatePresetSpeed(val, label)
     table.insert(SpeedVisuals.DimItems, btn)
    
     btn.MouseButton1Click:Connect(function()
-        if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
         SetSliderVisualsSpeed(val)
     end)
@@ -1685,23 +1684,6 @@ CreatePresetSpeed(16, "16")
 CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
-
-CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
-    subtleSpeedEnabled = not subtleSpeedEnabled
-    
-    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
-    b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
-    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
-    SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
-    
-    for _, item in pairs(SpeedVisuals.DimItems) do
-         item.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
-    end
-    SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
-    
-    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
-end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
 
@@ -1725,7 +1707,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("🚀 Fly Enabled")
+        Notify("Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1758,7 +1740,7 @@ ToggleFly = function(state)
                 end
                 if flyConnection then flyConnection:Disconnect() flyConnection = nil end
                 deathConnection:Disconnect()
-            end
+             end
         end)
 
         flyConnection = RunService.RenderStepped:Connect(function()
@@ -1771,12 +1753,12 @@ ToggleFly = function(state)
                 local moveVec = ctrl:GetMoveVector()
                 local camCF = Camera.CFrame
                 if moveVec.Magnitude > 0 then
-                     local dir = (camCF.LookVector * -moveVec.Z) + (camCF.RightVector * moveVec.X)
+                    local dir = (camCF.LookVector * -moveVec.Z) + (camCF.RightVector * moveVec.X)
                     lv.VectorVelocity = dir * flySpeed
                 else
                     lv.VectorVelocity = Vector3.zero
                 end
-                ao.CFrame = camCF
+                 ao.CFrame = camCF
             end
         end)
     else
@@ -1791,7 +1773,7 @@ ToggleFly = function(state)
         end
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = false end
-        if flyEnabled then Notify("Fly Disabled") end
+        if flyEnabled then Notify("Disabled") end
         flyEnabled = false
     end
 end
@@ -1858,7 +1840,7 @@ task.spawn(function()
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and not NPCCache[v] then
                     RegisterNPC(v)
-                end
+                 end
             end
         end
         task.wait(3)
@@ -1874,7 +1856,7 @@ task.spawn(function()
                     RemoveESP(model)
                 else
                     local hum = model:FindFirstChild("Humanoid")
-                     if not hum or hum.Health <= 0 then
+                    if not hum or hum.Health <= 0 then
                         NPCCache[model] = nil
                         RemoveESP(model)
                     end
@@ -1917,7 +1899,7 @@ RunService.RenderStepped:Connect(function()
         -- Lighting & Atmosphere Loop Enforcer
         if fullbrightEnabled then
             Lighting.Ambient = Color3.new(1, 1, 1)
-             Lighting.Brightness = 2
+            Lighting.Brightness = 2
             Lighting.GlobalShadows = false
             Lighting.FogEnd = 100000
         elseif shadowsDisabled then
@@ -1934,7 +1916,7 @@ RunService.RenderStepped:Connect(function()
             end
          end
 
-        if dynamicActivated and not fullbrightEnabled then
+         if dynamicActivated and not fullbrightEnabled then
             if dynamicEnabled then
                 Lighting.EnvironmentDiffuseScale = 1
                 Lighting.EnvironmentSpecularScale = 1
@@ -1958,7 +1940,7 @@ RunService.RenderStepped:Connect(function()
 
          -- Subtle Pursuit
         if LocalPlayer.Character then
-             local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
+            local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
             
             if hum and hrp then
@@ -1973,17 +1955,17 @@ RunService.RenderStepped:Connect(function()
                 if forceThirdPerson then
                      LocalPlayer.CameraMode = Enum.CameraMode.Classic
                      LocalPlayer.CameraMaxZoomDistance = 8
-                    LocalPlayer.CameraMinZoomDistance = 8
+                     LocalPlayer.CameraMinZoomDistance = 8
                     Camera.CFrame = Camera.CFrame * CFrame.new(2, 0.5, 0)
                 else
                     if LocalPlayer.CameraMaxZoomDistance == 8 then
                           LocalPlayer.CameraMaxZoomDistance = 400
-                         LocalPlayer.CameraMinZoomDistance = 0.5
+                          LocalPlayer.CameraMinZoomDistance = 0.5
                     end
                 end
 
                 if shiftLockEnabled or forceThirdPerson then
-                      hum.AutoRotate = false
+                    hum.AutoRotate = false
                     local _, y, _ = Camera.CFrame:ToEulerAnglesYXZ()
                     hrp.CFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, y, 0)
                 else
@@ -2004,12 +1986,12 @@ task.spawn(function()
 
                         local oldData = ESP_Data_Cache[p]
                         if oldData and oldData.Character and oldData.Character ~= p.Character then
-                              RemoveESP(oldData.Character)
+                           RemoveESP(oldData.Character)
                         end
 
                         local role = GetUniversalRole(p)
                         local color = GetSmartColor(role, p)
-                         local dist = 0
+                        local dist = 0
                         local isVis = false
                         local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                         
@@ -2040,7 +2022,7 @@ task.spawn(function()
                             RemoveESP(oldData.Character)
                         end
                          ESP_Data_Cache[p] = nil
-                    end
+                     end
                 end
             end
         end
@@ -2059,7 +2041,7 @@ end)
 RunService.RenderStepped:Connect(function()
     pcall(function()
         if not espEnabled then return end
-         
+        
         local pulseAlpha = 0.5
         if dynamicChamsPulse then
             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
@@ -2074,7 +2056,7 @@ RunService.RenderStepped:Connect(function()
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
                     if not p.Character or not p.Character.Parent then
-                         RemoveESP(p.Character)
+                        RemoveESP(p.Character)
                         continue 
                     end
 
@@ -2088,7 +2070,7 @@ RunService.RenderStepped:Connect(function()
                     
                      local cframe, size = GetBodyBoundingBox(p.Character)
                     
-                     local forcedColor = data.Color
+                    local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
                      
                     if data.Role == "Downed" then
@@ -2096,12 +2078,12 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Dead" or (hum and hum.Health <= 0) then
                           forcedColor = Color3.fromRGB(150, 150, 150)
                          data.Role = "Dead"
-                     end
+                    end
 
                     if espShowBoxes then
                          local box = root:FindFirstChild("AuraBox")
                         if not box then
-                            box = Instance.new("BillboardGui", root)
+                             box = Instance.new("BillboardGui", root)
                             box.Name = "AuraBox"
                             box.AlwaysOnTop = true 
                             CollectionService:AddTag(box, "AuraESP")
@@ -2112,9 +2094,9 @@ RunService.RenderStepped:Connect(function()
                              stroke.Thickness = 2
                         end
                         
-                        -- Dynamically scale based purely on Y with constant 1:1.5 ratio
+                        -- Dynamically scale based purely on X/Z for width and Y for height
                         local boxHeight = size.Y + 0.5
-                        local boxWidth = boxHeight / 1.5
+                        local boxWidth = math.max(size.X, size.Z) + 0.5
                         
                         box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
                         box.StudsOffsetWorldSpace = cframe.Position - root.Position -- Center perfectly around exact torso position
@@ -2122,10 +2104,10 @@ RunService.RenderStepped:Connect(function()
                     end
                     
                      if espShowChams then
-                        local highlight = p.Character:FindFirstChild("AuraChams")
+                         local highlight = p.Character:FindFirstChild("AuraChams")
                          if not highlight then
                             highlight = Instance.new("Highlight", p.Character)
-                             highlight.Name = "AuraChams"
+                            highlight.Name = "AuraChams"
                              highlight.Adornee = p.Character
                             CollectionService:AddTag(highlight, "AuraESP")
                          end
@@ -2143,11 +2125,11 @@ RunService.RenderStepped:Connect(function()
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                              end
                         else
-                             highlight.Enabled = true
+                            highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                          end
                     else
-                         local h = p.Character:FindFirstChild("AuraChams")
+                        local h = p.Character:FindFirstChild("AuraChams")
                         if h then h:Destroy() end
                     end
                     
@@ -2172,11 +2154,11 @@ RunService.RenderStepped:Connect(function()
                             tracer.Visible = true
                              tracer.Transparency = 0.8
                         else
-                            tracer.Visible = false
+                             tracer.Visible = false
                          end
                     else
                         if VF_Tracers[p.Character] then
-                            VF_Tracers[p.Character]:Remove()
+                             VF_Tracers[p.Character]:Remove()
                              VF_Tracers[p.Character] = nil
                         end
                      end
@@ -2197,7 +2179,7 @@ RunService.RenderStepped:Connect(function()
                             t.BackgroundTransparency = 1
                             t.TextStrokeTransparency = 0
                              t.Font = Enum.Font.GothamBold
-                             t.TextSize = 13
+                            t.TextSize = 13
                         end
                         
                         local topText = ""
@@ -2218,9 +2200,9 @@ RunService.RenderStepped:Connect(function()
                         local nameStr = ""
                         
                         if dName and dName ~= rName then
-                            nameStr = dName .. "\n(@" .. rName .. ")"
+                            nameStr = dName .. "\n[" .. rName .. "]"
                         else
-                            nameStr = "@" .. rName
+                            nameStr = rName
                         end
 
                         local txt = topText .. nameStr .. "\n[" .. data.Dist .. "m]"
@@ -2252,14 +2234,15 @@ RunService.RenderStepped:Connect(function()
                                 box.AlwaysOnTop = true 
                                 CollectionService:AddTag(box, "AuraESP")
                                 local frame = Instance.new("Frame", box)
-                                 frame.Size = UDim2.new(1, 0, 1, 0)
+                                frame.Size = UDim2.new(1, 0, 1, 0)
                                 frame.BackgroundTransparency = 1
                                 local stroke = Instance.new("UIStroke", frame)
                                  stroke.Thickness = 2
                             end
                             
+                            -- Dynamically scale based purely on X/Z for width and Y for height
                             local boxHeight = size.Y + 0.5
-                            local boxWidth = boxHeight / 1.5
+                            local boxWidth = math.max(size.X, size.Z) + 0.5
                             
                             box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
                             box.StudsOffsetWorldSpace = cframe.Position - root.Position
@@ -2270,7 +2253,7 @@ RunService.RenderStepped:Connect(function()
                              if not highlight then
                                 highlight = Instance.new("Highlight", npc)
                                 highlight.Name = "AuraChams"
-                                 highlight.Adornee = npc
+                                highlight.Adornee = npc
                                 CollectionService:AddTag(highlight, "AuraESP")
                             end
                              highlight.FillColor = color
@@ -2334,7 +2317,7 @@ RunService.RenderStepped:Connect(function()
                             tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
                         end
-                     end
+                    end
                 end
             end
         end
