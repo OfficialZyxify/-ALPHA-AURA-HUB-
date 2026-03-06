@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers Fixed + Dynamic Scale + Lighting Fix + GHOST MODE)
+--// AuraHub V56: Ghost Mode (Stripped Edition) & Optimized ESP
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -34,7 +34,7 @@ local shiftLockEnabled = false
 local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
-local subtleSpeedEnabled = false 
+local subtleSpeedEnabled = true -- Auto-enabled for slider/presets
 local fovEnabled = false 
 local fullbrightEnabled = false
 
@@ -51,9 +51,9 @@ local dynamicChamsPulse = false
 
 -- Data Caches
 local ESP_Data_Cache = {} 
-local NPCCache = {} -- Format: { [Model] = true }
-local VF_Tracers = {} -- Cache for Drawing API Tracers
-local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
+local NPCCache = {}
+local VF_Tracers = {} 
+local BoundingBoxCache = {} 
 
 -- Time States
 local timeChangerEnabled = false
@@ -89,7 +89,7 @@ end)
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V54_Balanced" 
+ScreenGui.Name = "AuraHub_V56_Balanced" 
 ScreenGui.Parent = PlayerGui
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -130,7 +130,6 @@ local function RemoveESP(model)
         local i = model:FindFirstChild(name) or (model:FindFirstChild("HumanoidRootPart") and model.HumanoidRootPart:FindFirstChild(name))
         if i then i:Destroy() end
     end
-    -- Clean up Drawing Tracer
     if VF_Tracers[model] then
         if typeof(VF_Tracers[model]) == "Instance" then
             VF_Tracers[model]:Destroy()
@@ -172,11 +171,8 @@ end
 --// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
     if not player then return "Unknown" end
-    
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
-        
-        -- 1. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
@@ -186,13 +182,11 @@ local function GetUniversalRole(player)
             return "Downed"
         end
 
-        -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (FTF & MM2 FIX)
-        local isMM2_or_FTF = (game.PlaceId == 142823291) or (game.PlaceId == 893973440)
+        local isMM2_or_FTF = (game.PlaceId == 142823291) or (game.PlaceId == 893973440) or (game.PlaceId == 17600423422)
         if isMM2_or_FTF then
             for _, child in pairs(player.Character:GetChildren()) do
                 local name = child.Name:lower()
@@ -234,24 +228,20 @@ local function GetUniversalRole(player)
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
          return player.Team.Name
     end
-
     return "Neutral"
 end
 
 --// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
     local r = tostring(role):lower()
-    
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
-    
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
-
     return Color3.fromRGB(255, 255, 255)
 end
 
@@ -392,7 +382,6 @@ local function GetHDREffects()
     return b, c
 end
 
-
 --// MASTER TOGGLE CLEAR SYSTEM
 local flyEnabled = false
 local flyConnection = nil
@@ -417,7 +406,6 @@ local function DisableAllFeatures()
     fovEnabled = false
     Camera.FieldOfView = 70 
 
-    subtleSpeedEnabled = false
     subtleSpeedValue = 16
 
     forceThirdPerson = false
@@ -593,7 +581,7 @@ GhostTitle.Parent = GhostModal
 local GhostDesc = Instance.new("TextLabel", GhostModal)
 GhostDesc.Size = UDim2.new(0.9, 0, 0, 35)
 GhostDesc.Position = UDim2.new(0.05, 0, 0, 60)
-GhostDesc.Text = "Choose your stealth style. (Client-sided visual effects only)."
+GhostDesc.Text = "Choose your stealth style. (Stripped replicates to server)."
 GhostDesc.TextColor3 = Color3.fromRGB(230, 230, 230)
 GhostDesc.Font = Enum.Font.Gotham
 GhostDesc.TextSize = 10
@@ -602,30 +590,41 @@ GhostDesc.BackgroundTransparency = 1
 GhostDesc.Parent = GhostModal
 
 local GhostDecoyBtn = Instance.new("TextButton", GhostModal)
-GhostDecoyBtn.Size = UDim2.new(0.42, 0, 0, 25)
-GhostDecoyBtn.Position = UDim2.new(0.05, 0, 0.65, 0)
+GhostDecoyBtn.Size = UDim2.new(0.28, 0, 0, 25)
+GhostDecoyBtn.Position = UDim2.new(0.04, 0, 0.65, 0)
 GhostDecoyBtn.BackgroundColor3 = Color3.fromRGB(120, 50, 200)
 GhostDecoyBtn.Text = "DECOY"
 GhostDecoyBtn.TextColor3 = Color3.new(1, 1, 1)
 GhostDecoyBtn.Font = Enum.Font.GothamBold
-GhostDecoyBtn.TextSize = 11
+GhostDecoyBtn.TextSize = 10
 Instance.new("UICorner", GhostDecoyBtn).CornerRadius = UDim.new(0, 6)
 GhostDecoyBtn.Parent = GhostModal
 
 local GhostCompleteBtn = Instance.new("TextButton", GhostModal)
-GhostCompleteBtn.Size = UDim2.new(0.42, 0, 0, 25)
-GhostCompleteBtn.Position = UDim2.new(0.53, 0, 0.65, 0)
+GhostCompleteBtn.Size = UDim2.new(0.28, 0, 0, 25)
+GhostCompleteBtn.Position = UDim2.new(0.36, 0, 0.65, 0)
 GhostCompleteBtn.BackgroundColor3 = Color3.fromRGB(150, 20, 20)
 GhostCompleteBtn.Text = "COMPLETE"
 GhostCompleteBtn.TextColor3 = Color3.new(1, 1, 1)
 GhostCompleteBtn.Font = Enum.Font.GothamBold
-GhostCompleteBtn.TextSize = 11
+GhostCompleteBtn.TextSize = 10
 Instance.new("UICorner", GhostCompleteBtn).CornerRadius = UDim.new(0, 6)
 GhostCompleteBtn.Parent = GhostModal
 
+local GhostStrippedBtn = Instance.new("TextButton", GhostModal)
+GhostStrippedBtn.Size = UDim2.new(0.28, 0, 0, 25)
+GhostStrippedBtn.Position = UDim2.new(0.68, 0, 0.65, 0)
+GhostStrippedBtn.BackgroundColor3 = Color3.fromRGB(200, 100, 50)
+GhostStrippedBtn.Text = "STRIPPED"
+GhostStrippedBtn.TextColor3 = Color3.new(1, 1, 1)
+GhostStrippedBtn.Font = Enum.Font.GothamBold
+GhostStrippedBtn.TextSize = 10
+Instance.new("UICorner", GhostStrippedBtn).CornerRadius = UDim.new(0, 6)
+GhostStrippedBtn.Parent = GhostModal
+
 local GhostCancelBtn = Instance.new("TextButton", GhostModal)
-GhostCancelBtn.Size = UDim2.new(0.9, 0, 0, 20)
-GhostCancelBtn.Position = UDim2.new(0.05, 0, 0.85, 0)
+GhostCancelBtn.Size = UDim2.new(0.92, 0, 0, 20)
+GhostCancelBtn.Position = UDim2.new(0.04, 0, 0.85, 0)
 GhostCancelBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 GhostCancelBtn.Text = "Cancel"
 GhostCancelBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -1002,7 +1001,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
+    Notify(fovEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1192,7 +1191,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
+    Notify(dynamicDayNightEnabled and "Enabled" or "Disabled")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1207,7 +1206,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
+    Notify(timeChangerEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1227,7 +1226,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
+    Notify(noFogEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1241,14 +1240,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
+    Notify(fullbrightEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
-        Notify("Optimization Enabled")
+        Notify("Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1263,7 +1262,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         if optimizationConnection then optimizationConnection:Disconnect() end
         optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
     else
-        Notify("Restoring Original Quality...")
+        Notify("Disabled")
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
@@ -1281,11 +1280,11 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Global Shadows Disabled")
+        Notify("Enabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
-        Notify("Global Shadows Restored")
+        Notify("Disabled")
     end
 end, GetNextOrder())
 
@@ -1293,13 +1292,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
+    Notify(dynamicEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
+    Notify(hdrEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1531,10 +1530,10 @@ end
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     if not espEnabled then
-        Notify("ESP Disabled (Clearing...)")
+        Notify("Disabled")
         ClearAllESP()
     else
-        Notify("ESP Master Active")
+        Notify("Enabled")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1611,26 +1610,26 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
+    Notify(shiftLockEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
+    Notify(forceThirdPerson and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
+    Notify(antiAfkEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
 CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
 CreateButton("☠️ Reset Character", function() 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        Notify("Respawning...")
+        Notify("Enabled")
         LocalPlayer.Character.Humanoid.Health = 0
     end 
 end, GetNextOrder())
@@ -1659,22 +1658,13 @@ SpeedFrame.LayoutOrder = GetNextOrder()
 
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
-SpeedLabel.Text = "Subtle Speed: 16 (Default)"
-SpeedLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
+SpeedLabel.Text = "Speed Override: 16 (Default)"
+SpeedLabel.TextColor3 = Color3.new(1, 1, 1)
 SpeedLabel.BackgroundTransparency = 1
 SpeedLabel.Font = Enum.Font.Gotham
 SpeedLabel.TextSize = 10
 SpeedLabel.Position = UDim2.new(0, 0, 0, 0)
 table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
-
-local SpeedNote = Instance.new("TextLabel", SpeedFrame)
-SpeedNote.Size = UDim2.new(1, 0, 0, 10)
-SpeedNote.Text = "⚠️ Enable Speed First"
-SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-SpeedNote.BackgroundTransparency = 1
-SpeedNote.Font = Enum.Font.GothamBold
-SpeedNote.TextSize = 9
-SpeedNote.Position = UDim2.new(0, 0, 0, 15)
 
 local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
 RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
@@ -1718,18 +1708,16 @@ local function SetSliderVisualsSpeed(val)
     local percentage = (val - minSpeed) / (maxSpeed - minSpeed)
     percentage = math.clamp(percentage, 0, 1)
     SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
-    SpeedLabel.Text = "Subtle Speed: " .. val .. (val == 16 and " (Default)" or "")
+    SpeedLabel.Text = "Speed Override: " .. val .. (val == 16 and " (Default)" or "")
 end
 local function UpdateSpeed(input)
-    if not subtleSpeedEnabled then return end
     local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
     SliderDotSpeed.Position = UDim2.new(pos, -8, 0.5, -8)
     subtleSpeedValue = math.floor(minSpeed + (pos * (maxSpeed - minSpeed)))
-    SpeedLabel.Text = "Subtle Speed: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
+    SpeedLabel.Text = "Speed Override: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
 end
 local slidingSpeed = false
 SliderBarSpeed.InputBegan:Connect(function(input)
-    if not subtleSpeedEnabled then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         slidingSpeed = true
         UpdateSpeed(input)
@@ -1765,7 +1753,6 @@ local function CreatePresetSpeed(val, label)
     table.insert(SpeedVisuals.DimItems, btn)
    
     btn.MouseButton1Click:Connect(function()
-        if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
         SetSliderVisualsSpeed(val)
     end)
@@ -1774,23 +1761,6 @@ CreatePresetSpeed(16, "16")
 CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
-
-CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
-    subtleSpeedEnabled = not subtleSpeedEnabled
-    
-    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
-    b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
-    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
-    SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
-    
-    for _, item in pairs(SpeedVisuals.DimItems) do
-         item.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
-    end
-    SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
-    
-    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
-end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
 
@@ -1814,7 +1784,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("🚀 Fly Enabled")
+        Notify("Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1880,7 +1850,7 @@ ToggleFly = function(state)
         end
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = false end
-        if flyEnabled then Notify("Fly Disabled") end
+        if flyEnabled then Notify("Disabled") end
         flyEnabled = false
     end
 end
@@ -1921,7 +1891,7 @@ ToggleGhost = function(mode)
     local char = LocalPlayer.Character
     if not char then return end
 
-    if mode == "Decoy" or mode == "Complete" then
+    if mode == "Decoy" or mode == "Complete" or mode == "Stripped" then
         char.Archivable = true
         
         if mode == "Decoy" then
@@ -1934,8 +1904,8 @@ ToggleGhost = function(mode)
                     v.CanCollide = false
                 end
             end
+            
         elseif mode == "Complete" then
-            -- Strips character locally to try and glitch spectator scripts
             for _, v in pairs(char:GetDescendants()) do
                 if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("CharacterMesh") or v:IsA("ShirtGraphic") then
                     v:Destroy()
@@ -1944,31 +1914,49 @@ ToggleGhost = function(mode)
                     v:Destroy()
                 end
             end
-        end
-
-        -- Make Real Body Invisible
-        for _, v in pairs(char:GetDescendants()) do
-            if v:IsA("BasePart") or v:IsA("Decal") then
-                if originalTransparencies[v] == nil then
-                    originalTransparencies[v] = v.Transparency
+            
+        elseif mode == "Stripped" then
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("Accessory") or v:IsA("Shirt") or v:IsA("Pants") or v:IsA("CharacterMesh") or v:IsA("ShirtGraphic") or v:IsA("Hat") then
+                    v:Destroy()
                 end
-                v.Transparency = 1
-                if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then 
-                    v.CanCollide = false 
+            end
+            local hum = char:FindFirstChild("Humanoid")
+            if hum then
+                hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+            end
+            if char:FindFirstChild("Head") then
+                for _, v in pairs(char.Head:GetChildren()) do
+                    if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then 
+                        v:Destroy() 
+                    end
                 end
-            elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
-                v.Enabled = false
-            elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
-                v.Enabled = false
             end
         end
-        if char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.Transparency = 1 end
+
+        if mode ~= "Stripped" then
+            for _, v in pairs(char:GetDescendants()) do
+                if v:IsA("BasePart") or v:IsA("Decal") then
+                    if originalTransparencies[v] == nil then
+                        originalTransparencies[v] = v.Transparency
+                    end
+                    v.Transparency = 1
+                    if v:IsA("BasePart") and v.Name ~= "HumanoidRootPart" then 
+                        v.CanCollide = false 
+                    end
+                elseif v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
+                    v.Enabled = false
+                elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
+                    v.Enabled = false
+                end
+            end
+            if char:FindFirstChild("HumanoidRootPart") then char.HumanoidRootPart.Transparency = 1 end
+        end
         
         ghostEnabled = true
         ghostMode = mode
-        Notify(mode .. " Ghost Active")
+        Notify("Enabled")
     else
-        -- Disable Ghost
         if decoyModel then 
             decoyModel:Destroy() 
             decoyModel = nil 
@@ -1992,7 +1980,7 @@ ToggleGhost = function(mode)
         
         ghostEnabled = false
         ghostMode = nil
-        Notify("Ghost Mode Disabled")
+        Notify("Disabled")
     end
 end
 
@@ -2013,6 +2001,12 @@ end)
 GhostCompleteBtn.MouseButton1Click:Connect(function()
     GhostModal.Visible = false
     ToggleGhost("Complete")
+    UpdateGhostButtonVisuals()
+end)
+
+GhostStrippedBtn.MouseButton1Click:Connect(function()
+    GhostModal.Visible = false
+    ToggleGhost("Stripped")
     UpdateGhostButtonVisuals()
 end)
 
@@ -2625,4 +2619,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V55 (Ghost Mode Added)")
+Notify("Enabled")
