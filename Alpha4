@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V2 + Viewport Tracers Fixed + Dynamic Scale + Lighting Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -167,6 +167,14 @@ local function ClearNPCESP()
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
     end
+    table.clear(NPCCache)
+    
+    -- Hard sweep for lingering NPCs that spawned during the toggle
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(v) then
+            RemoveESP(v)
+        end
+    end
 end
 
 --// UNIVERSAL ROLE DETECTOR
@@ -308,12 +316,13 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// OPTIMIZED: BODY BOUNDING BOX CALCULATOR
+--// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
 local function GetBodyBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
     if not root then return character:GetBoundingBox() end
 
-    if BoundingBoxCache[character] then
+    -- Refresh cache every 2 seconds to fix inaccurate scaling on player join
+    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 2) then
         return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
     end
 
@@ -355,7 +364,7 @@ local function GetBodyBoundingBox(character)
         local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
         
         local offsetCFrame = CFrame.new(centerLocal)
-        BoundingBoxCache[character] = { Offset = offsetCFrame, Size = size }
+        BoundingBoxCache[character] = { Offset = offsetCFrame, Size = size, Time = tick() }
         
         return root.CFrame * offsetCFrame, size
     else
@@ -2445,4 +2454,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V2 + Tracers Fixed + Lighting Fix)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
