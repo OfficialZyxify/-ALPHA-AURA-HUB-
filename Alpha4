@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Static Proportions Fixed + Lighting Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -66,7 +66,7 @@ local dynamicChamsPulse = false
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
-local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
+local BoundingBoxCache = {} -- Cache for character bounds
 local ESP_2D_Items = {} -- Cache for 2D ScreenGui ESP elements
 
 -- Time States
@@ -381,65 +381,34 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// OPTIMIZED: BODY BOUNDING BOX CALCULATOR
-local function GetBodyBoundingBox(character)
+--// STATIC PROPORTION CALCULATOR (Fixes Animation Jitter)
+local function GetStaticBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
     if not root then return character:GetBoundingBox() end
 
-    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 2) then
-        return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
+    local hum = character:FindFirstChild("Humanoid")
+    local widthScale = 1
+    local heightScale = 1
+    local depthScale = 1
+
+    if hum then
+        local ws = hum:FindFirstChild("BodyWidthScale")
+        local hs = hum:FindFirstChild("BodyHeightScale")
+        local ds = hum:FindFirstChild("BodyDepthScale")
+        if ws then widthScale = ws.Value end
+        if hs then heightScale = hs.Value end
+        if ds then depthScale = ds.Value end
     end
 
-    local minX, minY, minZ = math.huge, math.huge, math.huge
-    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
-    local hasParts = false
-
-    local rootInv = root.CFrame:Inverse()
-
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            local size = part.Size
-            local cf = rootInv * part.CFrame
-            
-            local corners = {
-                cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
-                cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
-                cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
-                cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
-                cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-            }
-            for _, pos in ipairs(corners) do
-                minX = math.min(minX, pos.X)
-                minY = math.min(minY, pos.Y)
-                minZ = math.min(minZ, pos.Z)
-                maxX = math.max(maxX, pos.X)
-                maxY = math.max(maxY, pos.Y)
-                maxZ = math.max(maxZ, pos.Z)
-            end
-            hasParts = true
-        end
-    end
-
-    if hasParts then
-        local centerLocal = Vector3.new((minX + maxX)/2, (minY + maxY)/2, (minZ + maxZ)/2)
-        local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
-        
-        local offsetCFrame = CFrame.new(centerLocal)
-        BoundingBoxCache[character] = { Offset = offsetCFrame, Size = size, Time = tick() }
-        
-        return root.CFrame * offsetCFrame, size
-    else
-        return character:GetBoundingBox()
-    end
+    -- Standard un-animated rig proportions mapped to root part
+    local staticSize = Vector3.new(4 * widthScale, 5.5 * heightScale, 1.5 * depthScale)
+    return root.CFrame, staticSize
 end
 
 --// TRACER ORIGIN CALCULATOR
 local function GetTracerOrigin()
     if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-        local cframe, size = GetBodyBoundingBox(LocalPlayer.Character)
+        local cframe, size = GetStaticBoundingBox(LocalPlayer.Character)
         local feetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
         local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
         if onScreen then
@@ -1012,7 +981,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
+    Notify(fovEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1202,7 +1171,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
+    Notify(dynamicDayNightEnabled and "Enabled" or "Disabled")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1216,7 +1185,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
+    Notify(timeChangerEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1236,7 +1205,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
+    Notify(noFogEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1250,14 +1219,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
+    Notify(fullbrightEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
-        Notify("Optimization Enabled")
+        Notify("Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1272,7 +1241,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         if optimizationConnection then optimizationConnection:Disconnect() end
         optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
     else
-        Notify("Restoring Original Quality...")
+        Notify("Disabled")
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
@@ -1290,11 +1259,11 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Global Shadows Disabled")
+        Notify("Enabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
-        Notify("Global Shadows Restored")
+        Notify("Disabled")
     end
 end, GetNextOrder())
 
@@ -1302,13 +1271,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
+    Notify(dynamicEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
+    Notify(hdrEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1540,10 +1509,10 @@ end
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     if not espEnabled then
-        Notify("ESP Disabled (Clearing...)")
+        Notify("Disabled")
         ClearAllESP()
     else
-        Notify("ESP Master Active")
+        Notify("Enabled")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1618,19 +1587,19 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
+    Notify(shiftLockEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
+    Notify(forceThirdPerson and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
+    Notify(antiAfkEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
@@ -1796,7 +1765,7 @@ CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     end
     SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
     
-    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
+    Notify(subtleSpeedEnabled and "Enabled" or "Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1821,7 +1790,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("🚀 Fly Enabled")
+        Notify("Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1887,7 +1856,7 @@ ToggleFly = function(state)
         end
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = false end
-        if flyEnabled then Notify("Fly Disabled") end
+        if flyEnabled then Notify("Disabled") end
         flyEnabled = false
     end
 end
@@ -2181,7 +2150,7 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName, IsVisible = false }
-                    local cframe, size = GetBodyBoundingBox(p.Character)
+                    local cframe, size = GetStaticBoundingBox(p.Character)
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
                      
@@ -2201,7 +2170,7 @@ RunService.RenderStepped:Connect(function()
                         local actualHeight = math.max(size.Y, 1)
                         local actualWidth = math.max(size.X, size.Z, 1)
                         
-                        -- Create a flat plane facing the camera, perfectly representing the character's height and width
+                        -- Create a flat plane facing the camera, perfectly representing the character's un-animated height and width
                         local topPoint = targetPos + (camCF.UpVector * (actualHeight / 2))
                         local bottomPoint = targetPos - (camCF.UpVector * (actualHeight / 2))
                         local leftPoint = targetPos - (camCF.RightVector * (actualWidth / 2))
@@ -2328,7 +2297,7 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                      local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                        local cframe, size = GetBodyBoundingBox(npc)
+                        local cframe, size = GetStaticBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                         
                         local targetPos = cframe.Position
@@ -2505,4 +2474,5 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Static Proportions Fixed + Lighting Fix)")
+
