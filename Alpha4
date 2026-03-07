@@ -14,10 +14,20 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10)
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
 
---// CoreGui Targeting (Allows GUI & ESP to show through Roblox Menus & Loading Screens)
+--// CoreGui Targeting for Main UI
 local TargetGui = PlayerGui
 pcall(function()
     TargetGui = (gethui and gethui()) or game:GetService("CoreGui")
+end)
+
+--// ESP Container (MUST be a Folder, NOT a ScreenGui, for BillboardGuis to work)
+local ESPContainer = PlayerGui
+pcall(function()
+    local core = game:GetService("CoreGui")
+    local folder = core:FindFirstChild("AuraHub_ESP_Folder") or Instance.new("Folder")
+    folder.Name = "AuraHub_ESP_Folder"
+    folder.Parent = core
+    ESPContainer = folder
 end)
 
 --// 🛑 DEEP CLEANUP
@@ -29,6 +39,10 @@ local function DeepClean()
         if oldGui.Name:match("AuraHub") then oldGui:Destroy() end
         if oldGui.Name == "AuraHub_Tracers_VF" then oldGui:Destroy() end
     end
+    pcall(function()
+        local oldFolder = game:GetService("CoreGui"):FindFirstChild("AuraHub_ESP_Folder")
+        if oldFolder then oldFolder:Destroy() end
+    end)
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
 end
 DeepClean() 
@@ -133,7 +147,7 @@ local function Notify(msg)
     end)
 end
 
---// Helper for BillboardGuis (Forces them to CoreGui)
+--// Helper for BillboardGuis (Forces them to CoreGui Folder)
 local function GetOrCreateBillboard(name, adorneePart)
     for _, b in pairs(CollectionService:GetTagged("AuraESP")) do
         if b.Name == name and b.Adornee == adorneePart then return b end
@@ -142,8 +156,7 @@ local function GetOrCreateBillboard(name, adorneePart)
     b.Name = name
     b.Adornee = adorneePart
     b.AlwaysOnTop = true
-    pcall(function() b.Parent = TargetGui end)
-    if not b.Parent then b.Parent = PlayerGui end
+    b.Parent = ESPContainer
     CollectionService:AddTag(b, "AuraESP")
     return b
 end
@@ -1242,7 +1255,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
-            if obj and obj.Parent then 
+             if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
             end
