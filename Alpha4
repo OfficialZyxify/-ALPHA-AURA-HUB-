@@ -1587,8 +1587,8 @@ table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
 
 local SpeedNote = Instance.new("TextLabel", SpeedFrame)
 SpeedNote.Size = UDim2.new(1, 0, 0, 10)
-SpeedNote.Text = "Subtle Speed Disabled"
-SpeedNote.TextColor3 = Color3.fromRGB(150, 150, 150)
+SpeedNote.Text = "⚠️ Enable Speed First"
+SpeedNote.TextColor3 = Color3.fromRGB(255, 100, 100)
 SpeedNote.BackgroundTransparency = 1
 SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
@@ -1637,27 +1637,19 @@ local function SetSliderVisualsSpeed(val)
     percentage = math.clamp(percentage, 0, 1)
     SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
     SpeedLabel.Text = "Subtle Speed: " .. val .. (val == 16 and " (Default)" or "")
-    
-    if val > 16 then
-        SpeedNote.Text = "Status: Active"
-        SpeedNote.TextColor3 = Color3.fromRGB(0, 255, 140)
-        SliderDotSpeed.BackgroundColor3 = Color3.fromRGB(0, 255, 140)
-    else
-        SpeedNote.Text = "Subtle Speed Disabled"
-        SpeedNote.TextColor3 = Color3.fromRGB(150, 150, 150)
-        SliderDotSpeed.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-    end
 end
 
 local function UpdateSpeed(input)
+    if not subtleSpeedEnabled then return end
     local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
+    SliderDotSpeed.Position = UDim2.new(pos, -8, 0.5, -8)
     subtleSpeedValue = math.floor(minSpeed + (pos * (maxSpeed - minSpeed)))
-    subtleSpeedEnabled = (subtleSpeedValue > 16)
-    SetSliderVisualsSpeed(subtleSpeedValue)
+    SpeedLabel.Text = "Subtle Speed: " .. subtleSpeedValue .. (subtleSpeedValue == 16 and " (Default)" or "")
 end
 
 local slidingSpeed = false
 SliderBarSpeed.InputBegan:Connect(function(input)
+    if not subtleSpeedEnabled then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         slidingSpeed = true
         UpdateSpeed(input)
@@ -1683,17 +1675,18 @@ local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
     btn.Size = UDim2.new(0.23, 0, 1, 0)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.BackgroundTransparency = 0
+    btn.BackgroundTransparency = 0.7
     btn.Text = label
-    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 10
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     table.insert(SpeedVisuals.ActiveItems, btn)
+    table.insert(SpeedVisuals.DimItems, btn)
    
     btn.MouseButton1Click:Connect(function()
+        if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
-        subtleSpeedEnabled = (val > 16)
         SetSliderVisualsSpeed(val)
     end)
 end
@@ -1701,6 +1694,23 @@ CreatePresetSpeed(16, "16")
 CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
+
+CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
+    subtleSpeedEnabled = not subtleSpeedEnabled
+    
+    b.Text = "⚡ Toggle Subtle Pursuit: " .. (subtleSpeedEnabled and "ON" or "OFF")
+    b.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
+    SpeedNote.Text = subtleSpeedEnabled and "Status: Active" or "⚠️ Enable Speed First"
+    SpeedNote.TextColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
+    
+    for _, item in pairs(SpeedVisuals.DimItems) do
+         item.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
+    end
+    SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
+    
+    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
+end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
 
