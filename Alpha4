@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Static Proportions Fixed + Lighting Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -66,7 +66,6 @@ local dynamicChamsPulse = false
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
-local BoundingBoxCache = {} -- Cache for character bounds
 local ESP_2D_Items = {} -- Cache for 2D ScreenGui ESP elements
 
 -- Time States
@@ -200,7 +199,6 @@ local function RemoveESP(model)
         end
         VF_Tracers[model] = nil
     end
-    BoundingBoxCache[model] = nil
 end
 
 local function ClearAllESP()
@@ -217,7 +215,6 @@ local function ClearAllESP()
         if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
     end
     table.clear(VF_Tracers)
-    table.clear(BoundingBoxCache)
     
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -381,35 +378,11 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// STATIC PROPORTION CALCULATOR (Fixes Animation Jitter)
-local function GetStaticBoundingBox(character)
-    local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-    if not root then return character:GetBoundingBox() end
-
-    local hum = character:FindFirstChild("Humanoid")
-    local widthScale = 1
-    local heightScale = 1
-    local depthScale = 1
-
-    if hum then
-        local ws = hum:FindFirstChild("BodyWidthScale")
-        local hs = hum:FindFirstChild("BodyHeightScale")
-        local ds = hum:FindFirstChild("BodyDepthScale")
-        if ws then widthScale = ws.Value end
-        if hs then heightScale = hs.Value end
-        if ds then depthScale = ds.Value end
-    end
-
-    -- Standard un-animated rig proportions mapped to root part
-    local staticSize = Vector3.new(4 * widthScale, 5.5 * heightScale, 1.5 * depthScale)
-    return root.CFrame, staticSize
-end
-
---// TRACER ORIGIN CALCULATOR
+--// TRACER ORIGIN CALCULATOR (FIXED FOR FEET)
 local function GetTracerOrigin()
-    if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-        local cframe, size = GetStaticBoundingBox(LocalPlayer.Character)
-        local feetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local root = LocalPlayer.Character.HumanoidRootPart
+        local feetPos = root.Position - Vector3.new(0, 3, 0) -- Statically calculates bottom of feet
         local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
         if onScreen then
             return Vector2.new(screenPos.X, screenPos.Y)
@@ -981,7 +954,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "Enabled" or "Disabled")
+    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1171,7 +1144,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Enabled" or "Disabled")
+    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1185,7 +1158,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Enabled" or "Disabled")
+    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1205,7 +1178,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Enabled" or "Disabled")
+    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1219,14 +1192,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Enabled" or "Disabled")
+    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
-        Notify("Enabled")
+        Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1241,7 +1214,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         if optimizationConnection then optimizationConnection:Disconnect() end
         optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
     else
-        Notify("Disabled")
+        Notify("Restoring Original Quality...")
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
@@ -1259,11 +1232,11 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Enabled")
+        Notify("Global Shadows Disabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
-        Notify("Disabled")
+        Notify("Global Shadows Restored")
     end
 end, GetNextOrder())
 
@@ -1271,13 +1244,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Enabled" or "Disabled")
+    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "Enabled" or "Disabled")
+    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1509,10 +1482,10 @@ end
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     if not espEnabled then
-        Notify("Disabled")
+        Notify("ESP Disabled (Clearing...)")
         ClearAllESP()
     else
-        Notify("Enabled")
+        Notify("ESP Master Active")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1587,19 +1560,19 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Enabled" or "Disabled")
+    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Enabled" or "Disabled")
+    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Enabled" or "Disabled")
+    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
@@ -1765,7 +1738,7 @@ CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     end
     SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
     
-    Notify(subtleSpeedEnabled and "Enabled" or "Disabled")
+    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1790,7 +1763,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("Enabled")
+        Notify("🚀 Fly Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1856,7 +1829,7 @@ ToggleFly = function(state)
         end
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = false end
-        if flyEnabled then Notify("Disabled") end
+        if flyEnabled then Notify("Fly Disabled") end
         flyEnabled = false
     end
 end
@@ -2150,7 +2123,6 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName, IsVisible = false }
-                    local cframe, size = GetStaticBoundingBox(p.Character)
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
                      
@@ -2161,33 +2133,25 @@ RunService.RenderStepped:Connect(function()
                          data.Role = "Dead"
                     end
 
-                    local targetPos = cframe.Position
-                    local screenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                    local targetPos = root.Position
+                    local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                     local esp2D = Get2DESP(p.Character)
 
-                    if targetOnScreen and screenPos.Z > 0 then
-                        local camCF = Camera.CFrame
-                        local actualHeight = math.max(size.Y, 1)
-                        local actualWidth = math.max(size.X, size.Z, 1)
+                    if targetOnScreen and screenTarget.Z > 0 then
+                        -- STATIC OFFSETS FOR PERFECT BOX MAPPING (Bypassing BoundingBox entirely)
+                        local headOffset = Vector3.new(0, 2.5, 0)
+                        local legOffset = Vector3.new(0, 3, 0)
                         
-                        -- Create a flat plane facing the camera, perfectly representing the character's un-animated height and width
-                        local topPoint = targetPos + (camCF.UpVector * (actualHeight / 2))
-                        local bottomPoint = targetPos - (camCF.UpVector * (actualHeight / 2))
-                        local leftPoint = targetPos - (camCF.RightVector * (actualWidth / 2))
-                        local rightPoint = targetPos + (camCF.RightVector * (actualWidth / 2))
-                        
-                        local screenTop, _ = Camera:WorldToViewportPoint(topPoint)
-                        local screenBottom, _ = Camera:WorldToViewportPoint(bottomPoint)
-                        local screenLeft, _ = Camera:WorldToViewportPoint(leftPoint)
-                        local screenRight, _ = Camera:WorldToViewportPoint(rightPoint)
+                        local screenTop, _ = Camera:WorldToViewportPoint(root.Position + headOffset)
+                        local screenBottom, _ = Camera:WorldToViewportPoint(root.Position - legOffset)
                         
                         local boxHeight = math.abs(screenBottom.Y - screenTop.Y)
-                        local boxWidth = math.abs(screenRight.X - screenLeft.X)
+                        local boxWidth = boxHeight * 0.6
                         
                         if espShowBoxes then
                             esp2D.Box.Visible = true
                             esp2D.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-                            esp2D.Box.Position = UDim2.new(0, screenPos.X - (boxWidth / 2), 0, screenPos.Y - (boxHeight / 2))
+                            esp2D.Box.Position = UDim2.new(0, screenTop.X - (boxWidth/2), 0, screenTop.Y)
                             esp2D.Box.UIStroke.Color = forcedColor
                         else
                             esp2D.Box.Visible = false
@@ -2195,7 +2159,7 @@ RunService.RenderStepped:Connect(function()
                         
                         if espShowNames then
                             esp2D.Name.Visible = true
-                            esp2D.Name.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - (boxHeight / 2) - 2)
+                            esp2D.Name.Position = UDim2.new(0, screenTop.X, 0, screenTop.Y - 5)
                             
                             local topText = ""
                             if data.Role == "Downed" then 
@@ -2268,8 +2232,8 @@ RunService.RenderStepped:Connect(function()
                             VF_Tracers[p.Character] = tracer
                          end
 
-                         local targetPosTracer = cframe.Position - Vector3.new(0, size.Y / 2, 0)
-                         local screenTargetTracer, targetOnScreenTracer = Camera:WorldToViewportPoint(targetPosTracer)
+                         local targetFeetPos = root.Position - Vector3.new(0, 3, 0)
+                         local screenTargetTracer, targetOnScreenTracer = Camera:WorldToViewportPoint(targetFeetPos)
 
                         local screenOrigin = GetTracerOrigin()
 
@@ -2297,35 +2261,26 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                      local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                        local cframe, size = GetStaticBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                         
-                        local targetPos = cframe.Position
-                        local screenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                        local targetPos = root.Position
+                        local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                         local esp2D = Get2DESP(npc)
 
-                        if targetOnScreen and screenPos.Z > 0 then
-                            local camCF = Camera.CFrame
-                            local actualHeight = math.max(size.Y, 1)
-                            local actualWidth = math.max(size.X, size.Z, 1)
+                        if targetOnScreen and screenTarget.Z > 0 then
+                            local headOffset = Vector3.new(0, 2.5, 0)
+                            local legOffset = Vector3.new(0, 3, 0)
                             
-                            local topPoint = targetPos + (camCF.UpVector * (actualHeight / 2))
-                            local bottomPoint = targetPos - (camCF.UpVector * (actualHeight / 2))
-                            local leftPoint = targetPos - (camCF.RightVector * (actualWidth / 2))
-                            local rightPoint = targetPos + (camCF.RightVector * (actualWidth / 2))
-                            
-                            local screenTop, _ = Camera:WorldToViewportPoint(topPoint)
-                            local screenBottom, _ = Camera:WorldToViewportPoint(bottomPoint)
-                            local screenLeft, _ = Camera:WorldToViewportPoint(leftPoint)
-                            local screenRight, _ = Camera:WorldToViewportPoint(rightPoint)
+                            local screenTop, _ = Camera:WorldToViewportPoint(root.Position + headOffset)
+                            local screenBottom, _ = Camera:WorldToViewportPoint(root.Position - legOffset)
                             
                             local boxHeight = math.abs(screenBottom.Y - screenTop.Y)
-                            local boxWidth = math.abs(screenRight.X - screenLeft.X)
+                            local boxWidth = boxHeight * 0.6
                             
                             if espShowBoxes then
                                 esp2D.Box.Visible = true
                                 esp2D.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-                                esp2D.Box.Position = UDim2.new(0, screenPos.X - (boxWidth / 2), 0, screenPos.Y - (boxHeight / 2))
+                                esp2D.Box.Position = UDim2.new(0, screenTop.X - (boxWidth/2), 0, screenTop.Y)
                                 esp2D.Box.UIStroke.Color = color
                             else
                                 esp2D.Box.Visible = false
@@ -2333,7 +2288,7 @@ RunService.RenderStepped:Connect(function()
                             
                             if espShowNames then
                                 esp2D.Name.Visible = true
-                                esp2D.Name.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - (boxHeight / 2) - 2)
+                                esp2D.Name.Position = UDim2.new(0, screenTop.X, 0, screenTop.Y - 5)
                                 local dist = math.floor((root.Position - localPos).Magnitude)
                                 esp2D.Name.Text = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                                 esp2D.Name.TextColor3 = color
@@ -2370,8 +2325,8 @@ RunService.RenderStepped:Connect(function()
                                 VF_Tracers[npc] = tracer
                             end
 
-                            local targetPosTracer = cframe.Position - Vector3.new(0, size.Y / 2, 0)
-                            local screenTargetTracer, targetOnScreenTracer = Camera:WorldToViewportPoint(targetPosTracer)
+                            local targetFeetPos = root.Position - Vector3.new(0, 3, 0)
+                            local screenTargetTracer, targetOnScreenTracer = Camera:WorldToViewportPoint(targetFeetPos)
 
                             local screenOrigin = GetTracerOrigin()
 
@@ -2474,5 +2429,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Static Proportions Fixed + Lighting Fix)")
-
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
