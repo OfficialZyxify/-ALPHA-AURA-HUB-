@@ -1,4 +1,4 @@
---// AuraHub V56: True 2D Screen Space ESP & Reliable NPC Cleanup
+--// AuraHub V56: True 2D Screen Space ESP (Smooth & Centered Edition)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -72,7 +72,6 @@ local dynamicChamsPulse = false
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
-local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ESP_GUIs = {} -- Tracks 2D Screen elements: { [Model] = { Box = Frame, Tag = TextLabel } }
 
 -- Time States
@@ -168,7 +167,6 @@ local function RemoveESP(model)
         end
         VF_Tracers[model] = nil
     end
-    BoundingBoxCache[model] = nil
 end
 
 local function ClearAllESP()
@@ -185,7 +183,6 @@ local function ClearAllESP()
         if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
     end
     table.clear(VF_Tracers)
-    table.clear(BoundingBoxCache)
     
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -347,67 +344,16 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
-local function GetBodyBoundingBox(character)
-    local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
-    if not root then return character:GetBoundingBox() end
-
-    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 2) then
-        return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
-    end
-
-    local minX, minY, minZ = math.huge, math.huge, math.huge
-    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
-    local hasParts = false
-    local rootInv = root.CFrame:Inverse()
-
-    for _, part in pairs(character:GetChildren()) do
-        if part:IsA("BasePart") then
-            local size = part.Size
-            local cf = rootInv * part.CFrame
-            
-            local corners = {
-                cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
-                cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
-                cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
-                cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
-                cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-            }
-            for _, pos in ipairs(corners) do
-                minX = math.min(minX, pos.X)
-                minY = math.min(minY, pos.Y)
-                minZ = math.min(minZ, pos.Z)
-                maxX = math.max(maxX, pos.X)
-                maxY = math.max(maxY, pos.Y)
-                maxZ = math.max(maxZ, pos.Z)
-            end
-            hasParts = true
-        end
-    end
-
-    if hasParts then
-        local centerLocal = Vector3.new((minX + maxX)/2, (minY + maxY)/2, (minZ + maxZ)/2)
-        local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
-        local offsetCFrame = CFrame.new(centerLocal)
-        BoundingBoxCache[character] = { Offset = offsetCFrame, Size = size, Time = tick() }
-        
-        return root.CFrame * offsetCFrame, size
-    else
-        return character:GetBoundingBox()
-    end
-end
-
 --// TRACER ORIGIN CALCULATOR
 local function GetTracerOrigin()
-    if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-        local cframe, size = GetBodyBoundingBox(LocalPlayer.Character)
-        local feetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
-        local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
-        if onScreen then
-            return Vector2.new(screenPos.X, screenPos.Y)
+    if LocalPlayer.Character then
+        local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
+        if root then
+            local feetPos = root.Position - Vector3.new(0, 3, 0)
+            local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
+            if onScreen then
+                return Vector2.new(screenPos.X, screenPos.Y)
+            end
         end
     end
     return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
@@ -2129,7 +2075,6 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName, IsVisible = false }
-                    local cframe, size = GetBodyBoundingBox(p.Character)
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
                      
@@ -2140,24 +2085,25 @@ RunService.RenderStepped:Connect(function()
                         data.Role = "Dead"
                     end
 
-                    -- Init Player GUIs mapping
                     local guis = ESP_GUIs[p.Character]
                     if not guis then
                         guis = {}
                         ESP_GUIs[p.Character] = guis
                     end
 
-                    -- True 2D Math Mapping
-                    local topPos = cframe.Position + Vector3.new(0, (size.Y / 2) + 0.3, 0)
-                    local bottomPos = cframe.Position - Vector3.new(0, (size.Y / 2) + 0.3, 0)
+                    -- STABLE 2D MATH
+                    local rootPos = root.Position
+                    local topPos = rootPos + Vector3.new(0, 2.5, 0)
+                    local bottomPos = rootPos - Vector3.new(0, 3, 0)
                     
                     local topScreen, topVis = Camera:WorldToViewportPoint(topPos)
                     local bottomScreen, bottomVis = Camera:WorldToViewportPoint(bottomPos)
-                    local onScreen = topVis or bottomVis
+                    local rootScreen, rootVis = Camera:WorldToViewportPoint(rootPos)
+                    local onScreen = topVis or bottomVis or rootVis
 
                     if onScreen then
                         local height = math.abs(bottomScreen.Y - topScreen.Y)
-                        local width = height / 1.5
+                        local width = math.clamp(height / 1.5, 2, 1000)
 
                         if espShowBoxes then
                             if not guis.Box then
@@ -2184,7 +2130,7 @@ RunService.RenderStepped:Connect(function()
                             end
                             
                             guis.Box.Visible = true
-                            guis.Box.Position = UDim2.new(0, topScreen.X - (width / 2), 0, topScreen.Y)
+                            guis.Box.Position = UDim2.new(0, rootScreen.X - (width / 2), 0, topScreen.Y)
                             guis.Box.Size = UDim2.new(0, width, 0, height)
                             guis.InnerStroke.Color = forcedColor
                         else
@@ -2234,7 +2180,7 @@ RunService.RenderStepped:Connect(function()
                             local txt = topText .. nameStr .. "\n[" .. data.Dist .. "m]"
                             
                             guis.Tag.Visible = true
-                            guis.Tag.Position = UDim2.new(0, topScreen.X - 100, 0, topScreen.Y - 55)
+                            guis.Tag.Position = UDim2.new(0, rootScreen.X - 100, 0, topScreen.Y - 55)
                             guis.Tag.Text = txt
                             guis.Tag.TextColor3 = forcedColor
                         else
@@ -2285,7 +2231,7 @@ RunService.RenderStepped:Connect(function()
                             VF_Tracers[p.Character] = tracer
                         end
 
-                        local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
+                        local targetPos = bottomPos
                         local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
                         local screenOrigin = GetTracerOrigin()
@@ -2314,7 +2260,6 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                     local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                        local cframe, size = GetBodyBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                          
                         local guis = ESP_GUIs[npc]
@@ -2323,16 +2268,19 @@ RunService.RenderStepped:Connect(function()
                             ESP_GUIs[npc] = guis
                         end
                         
-                        local topPos = cframe.Position + Vector3.new(0, (size.Y / 2) + 0.3, 0)
-                        local bottomPos = cframe.Position - Vector3.new(0, (size.Y / 2) + 0.3, 0)
+                        -- STABLE 2D MATH
+                        local rootPos = root.Position
+                        local topPos = rootPos + Vector3.new(0, 2.5, 0)
+                        local bottomPos = rootPos - Vector3.new(0, 3, 0)
                         
                         local topScreen, topVis = Camera:WorldToViewportPoint(topPos)
                         local bottomScreen, bottomVis = Camera:WorldToViewportPoint(bottomPos)
-                        local onScreen = topVis or bottomVis
+                        local rootScreen, rootVis = Camera:WorldToViewportPoint(rootPos)
+                        local onScreen = topVis or bottomVis or rootVis
 
                         if onScreen then
                             local height = math.abs(bottomScreen.Y - topScreen.Y)
-                            local width = height / 1.5
+                            local width = math.clamp(height / 1.5, 2, 1000)
 
                             if espShowBoxes then
                                 if not guis.Box then
@@ -2359,7 +2307,7 @@ RunService.RenderStepped:Connect(function()
                                 end
                                 
                                 guis.Box.Visible = true
-                                guis.Box.Position = UDim2.new(0, topScreen.X - (width / 2), 0, topScreen.Y)
+                                guis.Box.Position = UDim2.new(0, rootScreen.X - (width / 2), 0, topScreen.Y)
                                 guis.Box.Size = UDim2.new(0, width, 0, height)
                                 guis.InnerStroke.Color = color
                             else
@@ -2382,7 +2330,7 @@ RunService.RenderStepped:Connect(function()
                                 local dist = math.floor((root.Position - localPos).Magnitude)
                                 local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                                 guis.Tag.Visible = true
-                                guis.Tag.Position = UDim2.new(0, topScreen.X - 100, 0, topScreen.Y - 55)
+                                guis.Tag.Position = UDim2.new(0, rootScreen.X - 100, 0, topScreen.Y - 55)
                                 guis.Tag.Text = txt
                                 guis.Tag.TextColor3 = color
                             else
@@ -2418,7 +2366,7 @@ RunService.RenderStepped:Connect(function()
                                 VF_Tracers[npc] = tracer
                             end
 
-                            local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
+                            local targetPos = bottomPos
                             local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                             local screenOrigin = GetTracerOrigin()
 
@@ -2521,5 +2469,5 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V56 (True 2D Screen Space ESP & Reliable NPC Fix)")
+Notify("Aura Hub V56 (Stable & Centered 2D ESP)")
 
