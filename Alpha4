@@ -2193,23 +2193,32 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     local targetPos = cframe.Position
-                    local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                    local screenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                     local esp2D = Get2DESP(p.Character)
 
-                    if targetOnScreen and screenTarget.Z > 0 then
-                        local topPos = cframe.Position + Vector3.new(0, size.Y/2, 0)
-                        local bottomPos = cframe.Position - Vector3.new(0, size.Y/2, 0)
+                    if targetOnScreen and screenPos.Z > 0 then
+                        local camCF = Camera.CFrame
+                        local actualHeight = math.max(size.Y, 1)
+                        local actualWidth = math.max(size.X, size.Z, 1)
                         
-                        local screenTop, _ = Camera:WorldToViewportPoint(topPos)
-                        local screenBottom, _ = Camera:WorldToViewportPoint(bottomPos)
+                        -- Create a flat plane facing the camera, perfectly representing the character's height and width
+                        local topPoint = targetPos + (camCF.UpVector * (actualHeight / 2))
+                        local bottomPoint = targetPos - (camCF.UpVector * (actualHeight / 2))
+                        local leftPoint = targetPos - (camCF.RightVector * (actualWidth / 2))
+                        local rightPoint = targetPos + (camCF.RightVector * (actualWidth / 2))
+                        
+                        local screenTop, _ = Camera:WorldToViewportPoint(topPoint)
+                        local screenBottom, _ = Camera:WorldToViewportPoint(bottomPoint)
+                        local screenLeft, _ = Camera:WorldToViewportPoint(leftPoint)
+                        local screenRight, _ = Camera:WorldToViewportPoint(rightPoint)
                         
                         local boxHeight = math.abs(screenBottom.Y - screenTop.Y)
-                        local boxWidth = boxHeight / 1.5
+                        local boxWidth = math.abs(screenRight.X - screenLeft.X)
                         
                         if espShowBoxes then
                             esp2D.Box.Visible = true
                             esp2D.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-                            esp2D.Box.Position = UDim2.new(0, screenTop.X - (boxWidth/2), 0, screenTop.Y)
+                            esp2D.Box.Position = UDim2.new(0, screenPos.X - (boxWidth / 2), 0, screenPos.Y - (boxHeight / 2))
                             esp2D.Box.UIStroke.Color = forcedColor
                         else
                             esp2D.Box.Visible = false
@@ -2217,7 +2226,7 @@ RunService.RenderStepped:Connect(function()
                         
                         if espShowNames then
                             esp2D.Name.Visible = true
-                            esp2D.Name.Position = UDim2.new(0, screenTop.X, 0, screenTop.Y - 2)
+                            esp2D.Name.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - (boxHeight / 2) - 2)
                             
                             local topText = ""
                             if data.Role == "Downed" then 
@@ -2323,23 +2332,31 @@ RunService.RenderStepped:Connect(function()
                         local color = Color3.fromRGB(255, 170, 0)
                         
                         local targetPos = cframe.Position
-                        local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                        local screenPos, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
                         local esp2D = Get2DESP(npc)
 
-                        if targetOnScreen and screenTarget.Z > 0 then
-                            local topPos = cframe.Position + Vector3.new(0, size.Y/2, 0)
-                            local bottomPos = cframe.Position - Vector3.new(0, size.Y/2, 0)
+                        if targetOnScreen and screenPos.Z > 0 then
+                            local camCF = Camera.CFrame
+                            local actualHeight = math.max(size.Y, 1)
+                            local actualWidth = math.max(size.X, size.Z, 1)
                             
-                            local screenTop, _ = Camera:WorldToViewportPoint(topPos)
-                            local screenBottom, _ = Camera:WorldToViewportPoint(bottomPos)
+                            local topPoint = targetPos + (camCF.UpVector * (actualHeight / 2))
+                            local bottomPoint = targetPos - (camCF.UpVector * (actualHeight / 2))
+                            local leftPoint = targetPos - (camCF.RightVector * (actualWidth / 2))
+                            local rightPoint = targetPos + (camCF.RightVector * (actualWidth / 2))
+                            
+                            local screenTop, _ = Camera:WorldToViewportPoint(topPoint)
+                            local screenBottom, _ = Camera:WorldToViewportPoint(bottomPoint)
+                            local screenLeft, _ = Camera:WorldToViewportPoint(leftPoint)
+                            local screenRight, _ = Camera:WorldToViewportPoint(rightPoint)
                             
                             local boxHeight = math.abs(screenBottom.Y - screenTop.Y)
-                            local boxWidth = boxHeight / 1.5
+                            local boxWidth = math.abs(screenRight.X - screenLeft.X)
                             
                             if espShowBoxes then
                                 esp2D.Box.Visible = true
                                 esp2D.Box.Size = UDim2.new(0, boxWidth, 0, boxHeight)
-                                esp2D.Box.Position = UDim2.new(0, screenTop.X - (boxWidth/2), 0, screenTop.Y)
+                                esp2D.Box.Position = UDim2.new(0, screenPos.X - (boxWidth / 2), 0, screenPos.Y - (boxHeight / 2))
                                 esp2D.Box.UIStroke.Color = color
                             else
                                 esp2D.Box.Visible = false
@@ -2347,7 +2364,7 @@ RunService.RenderStepped:Connect(function()
                             
                             if espShowNames then
                                 esp2D.Name.Visible = true
-                                esp2D.Name.Position = UDim2.new(0, screenTop.X, 0, screenTop.Y - 2)
+                                esp2D.Name.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y - (boxHeight / 2) - 2)
                                 local dist = math.floor((root.Position - localPos).Magnitude)
                                 esp2D.Name.Text = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                                 esp2D.Name.TextColor3 = color
