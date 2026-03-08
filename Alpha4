@@ -319,6 +319,33 @@ local function GetSmartColor(role, player)
     return Color3.fromRGB(255, 255, 255)
 end
 
+--// VISIBILITY CHECKER
+local function IsVisible(targetModel, ignoreList)
+    if not targetModel then return false end
+    local root = targetModel:FindFirstChild("HumanoidRootPart") or targetModel:FindFirstChild("Torso") or targetModel.PrimaryPart
+    if not root then return false end
+    
+    local points = {
+        root.Position,
+        root.Position + Vector3.new(0, 1.5, 0),
+        root.Position - Vector3.new(0, 1.5, 0)
+    }
+    local origin = Camera.CFrame.Position
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = ignoreList
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    params.IgnoreWater = true
+    
+    for _, point in ipairs(points) do
+        local direction = point - origin
+        local result = workspace:Raycast(origin, direction, params)
+        if not result or result.Instance:IsDescendantOf(targetModel) then
+            return true 
+        end
+    end
+    return false 
+end
+
 --// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
 local function GetBodyBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
@@ -2233,13 +2260,18 @@ RunService.RenderStepped:Connect(function()
                         highlight.OutlineColor = Color3.new(1, 1, 1)
                          highlight.FillTransparency = pulseAlpha 
 
+                        -- OPTIMIZATION: Uses data.IsVisible from the slower loop instead of raycasting every frame
                         if espWallsOnly then
-                            highlight.Enabled = true
-                            highlight.DepthMode = Enum.HighlightDepthMode.Occluded
+                            if data.IsVisible then
+                                highlight.Enabled = false 
+                             else
+                                highlight.Enabled = true
+                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                             end
                         else
                             highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        end
+                         end
                     else
                         local h = p.Character:FindFirstChild("AuraChams")
                         if h then h:Destroy() end
@@ -2379,11 +2411,7 @@ RunService.RenderStepped:Connect(function()
                             highlight.FillTransparency = pulseAlpha 
                              highlight.OutlineTransparency = 0
                             highlight.Enabled = true
-                            if espWallsOnly then
-                                highlight.DepthMode = Enum.HighlightDepthMode.Occluded
-                            else
-                                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                            end
+                            highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
                  
                         if espShowTracers then
