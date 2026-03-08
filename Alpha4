@@ -344,8 +344,7 @@ local function GetBodyBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
     if not root then return character:GetBoundingBox() end
 
-    -- Refresh cache every 2 seconds to fix inaccurate scaling on player join
-    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 2) then
+    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 0.5) then
         return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
     end
 
@@ -1927,12 +1926,13 @@ task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
              for model, _ in pairs(NPCCache) do
-                if not model or not model.Parent then
+                -- Removing the Health <= 0 check so NPCs that technically "die" but still exist physically won't lose ESP
+                if not model or not model:IsDescendantOf(workspace) then
                     NPCCache[model] = nil
                     RemoveESP(model)
                 else
                     local hum = model:FindFirstChild("Humanoid")
-                    if not hum or hum.Health <= 0 then
+                    if not hum then
                         NPCCache[model] = nil
                         RemoveESP(model)
                     end
@@ -2176,7 +2176,8 @@ RunService.RenderStepped:Connect(function()
                         local boxWidth = boxHeight / 1.5
                         
                         box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
-                        box.StudsOffsetWorldSpace = cframe.Position - root.Position -- Center perfectly around exact torso position
+                        -- Lock X and Z to the root so the box stops drifting sideways when limbs move/character rotates
+                        box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
                         box.Frame.UIStroke.Color = forcedColor
                     end
                     
@@ -2321,7 +2322,8 @@ RunService.RenderStepped:Connect(function()
                             local boxWidth = boxHeight / 1.5
                             
                             box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
-                            box.StudsOffsetWorldSpace = cframe.Position - root.Position
+                            -- Apply the exact same drift fix to NPCs
+                            box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
