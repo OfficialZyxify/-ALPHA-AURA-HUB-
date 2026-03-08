@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -55,6 +55,8 @@ local dynamicEnabled = false
 local dynamicActivated = false 
 local shiftLockEnabled = false
 local antiAfkEnabled = false
+local antiFlingEnabled = false 
+local antiFlingConnection = nil 
 local hdrEnabled = false
 local forceThirdPerson = false
 local subtleSpeedEnabled = false 
@@ -156,7 +158,7 @@ local function RemoveESP(model)
     local items = {AuraBox = true, AuraTag = true, AuraChams = true}
     for _, child in ipairs(model:GetDescendants()) do
         if items[child.Name] then
-            child:Destroy()
+             child:Destroy()
         end
     end
 
@@ -189,7 +191,7 @@ end
 
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
-        if p.Character then RemoveESP(p.Character) end
+         if p.Character then RemoveESP(p.Character) end
     end
 end
 
@@ -203,7 +205,7 @@ local function ClearNPCESP()
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Model") and v:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(v) then
             RemoveESP(v)
-        end
+         end
     end
 end
 
@@ -482,6 +484,13 @@ local function DisableAllFeatures()
 
     forceThirdPerson = false
     shiftLockEnabled = false
+    
+    antiFlingEnabled = false
+    if antiFlingConnection then
+        antiFlingConnection:Disconnect()
+        antiFlingConnection = nil
+    end
+    
     if LocalPlayer.Character then
         local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
         if hum then hum.AutoRotate = true end
@@ -1595,6 +1604,43 @@ CreateButton("🎥 Force Shoulder View", function(b)
     Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
 
+CreateButton("🛡️ Anti-Fling: OFF", function(b)
+    antiFlingEnabled = not antiFlingEnabled
+    b.Text = "🛡️ Anti-Fling: " .. (antiFlingEnabled and "ON" or "OFF")
+    b.TextColor3 = antiFlingEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
+    if antiFlingEnabled then
+        Notify("Anti-Fling Active: Collisions disabled for others.")
+        if not antiFlingConnection then
+            antiFlingConnection = RunService.Stepped:Connect(function()
+                for _, player in ipairs(Players:GetPlayers()) do
+                    if player ~= LocalPlayer and player.Character then
+                        for _, part in ipairs(player.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                if part.CanCollide then
+                                    part.CanCollide = false
+                                end
+                                if part.AssemblyAngularVelocity.Magnitude > 50 or part.AssemblyLinearVelocity.Magnitude > 100 then
+                                    part.AssemblyAngularVelocity = Vector3.zero
+                                    part.AssemblyLinearVelocity = Vector3.zero
+                                    part.RotVelocity = Vector3.zero
+                                    part.Velocity = Vector3.zero
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        Notify("Anti-Fling Disabled")
+        if antiFlingConnection then
+            antiFlingConnection:Disconnect()
+            antiFlingConnection = nil
+        end
+    end
+end, GetNextOrder())
+
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
@@ -2259,7 +2305,7 @@ RunService.RenderStepped:Connect(function()
                         if tag and tag.Parent ~= root then
                             tag.Parent = root
                         elseif not tag then
-                             tag = Instance.new("BillboardGui", root)
+                            tag = Instance.new("BillboardGui", root)
                             tag.Name = "AuraTag"
                             tag.Size = UDim2.new(0, 200, 0, 50)
                             tag.StudsOffset = Vector3.new(0, (size.Y/2) + 1.5, 0) 
@@ -2498,5 +2544,5 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling)")
 
