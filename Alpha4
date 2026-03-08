@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Flawless Rigid Scale + Lighting Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -69,6 +69,7 @@ local dynamicChamsPulse = false
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
+local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 
 -- Time States
 local timeChangerEnabled = false
@@ -161,6 +162,7 @@ local function RemoveESP(model)
         end
         VF_Tracers[model] = nil
     end
+    BoundingBoxCache[model] = nil
 end
 
 local function ClearAllESP()
@@ -171,6 +173,7 @@ local function ClearAllESP()
         if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
     end
     table.clear(VF_Tracers)
+    table.clear(BoundingBoxCache)
     
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -336,63 +339,66 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// FLAWLESS RIGID SCALE CALCULATOR
-local function GetRigidScale(char)
-    local root = char:FindFirstChild("HumanoidRootPart") or char.PrimaryPart
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    
-    if not root or not hum then
-        return 5.5, 4.5, 0 
+--// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
+local function GetBodyBoundingBox(character)
+    local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
+    if not root then return character:GetBoundingBox() end
+
+    if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 0.5) then
+        return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
     end
-    
-    local height = 5.5
-    local width = 4.5
-    local yOffset = 0
-    
-    if hum.RigType == Enum.HumanoidRigType.R15 then
-        local hScale = hum:FindFirstChild("BodyHeightScale") and hum.BodyHeightScale.Value or 1
-        local wScale = hum:FindFirstChild("BodyWidthScale") and hum.BodyWidthScale.Value or 1
-        
-        height = 5.5 * hScale
-        width = 4.5 * wScale
-        
-        local hipHeight = hum.HipHeight
-        if hipHeight <= 0 then hipHeight = 2 * hScale end -- Failsafe for custom physics models
-        
-        -- Exact distance from center of HumanoidRootPart to the floor
-        local distToGround = hipHeight + (root.Size.Y / 2)
-        -- Formula to pull the 2D box down so its bottom edge kisses the floor
-        yOffset = (height / 2) - distToGround
-    else
-        -- R6 Rig Support
-        local head = char:FindFirstChild("Head")
-        local leg = char:FindFirstChild("Left Leg") or char:FindFirstChild("Right Leg")
-        
-        if head and leg then
-            height = head.Size.Y + root.Size.Y + leg.Size.Y + 0.5
-            width = root.Size.X * 2
+
+    local minX, minY, minZ = math.huge, math.huge, math.huge
+    local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+    local hasParts = false
+
+    local rootInv = root.CFrame:Inverse()
+
+    for _, part in pairs(character:GetChildren()) do
+        if part:IsA("BasePart") then
+            local size = part.Size
+            local cf = rootInv * part.CFrame
             
-            local distToGround = (root.Size.Y / 2) + leg.Size.Y
-            yOffset = (height / 2) - distToGround
-        else
-            height = 5.5
-            width = 4.5
-            yOffset = (height / 2) - 3
+            local corners = {
+                cf * Vector3.new(size.X/2, size.Y/2, size.Z/2),
+                cf * Vector3.new(size.X/2, size.Y/2, -size.Z/2),
+                cf * Vector3.new(size.X/2, -size.Y/2, size.Z/2),
+                cf * Vector3.new(size.X/2, -size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2, size.Y/2, size.Z/2),
+                cf * Vector3.new(-size.X/2, size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2, size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+            }
+            for _, pos in ipairs(corners) do
+                minX = math.min(minX, pos.X)
+                minY = math.min(minY, pos.Y)
+                minZ = math.min(minZ, pos.Z)
+                maxX = math.max(maxX, pos.X)
+                maxY = math.max(maxY, pos.Y)
+                maxZ = math.max(maxZ, pos.Z)
+            end
+            hasParts = true
         end
     end
-    
-    -- Handles games that scale the whole Model instantly using API
-    local modelScale = 1
-    pcall(function() modelScale = char:GetScale() end)
-    
-    return height * modelScale, width * modelScale, yOffset * modelScale
+
+    if hasParts then
+        local centerLocal = Vector3.new((minX + maxX)/2, (minY + maxY)/2, (minZ + maxZ)/2)
+        local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
+        
+        local offsetCFrame = CFrame.new(centerLocal)
+        BoundingBoxCache[character] = { Offset = offsetCFrame, Size = size, Time = tick() }
+        
+        return root.CFrame * offsetCFrame, size
+    else
+        return character:GetBoundingBox()
+    end
 end
 
---// STATIC TRACER ORIGIN CALCULATOR
+--// TRACER ORIGIN CALCULATOR
 local function GetTracerOrigin()
     if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-        local height, _, yOffset = GetRigidScale(LocalPlayer.Character)
-        local feetPos = LocalPlayer.Character.PrimaryPart.Position + Vector3.new(0, yOffset - (height / 2), 0)
+        local cframe, size = GetBodyBoundingBox(LocalPlayer.Character)
+        local feetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
         local screenPos, onScreen = Camera:WorldToViewportPoint(feetPos)
         if onScreen then
             return Vector2.new(screenPos.X, screenPos.Y)
@@ -2072,6 +2078,7 @@ task.spawn(function()
                                 dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
                             end
             
+                            -- OPTIMIZATION: Hoisted raycast check out of RenderStepped loop
                             if espWallsOnly then
                                 isVis = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
                             end
@@ -2117,9 +2124,10 @@ RunService.RenderStepped:Connect(function()
             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
         end
 
+        -- OPTIMIZATION: Hoisted position variables to avoid calculating them thousands of times per frame
         local localChar = LocalPlayer.Character
         local localRoot = localChar and (localChar.PrimaryPart or localChar:FindFirstChild("HumanoidRootPart"))
-        local localPos = localRoot and localRoot.Position or Camera.CFrame.Position
+         local localPos = localRoot and localRoot.Position or Camera.CFrame.Position
 
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
@@ -2137,8 +2145,7 @@ RunService.RenderStepped:Connect(function()
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName, IsVisible = false }
                     
-                    -- APPLYING FLAWLESS RIGID SCALE
-                    local height, width, yOffset = GetRigidScale(p.Character)
+                     local cframe, size = GetBodyBoundingBox(p.Character)
                     
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
@@ -2164,8 +2171,13 @@ RunService.RenderStepped:Connect(function()
                              stroke.Thickness = 2
                         end
                         
-                        box.Size = UDim2.new(width, 0, height, 0)
-                        box.StudsOffsetWorldSpace = Vector3.new(0, yOffset, 0) 
+                        -- Dynamically scale based purely on Y with constant 1:1.5 ratio
+                        local boxHeight = size.Y + 0.5
+                        local boxWidth = boxHeight / 1.5
+                        
+                        box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
+                        -- Lock X and Z to the root so the box stops drifting sideways when limbs move/character rotates
+                        box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
                         box.Frame.UIStroke.Color = forcedColor
                     end
                     
@@ -2182,6 +2194,7 @@ RunService.RenderStepped:Connect(function()
                         highlight.OutlineColor = Color3.new(1, 1, 1)
                          highlight.FillTransparency = pulseAlpha 
 
+                        -- OPTIMIZATION: Uses data.IsVisible from the slower loop instead of raycasting every frame
                         if espWallsOnly then
                             if data.IsVisible then
                                 highlight.Enabled = false 
@@ -2207,9 +2220,8 @@ RunService.RenderStepped:Connect(function()
                             VF_Tracers[p.Character] = tracer
                          end
 
-                        -- Tracers stick flawlessly to the bottom of the bounding box
-                        local targetPos = root.Position + Vector3.new(0, yOffset - (height / 2), 0)
-                        local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                        local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
+                         local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
                         local screenOrigin = GetTracerOrigin()
 
@@ -2237,6 +2249,7 @@ RunService.RenderStepped:Connect(function()
                              tag = Instance.new("BillboardGui", root)
                             tag.Name = "AuraTag"
                             tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, (size.Y/2) + 1.5, 0) 
                             tag.AlwaysOnTop = true 
                             CollectionService:AddTag(tag, "AuraESP")
                             local t = Instance.new("TextLabel", tag)
@@ -2247,9 +2260,6 @@ RunService.RenderStepped:Connect(function()
                             t.TextSize = 13
                         end
                         
-                        -- Name tag floats flawlessly just above the box
-                        tag.StudsOffset = Vector3.new(0, yOffset + (height / 2) + 0.5, 0)
-
                         local topText = ""
                         if data.Role == "Downed" then 
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
@@ -2291,7 +2301,7 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                      local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                        local height, width, yOffset = GetRigidScale(npc)
+                         local cframe, size = GetBodyBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                          
                         if espShowBoxes then
@@ -2308,8 +2318,12 @@ RunService.RenderStepped:Connect(function()
                                  stroke.Thickness = 2
                             end
                             
-                            box.Size = UDim2.new(width, 0, height, 0)
-                            box.StudsOffsetWorldSpace = Vector3.new(0, yOffset, 0)
+                            local boxHeight = size.Y + 0.5
+                            local boxWidth = boxHeight / 1.5
+                            
+                            box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
+                            -- Apply the exact same drift fix to NPCs
+                            box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
@@ -2337,7 +2351,7 @@ RunService.RenderStepped:Connect(function()
                                 VF_Tracers[npc] = tracer
                             end
 
-                            local targetPos = root.Position + Vector3.new(0, yOffset - (height / 2), 0)
+                            local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
                             local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
                             local screenOrigin = GetTracerOrigin()
@@ -2364,6 +2378,7 @@ RunService.RenderStepped:Connect(function()
                                 tag = Instance.new("BillboardGui", root)
                                  tag.Name = "AuraTag"
                                 tag.Size = UDim2.new(0, 200, 0, 50)
+                                tag.StudsOffset = Vector3.new(0, (size.Y/2) + 1.5, 0) 
                                  tag.AlwaysOnTop = true 
                                 CollectionService:AddTag(tag, "AuraESP")
                                 local t = Instance.new("TextLabel", tag)
@@ -2373,9 +2388,8 @@ RunService.RenderStepped:Connect(function()
                                 t.Font = Enum.Font.GothamBold
                                 t.TextSize = 13
                             end
-                            
-                            tag.StudsOffset = Vector3.new(0, yOffset + (height / 2) + 0.5, 0) 
             
+                            -- OPTIMIZATION: Uses the hoisted localPos variable instead of checking for PrimaryPart per NPC
                              local dist = math.floor((root.Position - localPos).Magnitude)
                              local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                              tag.TextLabel.Text = txt
@@ -2465,4 +2479,5 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Flawless Rigid Scale + Lighting Fix)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
+
