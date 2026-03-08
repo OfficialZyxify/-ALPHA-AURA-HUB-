@@ -2089,6 +2089,9 @@ RunService.RenderStepped:Connect(function()
                     
                     -- STATIC ROOT SCALING (Fixes Animation Jitter)
                     local rootScale = root.Size.Y / 2
+                    local boxWidth = 4.5 * rootScale
+                    local boxHeight = 5.5 * rootScale
+                    
                     local forcedColor = data.Color
                     local hum = p.Character:FindFirstChild("Humanoid")
                      
@@ -2114,8 +2117,9 @@ RunService.RenderStepped:Connect(function()
                         end
                         
                         -- Scale locked statically to the size of the rig, completely ignoring active animations
-                        box.Size = UDim2.new(4 * rootScale, 0, 5.5 * rootScale, 0)
-                        box.StudsOffsetWorldSpace = Vector3.new(0, 0.5 * rootScale, 0) 
+                        box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
+                        -- Pulled the offset down (-0.3) so it perfectly frames the feet instead of hovering above the shins
+                        box.StudsOffsetWorldSpace = Vector3.new(0, -0.3 * rootScale, 0) 
                         box.Frame.UIStroke.Color = forcedColor
                     end
                     
@@ -2241,6 +2245,9 @@ RunService.RenderStepped:Connect(function()
                      local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
                         local rootScale = root.Size.Y / 2
+                        local boxWidth = 4.5 * rootScale
+                        local boxHeight = 5.5 * rootScale
+                        
                         local color = Color3.fromRGB(255, 170, 0)
                          
                         if espShowBoxes then
@@ -2257,8 +2264,8 @@ RunService.RenderStepped:Connect(function()
                                  stroke.Thickness = 2
                             end
                             
-                            box.Size = UDim2.new(4 * rootScale, 0, 5.5 * rootScale, 0)
-                            box.StudsOffsetWorldSpace = Vector3.new(0, 0.5 * rootScale, 0)
+                            box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
+                            box.StudsOffsetWorldSpace = Vector3.new(0, -0.3 * rootScale, 0)
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
