@@ -37,6 +37,13 @@ local function DeepClean()
         end
     end
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
+    
+    -- Hard sweep for ANY lingering ESP parts from older versions/executions
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" then
+            v:Destroy()
+        end
+    end
 end
 DeepClean() 
 
@@ -2158,8 +2165,10 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     if espShowBoxes then
-                         local box = root:FindFirstChild("AuraBox")
-                        if not box then
+                        local box = p.Character:FindFirstChild("AuraBox", true)
+                        if box and box.Parent ~= root then
+                            box.Parent = root
+                        elseif not box then
                             box = Instance.new("BillboardGui", root)
                             box.Name = "AuraBox"
                             box.AlwaysOnTop = true 
@@ -2182,8 +2191,10 @@ RunService.RenderStepped:Connect(function()
                     end
                     
                      if espShowChams then
-                        local highlight = p.Character:FindFirstChild("AuraChams")
-                         if not highlight then
+                        local highlight = p.Character:FindFirstChild("AuraChams", true)
+                        if highlight and highlight.Parent ~= p.Character then
+                            highlight.Parent = p.Character
+                        elseif not highlight then
                             highlight = Instance.new("Highlight", p.Character)
                             highlight.Name = "AuraChams"
                              highlight.Adornee = p.Character
@@ -2244,8 +2255,10 @@ RunService.RenderStepped:Connect(function()
                     if espShowNames then
                         local humanoid = p.Character:FindFirstChild("Humanoid")
                          if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
-                         local tag = root:FindFirstChild("AuraTag")
-                        if not tag then
+                        local tag = p.Character:FindFirstChild("AuraTag", true)
+                        if tag and tag.Parent ~= root then
+                            tag.Parent = root
+                        elseif not tag then
                              tag = Instance.new("BillboardGui", root)
                             tag.Name = "AuraTag"
                             tag.Size = UDim2.new(0, 200, 0, 50)
@@ -2305,8 +2318,10 @@ RunService.RenderStepped:Connect(function()
                         local color = Color3.fromRGB(255, 170, 0)
                          
                         if espShowBoxes then
-                            local box = root:FindFirstChild("AuraBox")
-                            if not box then
+                            local box = npc:FindFirstChild("AuraBox", true)
+                            if box and box.Parent ~= root then
+                                box.Parent = root
+                            elseif not box then
                                 box = Instance.new("BillboardGui", root)
                                 box.Name = "AuraBox"
                                 box.AlwaysOnTop = true 
@@ -2327,8 +2342,10 @@ RunService.RenderStepped:Connect(function()
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
-                            local highlight = npc:FindFirstChild("AuraChams")
-                             if not highlight then
+                            local highlight = npc:FindFirstChild("AuraChams", true)
+                            if highlight and highlight.Parent ~= npc then
+                                highlight.Parent = npc
+                            elseif not highlight then
                                 highlight = Instance.new("Highlight", npc)
                                 highlight.Name = "AuraChams"
                                 highlight.Adornee = npc
@@ -2373,8 +2390,10 @@ RunService.RenderStepped:Connect(function()
                         end
                         
                         if espShowNames then
-                            local tag = root:FindFirstChild("AuraTag")
-                            if not tag then
+                            local tag = npc:FindFirstChild("AuraTag", true)
+                            if tag and tag.Parent ~= root then
+                                tag.Parent = root
+                            elseif not tag then
                                 tag = Instance.new("BillboardGui", root)
                                  tag.Name = "AuraTag"
                                 tag.Size = UDim2.new(0, 200, 0, 50)
