@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Interactive Carry)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -40,7 +40,7 @@ local function DeepClean()
     
     -- Hard sweep for ANY lingering ESP parts from older versions/executions
     for _, v in pairs(workspace:GetDescendants()) do
-        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraCarryPrompt" then
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" then
             v:Destroy()
         end
     end
@@ -60,7 +60,6 @@ local forceThirdPerson = false
 local subtleSpeedEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
-local carryPlayersEnabled = false
 
 -- ESP States
 local espEnabled = false
@@ -140,7 +139,7 @@ local function Notify(msg)
     n.Parent = ScreenGui
     Instance.new("UICorner", n)
     local Stroke = Instance.new("UIStroke", n)
-    
+   
     Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
@@ -149,101 +148,12 @@ local function Notify(msg)
     end)
 end
 
--------------------------------------------------------------------------
---// STOP CARRYING UI BUTTON (RED BUTTON AT BOTTOM)
--------------------------------------------------------------------------
-local StopCarryBtn = Instance.new("TextButton", ScreenGui)
-StopCarryBtn.Name = "StopCarryBtn"
-StopCarryBtn.Size = UDim2.new(0, 220, 0, 45)
-StopCarryBtn.Position = UDim2.new(0.5, -110, 0.85, 0) -- Near bottom center
-StopCarryBtn.BackgroundColor3 = Color3.fromRGB(220, 40, 40)
-StopCarryBtn.Text = "🛑 Stop Carrying Player"
-StopCarryBtn.TextColor3 = Color3.new(1, 1, 1)
-StopCarryBtn.Font = Enum.Font.GothamBold
-StopCarryBtn.TextSize = 13
-StopCarryBtn.Visible = false
-StopCarryBtn.ZIndex = 500
-Instance.new("UICorner", StopCarryBtn).CornerRadius = UDim.new(0, 8)
-local StopCarryStroke = Instance.new("UIStroke", StopCarryBtn)
-StopCarryStroke.Color = Color3.fromRGB(150, 20, 20)
-StopCarryStroke.Thickness = 2
-
---// CARRY LOGIC FUNCTIONS
-local currentCarriedPlayer = nil
-local carryLoop = nil
-local carryPart = nil
-
-local function StopCarrying()
-    if carryLoop then carryLoop:Disconnect() carryLoop = nil end
-    if carryPart then carryPart:Destroy() carryPart = nil end
-    
-    if currentCarriedPlayer and currentCarriedPlayer.Character then
-        local hum = currentCarriedPlayer.Character:FindFirstChild("Humanoid")
-        if hum then hum.PlatformStand = false end
-    end
-    
-    currentCarriedPlayer = nil
-    StopCarryBtn.Visible = false
-end
-
-StopCarryBtn.MouseButton1Click:Connect(StopCarrying)
-
-local function StartCarrying(targetPlayer)
-    if currentCarriedPlayer == targetPlayer then return end
-    StopCarrying() -- Stop carrying anyone else first
-    
-    if not targetPlayer or not targetPlayer.Character then return end
-    local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetRoot then return end
-
-    currentCarriedPlayer = targetPlayer
-    StopCarryBtn.Visible = true
-    Notify("Carrying " .. targetPlayer.Name)
-
-    -- Create physical platform to allow Roblox physics to sometimes drag them globally
-    carryPart = Instance.new("Part")
-    carryPart.Name = "AuraCarryPlatform"
-    carryPart.Size = Vector3.new(4, 1, 4)
-    carryPart.Transparency = 1
-    carryPart.CanCollide = true
-    carryPart.Massless = true
-    
-    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if myRoot then
-        carryPart.CFrame = myRoot.CFrame * CFrame.new(0, 3, 0)
-        carryPart.Parent = LocalPlayer.Character
-
-        local weld = Instance.new("WeldConstraint")
-        weld.Part0 = myRoot
-        weld.Part1 = carryPart
-        weld.Parent = carryPart
-    end
-
-    -- Visual Enforcement Loop (Client-side smooth locking)
-    carryLoop = RunService.RenderStepped:Connect(function()
-        if not currentCarriedPlayer or not currentCarriedPlayer.Character then
-            StopCarrying()
-            return
-        end
-        
-        local mRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local tRoot = currentCarriedPlayer.Character:FindFirstChild("HumanoidRootPart")
-        local tHum = currentCarriedPlayer.Character:FindFirstChild("Humanoid")
-        
-        if mRoot and tRoot then
-            -- Position them above your head smoothly
-            tRoot.CFrame = mRoot.CFrame * CFrame.new(0, 4, 0)
-            if tHum then tHum.PlatformStand = true end
-        end
-    end)
-end
-
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
     if not model then return end
     
     -- Bulletproof removal using GetDescendants to catch UI no matter where it got parented
-    local items = {AuraBox = true, AuraTag = true, AuraChams = true, AuraCarryPrompt = true}
+    local items = {AuraBox = true, AuraTag = true, AuraChams = true}
     for _, child in ipairs(model:GetDescendants()) do
         if items[child.Name] then
             child:Destroy()
@@ -674,11 +584,6 @@ local function DisableAllFeatures()
     if flyEnabled then
         flyEnabled = false
         if ToggleFly then ToggleFly(false) end
-    end
-
-    if carryPlayersEnabled then
-        carryPlayersEnabled = false
-        StopCarrying()
     end
 end
 
@@ -1569,7 +1474,7 @@ local function UpdateChamsVisuals()
             
             ChamsMainBtn.Text = "Toggle Chams: OFF"
             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-            
+           
             WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
@@ -1888,7 +1793,7 @@ local function CreatePresetSpeed(val, label)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     table.insert(SpeedVisuals.ActiveItems, btn)
     table.insert(SpeedVisuals.DimItems, btn)
-    
+   
     btn.MouseButton1Click:Connect(function()
         if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
@@ -1978,7 +1883,7 @@ ToggleFly = function(state)
         flyConnection = RunService.RenderStepped:Connect(function()
             if not flyEnabled or not char.Parent or not hrp.Parent then ToggleFly(false) return end
             for _, v in pairs(char:GetDescendants()) do
-                if v:IsA("BasePart") and v.Name ~= "AuraCarryPlatform" then v.CanCollide = false end
+                if v:IsA("BasePart") then v.CanCollide = false end
             end
             local ctrl = GetControls()
             if ctrl then
@@ -2007,15 +1912,6 @@ ToggleFly = function(state)
         if anim then anim.Disabled = false end
         if flyEnabled then Notify("Fly Disabled") end
         flyEnabled = false
-
-        if carryPlayersEnabled then
-            carryPlayersEnabled = false
-            StopCarrying()
-            if CarryButtonRef then
-                CarryButtonRef.Text = "🛸 Toggle Carry Players: OFF"
-                CarryButtonRef.TextColor3 = Color3.new(1, 1, 1)
-            end
-        end
     end
 end
 
@@ -2043,25 +1939,6 @@ CreateButton("FLY (RISK: HIGH)", function(b)
         UpdateFlyButtonVisuals()
     else
         ConfirmModal.Visible = true
-    end
-end, GetNextOrder())
-
-CreateButton("🛸 Toggle Carry Players: OFF", function(b)
-    CarryButtonRef = b
-    if not flyEnabled then
-        Notify("⚠️ Enable Fly First!")
-        return
-    end
-
-    carryPlayersEnabled = not carryPlayersEnabled
-    b.Text = "🛸 Toggle Carry Players: " .. (carryPlayersEnabled and "ON" or "OFF")
-    b.TextColor3 = carryPlayersEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-
-    if carryPlayersEnabled then
-        Notify("Carry Active: Get close and Hold 'E' (or Touch) to grab players.")
-    else
-        StopCarrying()
-        Notify("Carry Players Disabled.")
     end
 end, GetNextOrder())
 
@@ -2237,10 +2114,9 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
---// 🛑 DATA & CARRY PROMPT LOOP
+--// 🛑 DATA LOOP
 task.spawn(function()
     while true do
-        -- 1. ESP Logic
         if espEnabled and espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
                 if p ~= LocalPlayer then
@@ -2289,43 +2165,6 @@ task.spawn(function()
                 end
             end
         end
-
-        -- 2. Interactive Carry Prompt Logic
-        if carryPlayersEnabled and flyEnabled then
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local root = p.Character:FindFirstChild("HumanoidRootPart")
-                    if root and not root:FindFirstChild("AuraCarryPrompt") then
-                        local pmt = Instance.new("ProximityPrompt")
-                        pmt.Name = "AuraCarryPrompt"
-                        pmt.ActionText = "Carry Player"
-                        pmt.ObjectText = p.DisplayName or p.Name
-                        pmt.HoldDuration = 0.5 -- How long you have to hold it to activate
-                        pmt.RequiresLineOfSight = false
-                        pmt.MaxActivationDistance = 12
-                        pmt.KeyboardKeyCode = Enum.KeyCode.E
-                        pmt.Parent = root
-                        
-                        pmt.Triggered:Connect(function(playerWhoTriggered)
-                            if playerWhoTriggered == LocalPlayer then
-                                StartCarrying(p)
-                            end
-                        end)
-                    end
-                end
-            end
-        else
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= LocalPlayer and p.Character then
-                    local root = p.Character:FindFirstChild("HumanoidRootPart")
-                    if root then
-                        local pmt = root:FindFirstChild("AuraCarryPrompt")
-                        if pmt then pmt:Destroy() end
-                    end
-                end
-            end
-        end
-
         task.wait(0.1) 
     end
 end)
@@ -2334,7 +2173,6 @@ Players.PlayerRemoving:Connect(function(p)
     local data = ESP_Data_Cache[p]
     if data and data.Character then RemoveESP(data.Character) end
     ESP_Data_Cache[p] = nil
-    if currentCarriedPlayer == p then StopCarrying() end
 end)
 
 
@@ -2715,4 +2553,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Interactive Carry)")
+Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
