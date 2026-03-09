@@ -229,7 +229,7 @@ local function GetUniversalRole(player)
             return "Dead"
         end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (MM2, FTF, & HIDDEN WITHIN)
+        -- 3. INVENTORY & EQUIPMENT SCAN (MM2 & FTF SEPARATED)
         local isMM2 = (game.PlaceId == 142823291)
         local isFTF = (game.PlaceId == 893973440)
 
@@ -238,6 +238,7 @@ local function GetUniversalRole(player)
             local function checkItems(container)
                 if not container then return nil end
                 for _, item in pairs(container:GetChildren()) do
+                    -- ONLY check actual tools, ignoring accessories or body parts
                     if item:IsA("Tool") then
                         local name = item.Name:lower()
                         if name == "knife" or name:find("dagger") or name:find("knife") or name:find("pitchfork") or name:find("saw") or name:find("scythe") then 
@@ -251,6 +252,7 @@ local function GetUniversalRole(player)
                 return nil
             end
             
+            -- Check both equipped (Character) and unequipped (Backpack) weapons
             local mm2Role = checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack"))
             if mm2Role then 
                 return mm2Role 
@@ -289,40 +291,6 @@ local function GetUniversalRole(player)
                 end
             end
         end
-
-        -- Hidden Within Logic
-        local function checkHiddenWithin(ply)
-            local rv = ply:FindFirstChild("Role") or ply:FindFirstChild("role")
-            if rv and rv:IsA("StringValue") then return rv.Value end
-            local roleStr = ply:GetAttribute("Role") or ply:GetAttribute("role")
-            if roleStr then return roleStr end
-            if ply.Team then
-                local tn = ply.Team.Name:lower()
-                if tn:find("killer") then return "Killer" end
-                if tn:find("vigilante") then return "Vigilante" end
-                if tn:find("survivor") then return "Survivor" end
-            end
-            local function checkToolNames(container)
-                if not container then return nil end
-                for _, item in pairs(container:GetChildren()) do
-                    if item:IsA("Tool") then
-                        local n = item.Name:lower()
-                        if n:find("killer") then return "Killer" end
-                        if n:find("vigilante") then return "Vigilante" end
-                    end
-                end
-                return nil
-            end
-            return checkToolNames(ply.Character) or checkToolNames(ply:FindFirstChild("Backpack"))
-        end
-
-        local hwRole = checkHiddenWithin(player)
-        if hwRole then
-            local hwLower = hwRole:lower()
-            if hwLower:find("killer") then return "Killer" end
-            if hwLower:find("vigilante") then return "Vigilante" end
-            if hwLower:find("survivor") then return "Survivor" end
-        end
     end
 
     if player.Team then
@@ -340,12 +308,11 @@ local function GetSmartColor(role, player)
     
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
-    if r == "beast" or r == "murderer" or r == "killer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
+    if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
     
-    if r == "sheriff" or r == "vigilante" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
-    if r == "survivor" or r == "innocent" or r:find("survive") then return Color3.fromRGB(50, 255, 100) end
+    if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
 
@@ -1058,7 +1025,7 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
-    Notify(fovEnabled and "Enabled" or "Disabled")
+    Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1248,7 +1215,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
         Lighting.ClockTime = originalClockTime
     end
     UpdateTimeStatusVisuals()
-    Notify(dynamicDayNightEnabled and "Enabled" or "Disabled")
+    Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
@@ -1263,7 +1230,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     
     UpdateTimeStatusVisuals()
-    Notify(timeChangerEnabled and "Enabled" or "Disabled")
+    Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1283,7 +1250,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
         end
     end
     b.TextColor3 = noFogEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(noFogEnabled and "Enabled" or "Disabled")
+    Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, GetNextOrder())
 
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
@@ -1297,14 +1264,14 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
         end
     end
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(fullbrightEnabled and "Enabled" or "Disabled")
+    Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, GetNextOrder())
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
     b.TextColor3 = optimizationEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     if optimizationEnabled then
-        Notify("Enabled")
+        Notify("Optimization Enabled")
         pcall(function() settings().Rendering.QualityLevel = 21 end)
         local function Optimize(v)
             if v:IsA("BasePart") then
@@ -1319,7 +1286,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         if optimizationConnection then optimizationConnection:Disconnect() end
         optimizationConnection = game.Workspace.DescendantAdded:Connect(function(v) task.wait() Optimize(v) end)
     else
-        Notify("Disabled")
+        Notify("Restoring Original Quality...")
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
@@ -1337,11 +1304,11 @@ CreateButton("🌑 Toggle Shadows", function(b)
     if shadowsDisabled then
         Lighting.GlobalShadows = false
         b.TextColor3 = Color3.fromRGB(0, 255, 140)
-        Notify("Disabled")
+        Notify("Global Shadows Disabled")
     else
         Lighting.GlobalShadows = originalShadows
         b.TextColor3 = Color3.new(1, 1, 1)
-        Notify("Enabled")
+        Notify("Global Shadows Restored")
     end
 end, GetNextOrder())
 
@@ -1349,13 +1316,13 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
     b.TextColor3 = dynamicEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(dynamicEnabled and "Enabled" or "Disabled")
+    Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, GetNextOrder())
 
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(hdrEnabled and "Enabled" or "Disabled")
+    Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1587,10 +1554,10 @@ end
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
     if not espEnabled then
-        Notify("Disabled")
+        Notify("ESP Disabled (Clearing...)")
         ClearAllESP()
     else
-        Notify("Enabled")
+        Notify("ESP Master Active")
         if espShowNPCs then
             for _, v in pairs(workspace:GetDescendants()) do
                 if v:IsA("Model") and v:FindFirstChild("Humanoid") then
@@ -1667,33 +1634,33 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
     b.Text = "🔒 Shiftlock: " .. (shiftLockEnabled and "ON" or "OFF")
     b.TextColor3 = shiftLockEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(shiftLockEnabled and "Enabled" or "Disabled")
+    Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, GetNextOrder())
 
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(forceThirdPerson and "Enabled" or "Disabled")
+    Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
 
 CreateButton("🛡️ Anti-Fling", function(b)
     antiFlingEnabled = not antiFlingEnabled
     b.TextColor3 = antiFlingEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     ToggleAntiFling(antiFlingEnabled)
-    Notify(antiFlingEnabled and "Enabled" or "Disabled")
+    Notify(antiFlingEnabled and "Anti-Fling Active" or "Anti-Fling Disabled (Collisions Restored)")
 end, GetNextOrder())
 
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(antiAfkEnabled and "Enabled" or "Disabled")
+    Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
 CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
 CreateButton("☠️ Reset Character", function() 
     if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-        Notify("Enabled")
+        Notify("Respawning...")
         LocalPlayer.Character.Humanoid.Health = 0
     end 
 end, GetNextOrder())
@@ -1852,7 +1819,7 @@ CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     end
     SpeedVisuals.SliderDot.BackgroundColor3 = subtleSpeedEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
     
-    Notify(subtleSpeedEnabled and "Enabled" or "Disabled")
+    Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
 CreateSpacer(GetNextOrder())
@@ -1877,7 +1844,7 @@ ToggleFly = function(state)
     local hum = char:FindFirstChild("Humanoid")
     
     if state then
-        Notify("Enabled")
+        Notify("🚀 Fly Enabled")
         local animator = hum:FindFirstChild("Animator")
         if animator then
             for _, track in pairs(animator:GetPlayingAnimationTracks()) do track:Stop() end
@@ -1943,7 +1910,7 @@ ToggleFly = function(state)
         end
         local anim = char:FindFirstChild("Animate")
         if anim then anim.Disabled = false end
-        if flyEnabled then Notify("Disabled") end
+        if flyEnabled then Notify("Fly Disabled") end
         flyEnabled = false
     end
 end
@@ -2366,12 +2333,12 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
-                        elseif data.Role == "Beast" or data.Role == "Murderer" or data.Role == "Killer" then 
-                             topText = "<font color='rgb(255,0,0)'>[" .. string.upper(data.Role) .. "]</font>\n"
-                        elseif data.Role == "Sheriff" or data.Role == "Vigilante" then 
-                             topText = "<font color='rgb(50,50,255)'>[" .. string.upper(data.Role) .. "]</font>\n"
-                        elseif data.Role == "Survivor" then
-                             topText = "<font color='rgb(50,255,100)'>[SURVIVOR]</font>\n"
+                        elseif data.Role == "Beast" then 
+                             topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
+                        elseif data.Role == "Murderer" then 
+                            topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
+                        elseif data.Role == "Sheriff" then 
+                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
                         end
                         
                         local dName = data.DisplayName or p.DisplayName
