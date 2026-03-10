@@ -75,6 +75,7 @@ local dynamicChamsPulse = false
 -- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
+local ComputerCache = {} -- FTF Computers Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 
@@ -181,6 +182,7 @@ local function ClearAllESP()
     end
     table.clear(VF_Tracers)
     table.clear(BoundingBoxCache)
+    table.clear(ComputerCache)
     
     for model, _ in pairs(NPCCache) do
         RemoveESP(model)
@@ -1962,22 +1964,34 @@ local function RegisterNPC(model)
 end
 
 workspace.DescendantAdded:Connect(function(v)
-    if espEnabled and espShowNPCs then
-        if v:IsA("Model") then
+    if espEnabled then
+        if espShowNPCs and v:IsA("Model") then
              task.delay(0.5, function() 
                  RegisterNPC(v)
              end)
+        end
+        if game.PlaceId == 893973440 and v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") then
+            task.delay(0.5, function() ComputerCache[v] = true end)
         end
     end
 end)
 
 task.spawn(function()
     while true do
-        if espEnabled and espShowNPCs then
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("Model") and not NPCCache[v] then
-                    RegisterNPC(v)
-                 end
+        if espEnabled then
+            if espShowNPCs then
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("Model") and not NPCCache[v] then
+                        RegisterNPC(v)
+                     end
+                end
+            end
+            if game.PlaceId == 893973440 then
+                for _, v in pairs(workspace:GetDescendants()) do
+                    if v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") and not ComputerCache[v] then
+                        ComputerCache[v] = true
+                    end
+                end
             end
         end
         task.wait(3)
@@ -2189,7 +2203,7 @@ RunService.RenderStepped:Connect(function()
         -- OPTIMIZATION: Hoisted position variables to avoid calculating them thousands of times per frame
         local localChar = LocalPlayer.Character
         local localRoot = localChar and (localChar.PrimaryPart or localChar:FindFirstChild("HumanoidRootPart"))
-         local localPos = localRoot and localRoot.Position or Camera.CFrame.Position
+        local localPos = localRoot and localRoot.Position or Camera.CFrame.Position
 
         if espShowPlayers then
             for _, p in pairs(Players:GetPlayers()) do
@@ -2473,6 +2487,79 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
+
+        -- FTF Computer ESP
+        if game.PlaceId == 893973440 then
+            for comp, _ in pairs(ComputerCache) do
+                if comp and comp.Parent then
+                    local screen = comp:FindFirstChild("Screen") or comp.PrimaryPart or comp:FindFirstChildWhichIsA("BasePart")
+                    if not screen then continue end
+                    
+                    local isHacked = false
+                    if screen.Name == "Screen" then
+                        -- FTF hacked computers usually change to a lime/green color. 
+                        -- Checking if Green dominates Red and Blue safely flags it.
+                        if screen.Color.G > screen.Color.R + 0.1 and screen.Color.G > screen.Color.B + 0.1 then
+                            isHacked = true
+                        end
+                    end
+                    
+                    local statusText = isHacked and "[COMPLETE]" or "[HACKABLE]"
+                    local col = isHacked and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(0, 170, 255)
+                    
+                    if espShowNames then
+                        local tag = comp:FindFirstChild("AuraTag_Computer", true)
+                        if tag and tag.Parent ~= screen then
+                            tag.Parent = screen
+                        elseif not tag then
+                            tag = Instance.new("BillboardGui", screen)
+                            tag.Name = "AuraTag_Computer"
+                            tag.Size = UDim2.new(0, 200, 0, 50)
+                            tag.StudsOffset = Vector3.new(0, 2, 0)
+                            tag.AlwaysOnTop = true
+                            CollectionService:AddTag(tag, "AuraESP")
+                            local t = Instance.new("TextLabel", tag)
+                            t.Size = UDim2.new(1, 0, 1, 0)
+                            t.BackgroundTransparency = 1
+                            t.TextStrokeTransparency = 0
+                            t.Font = Enum.Font.GothamBold
+                            t.TextSize = 11
+                        end
+                        
+                        local dist = math.floor((screen.Position - localPos).Magnitude)
+                        tag.TextLabel.Text = "💻 Computer " .. statusText .. "\n[" .. dist .. "m]"
+                        tag.TextLabel.TextColor3 = col
+                    else
+                        local tag = comp:FindFirstChild("AuraTag_Computer", true)
+                        if tag then tag:Destroy() end
+                    end
+                    
+                    if espShowChams then
+                        local highlight = comp:FindFirstChild("AuraChams_Computer", true)
+                        if highlight and highlight.Parent ~= comp then
+                            highlight.Parent = comp
+                        elseif not highlight then
+                            highlight = Instance.new("Highlight", comp)
+                            highlight.Name = "AuraChams_Computer"
+                            highlight.Adornee = comp
+                            CollectionService:AddTag(highlight, "AuraESP")
+                        end
+                        highlight.FillColor = col
+                        highlight.OutlineColor = col
+                        highlight.FillTransparency = pulseAlpha
+                        highlight.OutlineTransparency = 0
+                        highlight.Enabled = true
+                        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    else
+                        local h = comp:FindFirstChild("AuraChams_Computer", true)
+                        if h then h:Destroy() end
+                    end
+                else
+                    ComputerCache[comp] = nil
+                end
+            end
+        end
+
     end)
 end)
 
