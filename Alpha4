@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + FTF Computer Filter/Error Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1970,7 +1970,8 @@ workspace.DescendantAdded:Connect(function(v)
                  RegisterNPC(v)
              end)
         end
-        if game.PlaceId == 893973440 and v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") then
+        -- ADDED STRICT FILTER FOR FTF COMPUTERS
+        if game.PlaceId == 893973440 and v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") and v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") then
             task.delay(0.5, function() ComputerCache[v] = true end)
         end
     end
@@ -1988,7 +1989,8 @@ task.spawn(function()
             end
             if game.PlaceId == 893973440 then
                 for _, v in pairs(workspace:GetDescendants()) do
-                    if v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") and not ComputerCache[v] then
+                    -- ADDED STRICT FILTER FOR FTF COMPUTERS
+                    if v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") and v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") and not ComputerCache[v] then
                         ComputerCache[v] = true
                     end
                 end
@@ -2488,24 +2490,25 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
-        -- FTF Computer ESP
+        -- FTF Computer ESP (UPDATED FOR ERROR LOGIC)
         if game.PlaceId == 893973440 then
             for comp, _ in pairs(ComputerCache) do
                 if comp and comp.Parent then
-                    local screen = comp:FindFirstChild("Screen") or comp.PrimaryPart or comp:FindFirstChildWhichIsA("BasePart")
+                    local screen = comp:FindFirstChild("Screen")
                     if not screen then continue end
                     
-                    local isHacked = false
-                    if screen.Name == "Screen" then
-                        -- FTF hacked computers usually change to a lime/green color. 
-                        -- Checking if Green dominates Red and Blue safely flags it.
-                        if screen.Color.G > screen.Color.R + 0.1 and screen.Color.G > screen.Color.B + 0.1 then
-                            isHacked = true
-                        end
-                    end
+                    local statusText = "[HACKABLE]"
+                    local col = Color3.fromRGB(0, 170, 255)
                     
-                    local statusText = isHacked and "[COMPLETE]" or "[HACKABLE]"
-                    local col = isHacked and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(0, 170, 255)
+                    -- Dynamic State Checking based on precise color channels
+                    local r, g, b = screen.Color.R, screen.Color.G, screen.Color.B
+                    if g > r + 0.1 and g > b + 0.1 then
+                        statusText = "[COMPLETE]"
+                        col = Color3.fromRGB(50, 255, 50)
+                    elseif r > g + 0.1 and r > b + 0.1 then
+                        statusText = "[ERROR]"
+                        col = Color3.fromRGB(255, 50, 50)
+                    end
                     
                     if espShowNames then
                         local tag = comp:FindFirstChild("AuraTag_Computer", true)
@@ -2640,4 +2643,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
+Notify("Aura Hub V54 (FTF Computer Filter + Error State Fix)")
