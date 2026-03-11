@@ -1,4 +1,4 @@
---// AuraHub V55: Balanced Spacing & Consistent Toggles (FTF V5 Computer Fix + Captured ESP + NPC Fix V3 + Viewport Tracers Fixed)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -40,7 +40,7 @@ local function DeepClean()
     
     -- Hard sweep for ANY lingering ESP parts from older versions/executions
     for _, v in pairs(workspace:GetDescendants()) do
-        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" then
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraTag_Computer" or v.Name == "AuraChams_Computer" then
             v:Destroy()
         end
     end
@@ -113,7 +113,7 @@ end)
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V55_Balanced" 
+ScreenGui.Name = "AuraHub_V54_Balanced" 
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 2147483647 -- Max DisplayOrder to force rendering over Roblox menus
@@ -140,7 +140,7 @@ local function Notify(msg)
     n.Parent = ScreenGui
     Instance.new("UICorner", n)
     local Stroke = Instance.new("UIStroke", n)
-   
+    
     Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
@@ -228,6 +228,10 @@ local function GetUniversalRole(player)
 
         -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
+            -- In FTF, if they die in the pod, they are Frozen/Dead
+            if game.PlaceId == 893973440 then
+                return "Frozen"
+            end
             return "Dead"
         end
 
@@ -240,7 +244,6 @@ local function GetUniversalRole(player)
             local function checkItems(container)
                 if not container then return nil end
                 for _, item in pairs(container:GetChildren()) do
-                    -- ONLY check actual tools, ignoring accessories or body parts
                     if item:IsA("Tool") then
                         local name = item.Name:lower()
                         if name == "knife" or name:find("dagger") or name:find("knife") or name:find("pitchfork") or name:find("saw") or name:find("scythe") then 
@@ -254,7 +257,6 @@ local function GetUniversalRole(player)
                 return nil
             end
             
-            -- Check both equipped (Character) and unequipped (Backpack) weapons
             local mm2Role = checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack"))
             if mm2Role then 
                 return mm2Role 
@@ -263,12 +265,14 @@ local function GetUniversalRole(player)
 
         -- FTF Logic
         if isFTF then
+            local isBeast = false
             for _, child in pairs(player.Character:GetChildren()) do
                 local name = child.Name:lower()
 
                 if name:find("hammer") then
                     if child:IsA("Tool") then
-                        return "Beast"
+                        isBeast = true
+                        break
                     elseif child:IsA("Model") or child:IsA("BasePart") then
                         local attachedToHand = false
                         for _, weld in pairs(player.Character:GetDescendants()) do
@@ -287,22 +291,19 @@ local function GetUniversalRole(player)
                             end
                         end
                         if attachedToHand then
-                            return "Beast"
+                            isBeast = true
+                            break
                         end
                     end
                 end
             end
             
-            -- Captured/Frozen Detection
-            if player.Character:GetAttribute("Captured") == true then return "Captured" end
-            local stateObj = player.Character:FindFirstChild("State") or player.Character:FindFirstChild("Captured")
-            if stateObj and (stateObj:IsA("BoolValue") or stateObj:IsA("StringValue")) then
-                if stateObj.Value == true or stateObj.Value == "Captured" then return "Captured" end
-            end
-            for _, child in pairs(player.Character:GetChildren()) do
-                if child.Name:find("Freeze") or child.Name:find("Ice") or child.Name == "Captured" then
-                    return "Captured"
-                end
+            if isBeast then return "Beast" end
+            
+            -- FTF Captured State Detection
+            local isCaptured = player.Character:FindFirstChild("Captured")
+            if (isCaptured and isCaptured.Value == true) or (hum and hum.WalkSpeed == 0 and hum.Health > 0) then
+                return "Captured"
             end
         end
     end
@@ -322,11 +323,10 @@ local function GetSmartColor(role, player)
     
     if r == "downed" or r:find("down") then return Color3.fromRGB(255, 170, 0) end
     if r == "dead" or r:find("dead") or r:find("spectator") then return Color3.fromRGB(150, 150, 150) end
+    if r == "frozen" then return Color3.fromRGB(150, 150, 150) end
+    if r == "captured" then return Color3.fromRGB(100, 200, 255) end -- Light blue for captured
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
-    end
-    if r == "captured" or r:find("freeze") or r:find("frozen") then 
-        return Color3.fromRGB(0, 170, 255) 
     end
     
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
@@ -593,7 +593,7 @@ local function DisableAllFeatures()
              if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
-            end
+             end
         end
         table.clear(optimizationCache)
     end
@@ -1491,7 +1491,7 @@ local function UpdateChamsVisuals()
             
             ChamsMainBtn.Text = "Toggle Chams: OFF"
             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-           
+            
             WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
@@ -1613,7 +1613,7 @@ CreateSubToggle(EspRow2, "Boxes", true, function()
     if not espShowBoxes then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraBox" then item:Destroy() end end end
     return espShowBoxes
 end)
-CreateSubToggle(EspRow2, "Name and distance", true, function()
+CreateSubToggle(EspRow2, "Name", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTag" then item:Destroy() end end 
@@ -1810,7 +1810,7 @@ local function CreatePresetSpeed(val, label)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     table.insert(SpeedVisuals.ActiveItems, btn)
     table.insert(SpeedVisuals.DimItems, btn)
-   
+    
     btn.MouseButton1Click:Connect(function()
         if not subtleSpeedEnabled then return end
         subtleSpeedValue = val
@@ -1985,10 +1985,19 @@ workspace.DescendantAdded:Connect(function(v)
                  RegisterNPC(v)
              end)
         end
-        if game.PlaceId == 893973440 and v:IsA("Model") and v.Name == "ComputerTable" then
+        if game.PlaceId == 893973440 and v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") then
             task.delay(0.5, function() 
-                if v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") then
-                    ComputerCache[v] = true 
+                local inLobby = false
+                local ancestor = v.Parent
+                while ancestor and ancestor ~= workspace do
+                    if ancestor.Name:lower():find("lobby") then
+                        inLobby = true
+                        break
+                    end
+                    ancestor = ancestor.Parent
+                end
+                if not inLobby and v:FindFirstChild("Keyboard") then
+                    ComputerCache[v] = true
                 end
             end)
         end
@@ -2007,8 +2016,18 @@ task.spawn(function()
             end
             if game.PlaceId == 893973440 then
                 for _, v in pairs(workspace:GetDescendants()) do
-                    if v:IsA("Model") and v.Name == "ComputerTable" and not ComputerCache[v] then
-                        if v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") then
+                    if v:IsA("Model") and (v.Name == "ComputerTable" or v.Name == "Computer") and not ComputerCache[v] then
+                        local inLobby = false
+                        local ancestor = v.Parent
+                        while ancestor and ancestor ~= workspace do
+                            if ancestor.Name:lower():find("lobby") then
+                                inLobby = true
+                                break
+                            end
+                            ancestor = ancestor.Parent
+                        end
+                        -- Filter out lobby computers and require a keyboard to ensure it's playable
+                        if not inLobby and v:FindFirstChild("Keyboard") then
                             ComputerCache[v] = true
                         end
                     end
@@ -2122,7 +2141,7 @@ RunService.RenderStepped:Connect(function()
                     local multiplier = speedDiff * 0.018 
                     if multiplier > 0 then
                         hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
-                   end
+                    end
                 end
 
                 if forceThirdPerson then
@@ -2249,11 +2268,10 @@ RunService.RenderStepped:Connect(function()
                      
                     if data.Role == "Downed" then
                         forcedColor = Color3.fromRGB(255, 170, 0)
-                    elseif data.Role == "Dead" or (hum and hum.Health <= 0) then
-                          forcedColor = Color3.fromRGB(150, 150, 150)
-                         data.Role = "Dead"
                     elseif data.Role == "Captured" then
-                          forcedColor = Color3.fromRGB(0, 170, 255)
+                        forcedColor = Color3.fromRGB(100, 200, 255)
+                    elseif data.Role == "Dead" or data.Role == "Frozen" or (hum and hum.Health <= 0) then
+                          forcedColor = Color3.fromRGB(150, 150, 150)
                     end
 
                     if espShowBoxes then
@@ -2368,10 +2386,12 @@ RunService.RenderStepped:Connect(function()
                         local topText = ""
                         if data.Role == "Downed" then 
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
+                        elseif data.Role == "Captured" then
+                            topText = "<font color='rgb(100,200,255)'>[CAPTURED]</font>\n"
+                        elseif data.Role == "Frozen" then
+                            topText = "<font color='rgb(150,150,150)'>[FROZEN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
-                        elseif data.Role == "Captured" then 
-                            topText = "<font color='rgb(0,170,255)'>[CAPTURED]</font>\n"
                         elseif data.Role == "Beast" then 
                              topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
@@ -2390,7 +2410,12 @@ RunService.RenderStepped:Connect(function()
                             nameStr = "@" .. rName
                         end
 
-                        local txt = topText .. nameStr .. "\n[" .. data.Dist .. "m]"
+                        local bottomText = "\n[" .. data.Dist .. "m]"
+                        if data.Role == "Frozen" then
+                             bottomText = bottomText .. "\n<font color='rgb(150,150,150)'>[DEAD]</font>"
+                        end
+
+                        local txt = topText .. nameStr .. bottomText
                         tag.TextLabel.RichText = true
                         tag.TextLabel.Text = txt
                        
@@ -2514,25 +2539,28 @@ RunService.RenderStepped:Connect(function()
         end
 
         -- FTF Computer ESP
-        if game.PlaceId == 893973440 and espEnabled then
+        if game.PlaceId == 893973440 then
             for comp, _ in pairs(ComputerCache) do
-                if comp and comp.Parent and comp:FindFirstChild("Screen") then
-                    local screen = comp.Screen
+                if comp and comp.Parent then
+                    local screen = comp:FindFirstChild("Screen") or comp.PrimaryPart or comp:FindFirstChildWhichIsA("BasePart")
+                    if not screen then continue end
+                    
                     local isHacked = false
                     local isError = false
                     
-                    local r = screen.Color.R
-                    local g = screen.Color.G
-                    local b = screen.Color.B
-                    
-                    if r > g + 0.15 and r > b + 0.15 then
-                        isError = true
-                    elseif g > r + 0.1 and g > b + 0.1 then
-                        isHacked = true
+                    if screen.Name == "Screen" then
+                        local r, g, b = screen.Color.R, screen.Color.G, screen.Color.B
+                        -- Error checking: Red dominating Green and Blue
+                        if r > g + 0.1 and r > b + 0.1 then
+                            isError = true
+                        -- Hacked checking: Green dominating Red and Blue
+                        elseif g > r + 0.1 and g > b + 0.1 then
+                            isHacked = true
+                        end
                     end
                     
-                    local statusText = isError and "[ERROR]" or (isHacked and "[COMPLETE]" or "[HACKABLE]")
-                    local col = isError and Color3.fromRGB(255, 50, 50) or (isHacked and Color3.fromRGB(50, 255, 50) or Color3.fromRGB(0, 170, 255))
+                    local statusText = isHacked and "[COMPLETE]" or (isError and "[ERROR]" or "[HACKABLE]")
+                    local col = isHacked and Color3.fromRGB(50, 255, 50) or (isError and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(0, 170, 255))
                     
                     if espShowNames then
                         local tag = comp:FindFirstChild("AuraTag_Computer", true)
@@ -2583,12 +2611,6 @@ RunService.RenderStepped:Connect(function()
                     end
                 else
                     ComputerCache[comp] = nil
-                    if comp then
-                        local tag = comp:FindFirstChild("AuraTag_Computer", true)
-                        if tag then tag:Destroy() end
-                        local h = comp:FindFirstChild("AuraChams_Computer", true)
-                        if h then h:Destroy() end
-                    end
                 end
             end
         end
@@ -2673,4 +2695,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V55 (FTF V5 Computer Fix + Captured ESP Active + NPC Fix V3 + Tracers Fixed)")
+Notify("Aura Hub V54 (FTF Updates Applied & Lobby PCs Ignored)")
