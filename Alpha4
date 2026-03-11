@@ -1,4 +1,4 @@
---// AuraHub V55: Balanced Spacing & Consistent Toggles (FTF V5 Computer Fix + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed)
+--// AuraHub V56: Balanced Spacing & Consistent Toggles (FTF V6 Error Cache & Captured Blue ESP + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -75,7 +75,7 @@ local dynamicChamsPulse = false
 -- Data Caches
 local ESP_Data_Cache = {} 
 local NPCCache = {} -- Format: { [Model] = true }
-local ComputerCache = {} -- FTF Computers Format: { [Model] = true }
+local ComputerCache = {} -- FTF Computers Format: { [Model] = { ErrorTimeout = 0 } }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 
@@ -113,7 +113,7 @@ end)
 
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "AuraHub_V55_Balanced" 
+ScreenGui.Name = "AuraHub_V56_Balanced" 
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 2147483647 -- Max DisplayOrder to force rendering over Roblox menus
@@ -240,7 +240,6 @@ local function GetUniversalRole(player)
             local function checkItems(container)
                 if not container then return nil end
                 for _, item in pairs(container:GetChildren()) do
-                    -- ONLY check actual tools, ignoring accessories or body parts
                     if item:IsA("Tool") then
                         local name = item.Name:lower()
                         if name == "knife" or name:find("dagger") or name:find("knife") or name:find("pitchfork") or name:find("saw") or name:find("scythe") then 
@@ -254,7 +253,6 @@ local function GetUniversalRole(player)
                 return nil
             end
             
-            -- Check both equipped (Character) and unequipped (Backpack) weapons
             local mm2Role = checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack"))
             if mm2Role then 
                 return mm2Role 
@@ -263,6 +261,7 @@ local function GetUniversalRole(player)
 
         -- FTF Logic
         if isFTF then
+            -- Beast Detection
             for _, child in pairs(player.Character:GetChildren()) do
                 local name = child.Name:lower()
 
@@ -292,6 +291,18 @@ local function GetUniversalRole(player)
                     end
                 end
             end
+            
+            -- Captured Detection
+            if player.Character:GetAttribute("Captured") == true then return "Captured" end
+            local stateObj = player.Character:FindFirstChild("State") or player.Character:FindFirstChild("Captured")
+            if stateObj and (stateObj:IsA("BoolValue") or stateObj:IsA("StringValue")) then
+                if stateObj.Value == true or stateObj.Value == "Captured" then return "Captured" end
+            end
+            for _, child in pairs(player.Character:GetChildren()) do
+                if child.Name:find("Freeze") or child.Name:find("Ice") or child.Name == "Captured" then
+                    return "Captured"
+                end
+            end
         end
     end
 
@@ -313,7 +324,9 @@ local function GetSmartColor(role, player)
     if r == "beast" or r == "murderer" or r:find("murder") or r:find("traitor") or r:find("bad") or r == "red" then 
         return Color3.fromRGB(255, 40, 40) 
     end
-    
+    if r == "captured" or r:find("freeze") or r:find("frozen") then 
+        return Color3.fromRGB(0, 170, 255) 
+    end
     if r == "sheriff" or r:find("sheriff") or r:find("police") or r:find("good") or r == "blue" then return Color3.fromRGB(40, 100, 255) end
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
@@ -483,12 +496,10 @@ local function ToggleAntiFling(state)
             antiFlingConnection:Disconnect()
             antiFlingConnection = nil
         end
-        -- Properly restore collisions for standard R6/R15 rigs
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 for _, part in ipairs(p.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
-                        -- Roblox default physics: Head and Torso are true, limbs/HRP are false
                         if part.Name == "Head" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
                             part.CanCollide = true
                         else
@@ -1292,7 +1303,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
-            if obj and obj.Parent then 
+             if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
             end
@@ -1973,7 +1984,7 @@ workspace.DescendantAdded:Connect(function(v)
         if game.PlaceId == 893973440 and v:IsA("Model") and v.Name == "ComputerTable" then
             task.delay(0.5, function() 
                 if v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") then
-                    ComputerCache[v] = true 
+                    ComputerCache[v] = { ErrorTimeout = 0 }
                 end
             end)
         end
@@ -1994,7 +2005,7 @@ task.spawn(function()
                 for _, v in pairs(workspace:GetDescendants()) do
                     if v:IsA("Model") and v.Name == "ComputerTable" and not ComputerCache[v] then
                         if v:FindFirstChild("Screen") and v:FindFirstChild("Keyboard") then
-                            ComputerCache[v] = true
+                            ComputerCache[v] = { ErrorTimeout = 0 }
                         end
                     end
                 end
@@ -2008,7 +2019,6 @@ task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
              for model, _ in pairs(NPCCache) do
-                -- Removing the Health <= 0 check so NPCs that technically "die" but still exist physically won't lose ESP
                 if not model or not model:IsDescendantOf(workspace) then
                     NPCCache[model] = nil
                     RemoveESP(model)
@@ -2237,6 +2247,8 @@ RunService.RenderStepped:Connect(function()
                     elseif data.Role == "Dead" or (hum and hum.Health <= 0) then
                           forcedColor = Color3.fromRGB(150, 150, 150)
                          data.Role = "Dead"
+                    elseif data.Role == "Captured" then
+                          forcedColor = Color3.fromRGB(0, 170, 255)
                     end
 
                     if espShowBoxes then
@@ -2353,6 +2365,8 @@ RunService.RenderStepped:Connect(function()
                             topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
                             topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
+                        elseif data.Role == "Captured" then 
+                            topText = "<font color='rgb(0,170,255)'>[CAPTURED]</font>\n"
                         elseif data.Role == "Beast" then 
                              topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
@@ -2496,17 +2510,28 @@ RunService.RenderStepped:Connect(function()
 
         -- FTF Computer ESP
         if game.PlaceId == 893973440 and espEnabled then
-            for comp, _ in pairs(ComputerCache) do
+            for comp, compData in pairs(ComputerCache) do
                 if comp and comp.Parent and comp:FindFirstChild("Screen") then
                     local screen = comp.Screen
-                    local isHacked = false
+                    
+                    if type(compData) ~= "table" then
+                        compData = { ErrorTimeout = 0 }
+                        ComputerCache[comp] = compData
+                    end
+                    
                     local isError = false
+                    local isHacked = false
                     
                     local r = screen.Color.R
                     local g = screen.Color.G
                     local b = screen.Color.B
                     
+                    -- Detect the red spike and apply a 3.5 second cache timeout
                     if r > g + 0.15 and r > b + 0.15 then
+                        compData.ErrorTimeout = tick() + 3.5
+                    end
+                    
+                    if tick() < compData.ErrorTimeout then
                         isError = true
                     elseif g > r + 0.1 and g > b + 0.1 then
                         isHacked = true
@@ -2654,4 +2679,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V55 (FTF V5 Computer Fix + NPC Fix V3 + Tracers Fixed)")
+Notify("Aura Hub V56 (FTF Error Cache + Captured ESP Active)")
