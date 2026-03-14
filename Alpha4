@@ -1,5 +1,3 @@
-MAIN BACKUP PROJECT SCRIPT
-
 --// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix)
 --// Services
 local TweenService = game:GetService("TweenService")
