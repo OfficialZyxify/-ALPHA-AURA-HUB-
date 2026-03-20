@@ -21,7 +21,7 @@ local function GetSafeParent()
         if gethui then return gethui() end
         return CoreGui
     end)
-    if success and result then return result end -- FIXED SYNTAX ERROR HERE
+    if success and result then return result end
     return PlayerGui
 end
 
@@ -1588,35 +1588,47 @@ local function RegisterComputer(obj)
     end
 end
 
--- SMART PROGRESS HOOK
+-- SMART PROGRESS HOOK (Camera-based for Hackers & Spectators)
 local function GetHackProgress(computerObj)
-    -- 1. Check for standard hidden values 
-    for _, v in pairs(computerObj:GetChildren()) do
+    local compPart = computerObj:FindFirstChild("Screen") or computerObj.PrimaryPart or computerObj:FindFirstChildWhichIsA("BasePart")
+    if not compPart then return nil end
+
+    -- 1. Check for standard hidden values (Fallback/Future-proofing)
+    for _, v in pairs(computerObj:GetDescendants()) do
         if (v:IsA("NumberValue") or v:IsA("IntValue")) and (v.Name:lower():find("progress") or v.Name:lower():find("percent")) then
             if v.Value > 1 then return v.Value / 100 end
             return v.Value
         end
     end
     
-    -- 2. Local Player GUI Hack Tracker (Mirrors active hack UI if nearby)
-    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-        local root = LocalPlayer.Character.HumanoidRootPart
-        local compPart = computerObj:FindFirstChild("Screen") or computerObj.PrimaryPart
-        if compPart and (root.Position - compPart.Position).Magnitude < 15 then
-            
-            -- If we already found the live bar and it's visible, keep using it
-            if ActiveHackingGUI and ActiveHackingGUI.Parent and ActiveHackingGUI.Visible and ActiveHackingGUI.Size.X.Scale > 0 then
-                return ActiveHackingGUI.Size.X.Scale
+    -- 2. Local Player GUI Hack Tracker (Mirrors active hack UI based on Camera Distance)
+    local dist = (Camera.CFrame.Position - compPart.Position).Magnitude
+    if dist < 40 then 
+        -- If we already found the live bar, and it's visible, keep using it
+        if ActiveHackingGUI and ActiveHackingGUI.Parent and ActiveHackingGUI.Visible and ActiveHackingGUI.AbsoluteSize.X > 0 then
+            local parentSize = ActiveHackingGUI.Parent.AbsoluteSize.X
+            if parentSize > 0 then
+                local ratio = ActiveHackingGUI.AbsoluteSize.X / parentSize
+                if ratio > 0 and ratio <= 1 then return ratio end
             end
+        end
 
-            -- Otherwise, scan PlayerGui for an active filling bar
-            for _, gui in pairs(PlayerGui:GetDescendants()) do
-                if gui:IsA("Frame") and gui.Visible and gui.Size.X.Scale > 0 and gui.Size.X.Scale < 1 and gui.Size.Y.Scale == 1 then
-                    local name = gui.Name:lower()
-                    local pName = gui.Parent and gui.Parent.Name:lower() or ""
-                    if name:find("fill") or name:find("bar") or name:find("progress") or pName:find("progress") or pName:find("action") or pName:find("hack") then
-                        ActiveHackingGUI = gui
-                        return gui.Size.X.Scale
+        -- Otherwise, heavily scan PlayerGui for the FTF progress bar
+        for _, gui in pairs(PlayerGui:GetDescendants()) do
+            if (gui:IsA("Frame") or gui:IsA("ImageLabel")) and gui.Visible and gui.Parent and (gui.Parent:IsA("Frame") or gui.Parent:IsA("ImageLabel")) and gui.Parent.Visible then
+                local fillX = gui.AbsoluteSize.X
+                local bgX = gui.Parent.AbsoluteSize.X
+                
+                -- Ensure it acts like a horizontal fill bar and is tall enough to be visible
+                if fillX > 0 and bgX > 0 and fillX <= bgX and gui.AbsoluteSize.Y > 2 then
+                    -- The FTF action bar is located near the bottom of the screen
+                    if gui.AbsolutePosition.Y > (Camera.ViewportSize.Y * 0.7) then
+                        local ratio = fillX / bgX
+                        -- Make sure it's actively filling and not just a static background piece
+                        if ratio > 0 and ratio < 1 then
+                            ActiveHackingGUI = gui
+                            return ratio
+                        end
                     end
                 end
             end
@@ -2129,7 +2141,7 @@ RunService.RenderStepped:Connect(function()
                             hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
                             hl.FillTransparency = 0.5
 
-                            -- PROGRESS BAR LOGIC (Mirrors local hack action)
+                            -- PROGRESS BAR LOGIC (Mirrors local hack action based on Camera Distance)
                             local hackProgress = GetHackProgress(obj)
                             
                             if hackProgress and hackProgress > 0 and hackProgress < 1 then
@@ -2138,7 +2150,7 @@ RunService.RenderStepped:Connect(function()
                                     -- Create BillboardGui
                                     progressBar = Instance.new("BillboardGui")
                                     progressBar.Name = "AuraProgressBar_Computer"
-                                    progressBar.Size = UDim2.new(0, 150, 0, 18) -- Bar dimensions
+                                    progressBar.Size = UDim2.new(0, 150, 0, 20) -- Bar dimensions
                                     progressBar.StudsOffset = Vector3.new(0, 4.5, 0) -- Positioning above
                                     progressBar.AlwaysOnTop = true
                                     progressBar.Parent = screen
@@ -2149,6 +2161,7 @@ RunService.RenderStepped:Connect(function()
                                     bgBar.Name = "Background"
                                     bgBar.Size = UDim2.new(1, 0, 1, 0)
                                     bgBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                                    bgBar.ClipsDescendants = true -- CRITICAL for masking diagonal lines
                                     bgBar.Parent = progressBar
                                     Instance.new("UICorner", bgBar).CornerRadius = UDim.new(0, 4)
 
@@ -2161,13 +2174,14 @@ RunService.RenderStepped:Connect(function()
                                     fillBar.Parent = bgBar
                                     Instance.new("UICorner", fillBar).CornerRadius = UDim.new(0, 4)
 
-                                    -- Custom Partitions (matches user sketch)
-                                    local partitionNum = 6
+                                    -- Custom Diagonal Partitions (matches user sketch)
+                                    local partitionNum = 8
                                     for i = 1, partitionNum - 1 do
                                          local p = Instance.new("Frame")
                                          p.Name = "Partition" .. i
-                                         p.Size = UDim2.new(0, 2, 1, 0)
-                                         p.Position = UDim2.new(i/partitionNum, -1, 0, 0)
+                                         p.Size = UDim2.new(0, 4, 1.5, 0) -- Taller to allow safe rotation
+                                         p.Position = UDim2.new(i/partitionNum, 0, -0.25, 0)
+                                         p.Rotation = 25 -- Diagonal slashes!
                                          p.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
                                          p.BorderSizePixel = 0
                                          p.ZIndex = 5 -- Renders over the green fill
