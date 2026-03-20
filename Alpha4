@@ -2060,9 +2060,10 @@ RunService.RenderStepped:Connect(function()
                         
                         local isBeingHacked = false
                         for _, p in pairs(Players:GetPlayers()) do
-                            if p.Character and p.Character.PrimaryPart then
-                                local dist = (p.Character.PrimaryPart.Position - screen.Position).Magnitude
-                                if dist < 7 then 
+                            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
+                                local dist = (p.Character.HumanoidRootPart.Position - screen.Position).Magnitude
+                                -- In FTF, you must stand completely still to hack. This prevents blinking if you just walk past it.
+                                if dist < 4.5 and p.Character.Humanoid.MoveDirection.Magnitude == 0 then 
                                     isBeingHacked = true
                                     break
                                 end
@@ -2079,7 +2080,7 @@ RunService.RenderStepped:Connect(function()
                                 if math.floor(tick() * 5) % 2 == 0 then
                                     hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
                                 else
-                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                    hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
                                 end
                                 hl.FillTransparency = 0.5
                             else
@@ -2091,7 +2092,7 @@ RunService.RenderStepped:Connect(function()
                                 if math.floor(tick() * 5) % 2 == 0 then
                                     hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
                                 else
-                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                    hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
                                 end
                                 hl.FillTransparency = 0.5
                             else
@@ -2099,7 +2100,7 @@ RunService.RenderStepped:Connect(function()
                                 hl.FillTransparency = 0.5
                             end
                         else
-                            hl.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan
+                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
                             hl.FillTransparency = 0.5
                         end
                     end
