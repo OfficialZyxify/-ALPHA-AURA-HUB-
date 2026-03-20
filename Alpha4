@@ -1300,7 +1300,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
-            if obj and obj.Parent then 
+             if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
             end
@@ -1560,6 +1560,21 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     return btn
 end
 
+-- DATA INIT HELPERS
+local function RegisterComputer(obj)
+    if not espEnabled then return end
+    if obj and obj:IsA("Model") and not ComputerESP_Cache[obj] then
+        local hl = Instance.new("Highlight")
+        hl.Name = "AuraChams_Computer"
+        hl.Adornee = obj
+        hl.OutlineColor = Color3.new(1, 1, 1)
+        hl.FillTransparency = 0.5
+        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        hl.Parent = obj
+        ComputerESP_Cache[obj] = hl
+    end
+end
+
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
@@ -1575,6 +1590,12 @@ MasterBtn.MouseButton1Click:Connect(function()
                         NPCCache[v] = true
                     end
                 end
+            end
+        end
+        -- INSTANT COMPUTER SCAN
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj.Name == "ComputerTable" then
+                RegisterComputer(obj)
             end
         end
     end
@@ -1606,7 +1627,7 @@ CreateSubToggle(EspRow2, "Boxes", true, function()
     if not espShowBoxes then for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraBox" then item:Destroy() end end end
     return espShowBoxes
 end)
-CreateSubToggle(EspRow2, "Name", true, function()
+CreateSubToggle(EspRow2, "Name and distance", true, function()
     espShowNames = not espShowNames
     if not espShowNames then 
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do if item.Name == "AuraTag" then item:Destroy() end end 
@@ -1972,11 +1993,14 @@ local function RegisterNPC(model)
 end
 
 workspace.DescendantAdded:Connect(function(v)
-    if espEnabled and espShowNPCs then
-        if v:IsA("Model") then
+    if espEnabled then
+        if espShowNPCs and v:IsA("Model") then
              task.delay(0.5, function() 
                  RegisterNPC(v)
              end)
+        end
+        if v.Name == "ComputerTable" then
+             RegisterComputer(v)
         end
     end
 end)
@@ -1990,40 +2014,6 @@ task.spawn(function()
                  end
             end
         end
-        
-        -- FTF Computer ESP Hook (Works on any FTF version by checking for ComputerTable)
-        if espEnabled then
-            for _, obj in pairs(workspace:GetDescendants()) do
-                if obj.Name == "ComputerTable" and obj:IsA("Model") then
-                    local hl = ComputerESP_Cache[obj]
-                    if not hl then
-                        hl = Instance.new("Highlight")
-                        hl.Name = "AuraChams_Computer"
-                        hl.Adornee = obj
-                        hl.OutlineColor = Color3.new(1, 1, 1)
-                        hl.FillTransparency = 0.5
-                        hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                        hl.Parent = obj
-                        ComputerESP_Cache[obj] = hl
-                    end
-                    
-                    -- FTF screens turn green when completed
-                    local screen = obj:FindFirstChild("Screen")
-                    if screen then
-                        if screen.BrickColor.Name:lower():find("green") or screen.BrickColor.Name:lower():find("lime") then
-                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green for done
-                        else
-                            hl.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan for incomplete
-                        end
-                    end
-                end
-            end
-        else
-            if next(ComputerESP_Cache) then
-                ClearComputerESP()
-            end
-        end
-
         task.wait(3)
     end
 end)
@@ -2058,6 +2048,31 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
+        -- Computer Dynamic Colors & Blinking
+        if espEnabled then
+            for obj, hl in pairs(ComputerESP_Cache) do
+                if obj and obj.Parent then
+                    local screen = obj:FindFirstChild("Screen")
+                    if screen then
+                        local cName = screen.BrickColor.Name:lower()
+                        if cName:find("green") or cName:find("lime") then
+                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
+                            hl.FillTransparency = 0.5
+                        elseif cName:find("red") or cName:find("error") then
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
+                            hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
+                        else
+                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
+                            hl.FillTransparency = 0.5
+                        end
+                    end
+                else
+                    if hl and typeof(hl) == "Instance" then hl:Destroy() end
+                    ComputerESP_Cache[obj] = nil
+                end
+            end
+        end
+
         -- FOV
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
              Camera.FieldOfView = currentFOV
