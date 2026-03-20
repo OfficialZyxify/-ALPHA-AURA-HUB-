@@ -40,7 +40,7 @@ local function DeepClean()
     
     -- Hard sweep for ANY lingering ESP parts from older versions/executions
     for _, v in pairs(workspace:GetDescendants()) do
-        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraChams_Computer" or v.Name == "AuraProgressBar_Computer" then
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraChams_Computer" then
             v:Destroy()
         end
     end
@@ -78,10 +78,7 @@ local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ComputerESP_Cache = {} -- Cache for FTF Computers
-
--- State for persistent failure (Key: Model, Value: true)
-local FailedComputers = {}
-local ActiveHackingGUI = nil -- Cache for progress bar logic
+local FailedComputers = {} -- Cache for tracking failed computers
 
 -- Time States
 local timeChangerEnabled = false
@@ -158,7 +155,7 @@ local function RemoveESP(model)
     if not model then return end
     
     -- Bulletproof removal using GetDescendants to catch UI no matter where it got parented
-    local items = {AuraBox = true, AuraTag = true, AuraChams = true, AuraProgressBar_Computer = true}
+    local items = {AuraBox = true, AuraTag = true, AuraChams = true}
     for _, child in ipairs(model:GetDescendants()) do
         if items[child.Name] then
              child:Destroy()
@@ -180,14 +177,6 @@ end
 local function ClearComputerESP()
     for obj, hl in pairs(ComputerESP_Cache) do
         if hl and typeof(hl) == "Instance" then hl:Destroy() end
-        -- Clean up progress bar too
-        if obj and obj:IsA("Model") then
-             for _, child in ipairs(obj:GetDescendants()) do
-                if child.Name == "AuraProgressBar_Computer" then
-                     child:Destroy()
-                end
-             end
-        end
     end
     table.clear(ComputerESP_Cache)
     table.clear(FailedComputers)
@@ -1588,55 +1577,6 @@ local function RegisterComputer(obj)
     end
 end
 
--- SMART PROGRESS HOOK (Camera-based for Hackers & Spectators)
-local function GetHackProgress(computerObj)
-    local compPart = computerObj:FindFirstChild("Screen") or computerObj.PrimaryPart or computerObj:FindFirstChildWhichIsA("BasePart")
-    if not compPart then return nil end
-
-    -- 1. Check for standard hidden values (Fallback/Future-proofing)
-    for _, v in pairs(computerObj:GetDescendants()) do
-        if (v:IsA("NumberValue") or v:IsA("IntValue")) and (v.Name:lower():find("progress") or v.Name:lower():find("percent")) then
-            if v.Value > 1 then return v.Value / 100 end
-            return v.Value
-        end
-    end
-    
-    -- 2. Local Player GUI Hack Tracker (Mirrors active hack UI based on Camera Distance)
-    local dist = (Camera.CFrame.Position - compPart.Position).Magnitude
-    if dist < 40 then 
-        -- If we already found the live bar, and it's visible, keep using it
-        if ActiveHackingGUI and ActiveHackingGUI.Parent and ActiveHackingGUI.Visible and ActiveHackingGUI.AbsoluteSize.X > 0 then
-            local parentSize = ActiveHackingGUI.Parent.AbsoluteSize.X
-            if parentSize > 0 then
-                local ratio = ActiveHackingGUI.AbsoluteSize.X / parentSize
-                if ratio > 0 and ratio <= 1 then return ratio end
-            end
-        end
-
-        -- Otherwise, heavily scan PlayerGui for the FTF progress bar
-        for _, gui in pairs(PlayerGui:GetDescendants()) do
-            if (gui:IsA("Frame") or gui:IsA("ImageLabel")) and gui.Visible and gui.Parent and (gui.Parent:IsA("Frame") or gui.Parent:IsA("ImageLabel")) and gui.Parent.Visible then
-                local fillX = gui.AbsoluteSize.X
-                local bgX = gui.Parent.AbsoluteSize.X
-                
-                -- Ensure it acts like a horizontal fill bar and is tall enough to be visible
-                if fillX > 0 and bgX > 0 and fillX <= bgX and gui.AbsoluteSize.Y > 2 then
-                    -- The FTF action bar is located near the bottom of the screen
-                    if gui.AbsolutePosition.Y > (Camera.ViewportSize.Y * 0.7) then
-                        local ratio = fillX / bgX
-                        -- Make sure it's actively filling and not just a static background piece
-                        if ratio > 0 and ratio < 1 then
-                            ActiveHackingGUI = gui
-                            return ratio
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return nil
-end
-
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
     espEnabled = not espEnabled
@@ -2110,93 +2050,57 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Computer ESP Logic (Dynamic Color, Blinking, Persistent Failure, Progress Bar)
-        if espEnabled then
+        -- Computer ESP Colors & Blinking
+        if espEnabled and game.PlaceId == 893973440 then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
-                        local progressBar = obj:FindFirstChild("AuraProgressBar_Computer", true)
-
-                        if cName:find("green") or cName:find("lime") then
-                            -- Case 1: Successfully hacked (turns green)
-                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green for done
-                            hl.FillTransparency = 0.5
-                            FailedComputers[obj] = nil -- Clear persistent failure state
-                            if progressBar then progressBar.Enabled = false end -- Hide progress on success
-                        elseif cName:find("red") or cName:find("error") then
-                            -- Case 2: In actively failed/error state (blinking red)
-                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red for error
-                            hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
-                            FailedComputers[obj] = true -- Mark for persistent state
-                            if progressBar then progressBar.Enabled = false end -- Hide progress during error
-                        elseif FailedComputers[obj] then
-                            -- Case 3: In persistent failed state (no turning back blue until hack succeeds)
-                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Solid Red
-                            hl.FillTransparency = 0.5
-                            if progressBar then progressBar.Enabled = false end -- Hide progress when failed
-                        else
-                            -- Case 4: Default state (light blue)
-                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
-                            hl.FillTransparency = 0.5
-
-                            -- PROGRESS BAR LOGIC (Mirrors local hack action based on Camera Distance)
-                            local hackProgress = GetHackProgress(obj)
-                            
-                            if hackProgress and hackProgress > 0 and hackProgress < 1 then
-                                -- Active hacking is happening and not done. Show progress bar.
-                                if not progressBar then
-                                    -- Create BillboardGui
-                                    progressBar = Instance.new("BillboardGui")
-                                    progressBar.Name = "AuraProgressBar_Computer"
-                                    progressBar.Size = UDim2.new(0, 150, 0, 20) -- Bar dimensions
-                                    progressBar.StudsOffset = Vector3.new(0, 4.5, 0) -- Positioning above
-                                    progressBar.AlwaysOnTop = true
-                                    progressBar.Parent = screen
-                                    CollectionService:AddTag(progressBar, "AuraESP") -- Track for cleanup
-
-                                    -- Main Bar Background (Grey)
-                                    local bgBar = Instance.new("Frame")
-                                    bgBar.Name = "Background"
-                                    bgBar.Size = UDim2.new(1, 0, 1, 0)
-                                    bgBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-                                    bgBar.ClipsDescendants = true -- CRITICAL for masking diagonal lines
-                                    bgBar.Parent = progressBar
-                                    Instance.new("UICorner", bgBar).CornerRadius = UDim.new(0, 4)
-
-                                    -- The Filling Part (Green)
-                                    local fillBar = Instance.new("Frame")
-                                    fillBar.Name = "Filler"
-                                    fillBar.Size = UDim2.new(0, 0, 1, 0) -- Width set dynamically
-                                    fillBar.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-                                    fillBar.BorderSizePixel = 0
-                                    fillBar.Parent = bgBar
-                                    Instance.new("UICorner", fillBar).CornerRadius = UDim.new(0, 4)
-
-                                    -- Custom Diagonal Partitions (matches user sketch)
-                                    local partitionNum = 8
-                                    for i = 1, partitionNum - 1 do
-                                         local p = Instance.new("Frame")
-                                         p.Name = "Partition" .. i
-                                         p.Size = UDim2.new(0, 4, 1.5, 0) -- Taller to allow safe rotation
-                                         p.Position = UDim2.new(i/partitionNum, 0, -0.25, 0)
-                                         p.Rotation = 25 -- Diagonal slashes!
-                                         p.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-                                         p.BorderSizePixel = 0
-                                         p.ZIndex = 5 -- Renders over the green fill
-                                         p.Parent = bgBar
-                                    end
-                                end
-                                
-                                progressBar.Enabled = true
-                                progressBar.Background.Filler.Size = UDim2.new(hackProgress, 0, 1, 0)
-                            else
-                                -- Not hacking or finished. Hide the bar.
-                                if progressBar then
-                                    progressBar.Enabled = false
+                        
+                        local isBeingHacked = false
+                        for _, p in pairs(Players:GetPlayers()) do
+                            if p.Character and p.Character.PrimaryPart then
+                                local dist = (p.Character.PrimaryPart.Position - screen.Position).Magnitude
+                                if dist < 7 then 
+                                    isBeingHacked = true
+                                    break
                                 end
                             end
+                        end
+
+                        if cName:find("green") or cName:find("lime") then
+                            hl.FillColor = Color3.fromRGB(0, 255, 0)
+                            hl.FillTransparency = 0.5
+                            FailedComputers[obj] = nil
+                        elseif cName:find("red") or cName:find("error") then
+                            FailedComputers[obj] = true
+                            if isBeingHacked then
+                                if math.floor(tick() * 5) % 2 == 0 then
+                                    hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+                                else
+                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                end
+                                hl.FillTransparency = 0.5
+                            else
+                                hl.FillColor = Color3.fromRGB(255, 0, 0)
+                                hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
+                            end
+                        elseif FailedComputers[obj] then
+                            if isBeingHacked then
+                                if math.floor(tick() * 5) % 2 == 0 then
+                                    hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+                                else
+                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                end
+                                hl.FillTransparency = 0.5
+                            else
+                                hl.FillColor = Color3.fromRGB(255, 0, 0)
+                                hl.FillTransparency = 0.5
+                            end
+                        else
+                            hl.FillColor = Color3.fromRGB(0, 255, 255) -- Cyan
+                            hl.FillTransparency = 0.5
                         end
                     end
                 else
