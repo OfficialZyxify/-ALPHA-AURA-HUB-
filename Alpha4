@@ -2059,13 +2059,33 @@ RunService.RenderStepped:Connect(function()
                         local cName = screen.BrickColor.Name:lower()
                         
                         local isBeingHacked = false
-                        for _, p in pairs(Players:GetPlayers()) do
-                            if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and p.Character:FindFirstChild("Humanoid") then
-                                local dist = (p.Character.HumanoidRootPart.Position - screen.Position).Magnitude
-                                -- In FTF, you must stand completely still to hack. This prevents blinking if you just walk past it.
-                                if dist < 4.5 and p.Character.Humanoid.MoveDirection.Magnitude == 0 then 
-                                    isBeingHacked = true
-                                    break
+                        
+                        -- Only run heavy hacking checks if the computer needs to blink (failed or red state)
+                        if FailedComputers[obj] or cName:find("red") or cName:find("error") then
+                            -- Method 1: Check if the computer itself is playing the typing sound (Works globally for all players hacking)
+                            for _, desc in pairs(obj:GetDescendants()) do
+                                if desc:IsA("Sound") and desc.IsPlaying then
+                                    local sName = desc.Name:lower()
+                                    if sName:find("type") or sName:find("key") or desc.Looped then
+                                        isBeingHacked = true
+                                        break
+                                    end
+                                end
+                            end
+                            
+                            -- Method 2: Fallback check on Local GUI (Works if LocalPlayer or Spectated Player is hacking)
+                            if not isBeingHacked and LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                                if (LocalPlayer.Character.PrimaryPart.Position - screen.Position).Magnitude < 10 then
+                                    for _, gui in pairs(PlayerGui:GetDescendants()) do
+                                        -- Find standard active fill bars
+                                        if gui:IsA("Frame") and gui.Visible and gui.Size.X.Scale > 0 and gui.Size.X.Scale < 1 and gui.Size.Y.Scale == 1 then
+                                            local pName = gui.Parent and gui.Parent.Name:lower() or ""
+                                            if pName:find("action") or pName:find("progress") or pName:find("hack") or pName:find("bar") then
+                                                isBeingHacked = true
+                                                break
+                                            end
+                                        end
+                                    end
                                 end
                             end
                         end
@@ -2080,7 +2100,7 @@ RunService.RenderStepped:Connect(function()
                                 if math.floor(tick() * 5) % 2 == 0 then
                                     hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
                                 else
-                                    hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
+                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
                                 end
                                 hl.FillTransparency = 0.5
                             else
@@ -2092,7 +2112,7 @@ RunService.RenderStepped:Connect(function()
                                 if math.floor(tick() * 5) % 2 == 0 then
                                     hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
                                 else
-                                    hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
+                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
                                 end
                                 hl.FillTransparency = 0.5
                             else
@@ -2100,7 +2120,7 @@ RunService.RenderStepped:Connect(function()
                                 hl.FillTransparency = 0.5
                             end
                         else
-                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Light Blue
+                            hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
                             hl.FillTransparency = 0.5
                         end
                     end
