@@ -78,7 +78,6 @@ local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ComputerESP_Cache = {} -- Cache for FTF Computers
-local FailedComputers = {} -- Cache for tracking failed computers
 
 -- Time States
 local timeChangerEnabled = false
@@ -179,7 +178,6 @@ local function ClearComputerESP()
         if hl and typeof(hl) == "Instance" then hl:Destroy() end
     end
     table.clear(ComputerESP_Cache)
-    table.clear(FailedComputers)
 end
 
 local function ClearAllESP()
@@ -2050,77 +2048,21 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Computer ESP Colors & Blinking
-        if espEnabled and game.PlaceId == 893973440 then
+        -- Computer Dynamic Colors & Blinking
+        if espEnabled then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
-                        
-                        local isBeingHacked = false
-                        
-                        -- Only run heavy hacking checks if the computer needs to blink (failed or red state)
-                        if FailedComputers[obj] or cName:find("red") or cName:find("error") then
-                            -- Method 1: Check if the computer itself is playing the typing sound (Works globally for all players hacking)
-                            for _, desc in pairs(obj:GetDescendants()) do
-                                if desc:IsA("Sound") and desc.IsPlaying then
-                                    local sName = desc.Name:lower()
-                                    if sName:find("type") or sName:find("key") or desc.Looped then
-                                        isBeingHacked = true
-                                        break
-                                    end
-                                end
-                            end
-                            
-                            -- Method 2: Fallback check on Local GUI (Works if LocalPlayer or Spectated Player is hacking)
-                            if not isBeingHacked and LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
-                                if (LocalPlayer.Character.PrimaryPart.Position - screen.Position).Magnitude < 10 then
-                                    for _, gui in pairs(PlayerGui:GetDescendants()) do
-                                        -- Find standard active fill bars
-                                        if gui:IsA("Frame") and gui.Visible and gui.Size.X.Scale > 0 and gui.Size.X.Scale < 1 and gui.Size.Y.Scale == 1 then
-                                            local pName = gui.Parent and gui.Parent.Name:lower() or ""
-                                            if pName:find("action") or pName:find("progress") or pName:find("hack") or pName:find("bar") then
-                                                isBeingHacked = true
-                                                break
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-
                         if cName:find("green") or cName:find("lime") then
-                            hl.FillColor = Color3.fromRGB(0, 255, 0)
+                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
                             hl.FillTransparency = 0.5
-                            FailedComputers[obj] = nil
                         elseif cName:find("red") or cName:find("error") then
-                            FailedComputers[obj] = true
-                            if isBeingHacked then
-                                if math.floor(tick() * 5) % 2 == 0 then
-                                    hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
-                                else
-                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
-                                end
-                                hl.FillTransparency = 0.5
-                            else
-                                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                                hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
-                            end
-                        elseif FailedComputers[obj] then
-                            if isBeingHacked then
-                                if math.floor(tick() * 5) % 2 == 0 then
-                                    hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
-                                else
-                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
-                                end
-                                hl.FillTransparency = 0.5
-                            else
-                                hl.FillColor = Color3.fromRGB(255, 0, 0)
-                                hl.FillTransparency = 0.5
-                            end
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
+                            hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
                         else
-                            hl.FillColor = Color3.fromRGB(0, 0, 255) -- Pure Blue
+                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
                             hl.FillTransparency = 0.5
                         end
                     end
