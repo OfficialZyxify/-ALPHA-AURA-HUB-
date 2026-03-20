@@ -21,7 +21,7 @@ local function GetSafeParent()
         if gethui then return gethui() end
         return CoreGui
     end)
-    if success and result then return result end
+    if success and result then result end
     return PlayerGui
 end
 
@@ -40,7 +40,7 @@ local function DeepClean()
     
     -- Hard sweep for ANY lingering ESP parts from older versions/executions
     for _, v in pairs(workspace:GetDescendants()) do
-        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraChams_Computer" then
+        if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraChams_Computer" or v.Name == "AuraProgressBar_Computer" then
             v:Destroy()
         end
     end
@@ -78,6 +78,9 @@ local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ComputerESP_Cache = {} -- Cache for FTF Computers
+
+-- State for persistent failure (Key: Model, Value: true)
+local FailedComputers = {}
 
 -- Time States
 local timeChangerEnabled = false
@@ -154,7 +157,7 @@ local function RemoveESP(model)
     if not model then return end
     
     -- Bulletproof removal using GetDescendants to catch UI no matter where it got parented
-    local items = {AuraBox = true, AuraTag = true, AuraChams = true}
+    local items = {AuraBox = true, AuraTag = true, AuraChams = true, AuraProgressBar_Computer = true}
     for _, child in ipairs(model:GetDescendants()) do
         if items[child.Name] then
              child:Destroy()
@@ -176,8 +179,17 @@ end
 local function ClearComputerESP()
     for obj, hl in pairs(ComputerESP_Cache) do
         if hl and typeof(hl) == "Instance" then hl:Destroy() end
+        -- Clean up progress bar too
+        if obj and obj:IsA("Model") then
+             for _, child in ipairs(obj:GetDescendants()) do
+                if child.Name == "AuraProgressBar_Computer" then
+                     child:Destroy()
+                end
+             end
+        end
     end
     table.clear(ComputerESP_Cache)
+    table.clear(FailedComputers) -- Clear persistent failure state
 end
 
 local function ClearAllESP()
@@ -1300,7 +1312,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
-             if obj and obj.Parent then 
+            if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
             end
@@ -2048,22 +2060,104 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Computer Dynamic Colors & Blinking
+        -- Computer ESP Logic (Dynamic Color, Blinking, Persistent Failure, Progress Bar)
         if espEnabled then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
+                        local progressBar = obj:FindFirstChild("AuraProgressBar_Computer", true)
+
                         if cName:find("green") or cName:find("lime") then
-                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
+                            -- Case 1: Successfully hacked (turns green)
+                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Green for done
                             hl.FillTransparency = 0.5
+                            FailedComputers[obj] = nil -- Clear persistent failure state
+                            if progressBar then progressBar.Enabled = false end -- Hide progress on success
                         elseif cName:find("red") or cName:find("error") then
-                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
+                            -- Case 2: In actively failed/error state (blinking red)
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red for error
                             hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
+                            FailedComputers[obj] = true -- Mark for persistent state
+                            if progressBar then progressBar.Enabled = false end -- Hide progress during error
+                        elseif FailedComputers[obj] then
+                            -- Case 3: In persistent failed state (no turning back blue until hack succeeds)
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Solid Red
+                            hl.FillTransparency = 0.5
+                            if progressBar then progressBar.Enabled = false end -- Hide progress when failed
                         else
+                            -- Case 4: Default state (light blue)
                             hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
                             hl.FillTransparency = 0.5
+
+                            -- PROGRESS BAR LOGIC (Only in Default/Hacking state)
+                            -- Note: This requires knowing FTF's specific object structure.
+                            -- For this example, I'm assuming attributes or specific values exist.
+                            
+                            -- Hypothetical search for progress (assumed percentage 0-100)
+                            local isHacking = obj:GetAttribute("Aura_HackingInProgress") -- PLACEHOLDER ATTRIBUTE
+                            local hackProgress = obj:GetAttribute("Aura_HackProgress") -- PLACEHOLDER ATTRIBUTE (0-1)
+
+                            -- REAL WORLD EXAMPLE FOR USER TO ADAPT:
+                            -- FTF has a `Progress` NumberValue. We'd scan children for it.
+                            -- local progObj = obj:FindFirstChild("Progress", true)
+                            -- if progObj and progObj:IsA("ValueBase") then hackProgress = progObj.Value / 100 end
+
+                            if hackProgress and hackProgress > 0 and hackProgress < 1 then
+                                -- Active hacking is happening and not done. Show progress bar.
+                                if not progressBar then
+                                    -- Create BillboardGui
+                                    progressBar = Instance.new("BillboardGui")
+                                    progressBar.Name = "AuraProgressBar_Computer"
+                                    progressBar.Size = UDim2.new(0, 150, 0, 18) -- Bar dimensions
+                                    progressBar.StudsOffset = Vector3.new(0, 5, 0) -- Positioning above
+                                    progressBar.AlwaysOnTop = true
+                                    progressBar.Parent = screen
+                                    CollectionService:AddTag(progressBar, "AuraESP") -- Track for cleanup
+
+                                    -- Main Bar Background (Grey)
+                                    local bgBar = Instance.new("Frame")
+                                    bgBar.Name = "Background"
+                                    bgBar.Size = UDim2.new(1, 0, 1, 0)
+                                    bgBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+                                    bgBar.Parent = progressBar
+                                    Instance.new("UICorner", bgBar).CornerRadius = UDim.new(0, 4)
+
+                                    -- The Filling Part (Green)
+                                    local fillBar = Instance.new("Frame")
+                                    fillBar.Name = "Filler"
+                                    fillBar.Size = UDim2.new(0, 0, 1, 0) -- Width set by script
+                                    fillBar.BackgroundColor3 = Color3.fromRGB(0, 220, 100)
+                                    fillBar.Parent = bgBar
+                                    Instance.new("UICorner", fillBar).CornerRadius = UDim.new(0, 4)
+
+                                    -- Optional: Add partitions like user sketched
+                                    local partitionNum = 6
+                                    for i = 1, partitionNum - 1 do
+                                         local p = Instance.new("Frame")
+                                         p.Name = "Partition" .. i
+                                         p.Size = UDim2.new(0, 1, 1, 0)
+                                         p.Position = UDim2.new(i/partitionNum, 0, 0, 0)
+                                         p.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+                                         p.BorderSizePixel = 0
+                                         p.ZIndex = 2 -- Place over green bar
+                                         p.Parent = bgBar
+                                    end
+                                end
+                                
+                                -- Smoothly update width based on progress
+                                local filler = progressBar.Background.Filler
+                                local targetWidth = hackProgress
+                                local fillTween = TweenService:Create(filler, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(targetWidth, 0, 1, 0)})
+                                fillTween:Play()
+                                progressBar.Enabled = true
+                            else
+                                -- Not hacking or finished. Hide the bar.
+                                if progressBar then
+                                    progressBar.Enabled = false
+                                end
+                            end
                         end
                     end
                 else
@@ -2405,7 +2499,7 @@ RunService.RenderStepped:Connect(function()
                         local nameStr = ""
                          
                         if dName and dName ~= rName then
-                            nameStr = dName .. "\n(@" .. rName .. ")"
+                            nameStr = dName .. "\n[@" .. rName .. ")"
                          else
                             nameStr = "@" .. rName
                         end
