@@ -21,7 +21,7 @@ local function GetSafeParent()
         if gethui then return gethui() end
         return CoreGui
     end)
-    if success and result then result end
+    if success and result then return result end -- FIXED SYNTAX ERROR HERE
     return PlayerGui
 end
 
@@ -81,6 +81,7 @@ local ComputerESP_Cache = {} -- Cache for FTF Computers
 
 -- State for persistent failure (Key: Model, Value: true)
 local FailedComputers = {}
+local ActiveHackingGUI = nil -- Cache for progress bar logic
 
 -- Time States
 local timeChangerEnabled = false
@@ -189,7 +190,7 @@ local function ClearComputerESP()
         end
     end
     table.clear(ComputerESP_Cache)
-    table.clear(FailedComputers) -- Clear persistent failure state
+    table.clear(FailedComputers)
 end
 
 local function ClearAllESP()
@@ -1312,7 +1313,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
         pcall(function() settings().Rendering.QualityLevel = originalQualityLevel end)
         if optimizationConnection then optimizationConnection:Disconnect() optimizationConnection = nil end
         for obj, data in pairs(optimizationCache) do
-            if obj and obj.Parent then 
+             if obj and obj.Parent then 
                  if data.Material then obj.Material = data.Material end
                  if data.Reflectance then obj.Reflectance = data.Reflectance end
             end
@@ -1585,6 +1586,43 @@ local function RegisterComputer(obj)
         hl.Parent = obj
         ComputerESP_Cache[obj] = hl
     end
+end
+
+-- SMART PROGRESS HOOK
+local function GetHackProgress(computerObj)
+    -- 1. Check for standard hidden values 
+    for _, v in pairs(computerObj:GetChildren()) do
+        if (v:IsA("NumberValue") or v:IsA("IntValue")) and (v.Name:lower():find("progress") or v.Name:lower():find("percent")) then
+            if v.Value > 1 then return v.Value / 100 end
+            return v.Value
+        end
+    end
+    
+    -- 2. Local Player GUI Hack Tracker (Mirrors active hack UI if nearby)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        local root = LocalPlayer.Character.HumanoidRootPart
+        local compPart = computerObj:FindFirstChild("Screen") or computerObj.PrimaryPart
+        if compPart and (root.Position - compPart.Position).Magnitude < 15 then
+            
+            -- If we already found the live bar and it's visible, keep using it
+            if ActiveHackingGUI and ActiveHackingGUI.Parent and ActiveHackingGUI.Visible and ActiveHackingGUI.Size.X.Scale > 0 then
+                return ActiveHackingGUI.Size.X.Scale
+            end
+
+            -- Otherwise, scan PlayerGui for an active filling bar
+            for _, gui in pairs(PlayerGui:GetDescendants()) do
+                if gui:IsA("Frame") and gui.Visible and gui.Size.X.Scale > 0 and gui.Size.X.Scale < 1 and gui.Size.Y.Scale == 1 then
+                    local name = gui.Name:lower()
+                    local pName = gui.Parent and gui.Parent.Name:lower() or ""
+                    if name:find("fill") or name:find("bar") or name:find("progress") or pName:find("progress") or pName:find("action") or pName:find("hack") then
+                        ActiveHackingGUI = gui
+                        return gui.Size.X.Scale
+                    end
+                end
+            end
+        end
+    end
+    return nil
 end
 
 -- CREATE BUTTONS
@@ -2091,19 +2129,9 @@ RunService.RenderStepped:Connect(function()
                             hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
                             hl.FillTransparency = 0.5
 
-                            -- PROGRESS BAR LOGIC (Only in Default/Hacking state)
-                            -- Note: This requires knowing FTF's specific object structure.
-                            -- For this example, I'm assuming attributes or specific values exist.
+                            -- PROGRESS BAR LOGIC (Mirrors local hack action)
+                            local hackProgress = GetHackProgress(obj)
                             
-                            -- Hypothetical search for progress (assumed percentage 0-100)
-                            local isHacking = obj:GetAttribute("Aura_HackingInProgress") -- PLACEHOLDER ATTRIBUTE
-                            local hackProgress = obj:GetAttribute("Aura_HackProgress") -- PLACEHOLDER ATTRIBUTE (0-1)
-
-                            -- REAL WORLD EXAMPLE FOR USER TO ADAPT:
-                            -- FTF has a `Progress` NumberValue. We'd scan children for it.
-                            -- local progObj = obj:FindFirstChild("Progress", true)
-                            -- if progObj and progObj:IsA("ValueBase") then hackProgress = progObj.Value / 100 end
-
                             if hackProgress and hackProgress > 0 and hackProgress < 1 then
                                 -- Active hacking is happening and not done. Show progress bar.
                                 if not progressBar then
@@ -2111,7 +2139,7 @@ RunService.RenderStepped:Connect(function()
                                     progressBar = Instance.new("BillboardGui")
                                     progressBar.Name = "AuraProgressBar_Computer"
                                     progressBar.Size = UDim2.new(0, 150, 0, 18) -- Bar dimensions
-                                    progressBar.StudsOffset = Vector3.new(0, 5, 0) -- Positioning above
+                                    progressBar.StudsOffset = Vector3.new(0, 4.5, 0) -- Positioning above
                                     progressBar.AlwaysOnTop = true
                                     progressBar.Parent = screen
                                     CollectionService:AddTag(progressBar, "AuraESP") -- Track for cleanup
@@ -2127,31 +2155,28 @@ RunService.RenderStepped:Connect(function()
                                     -- The Filling Part (Green)
                                     local fillBar = Instance.new("Frame")
                                     fillBar.Name = "Filler"
-                                    fillBar.Size = UDim2.new(0, 0, 1, 0) -- Width set by script
-                                    fillBar.BackgroundColor3 = Color3.fromRGB(0, 220, 100)
+                                    fillBar.Size = UDim2.new(0, 0, 1, 0) -- Width set dynamically
+                                    fillBar.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+                                    fillBar.BorderSizePixel = 0
                                     fillBar.Parent = bgBar
                                     Instance.new("UICorner", fillBar).CornerRadius = UDim.new(0, 4)
 
-                                    -- Optional: Add partitions like user sketched
+                                    -- Custom Partitions (matches user sketch)
                                     local partitionNum = 6
                                     for i = 1, partitionNum - 1 do
                                          local p = Instance.new("Frame")
                                          p.Name = "Partition" .. i
-                                         p.Size = UDim2.new(0, 1, 1, 0)
-                                         p.Position = UDim2.new(i/partitionNum, 0, 0, 0)
-                                         p.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+                                         p.Size = UDim2.new(0, 2, 1, 0)
+                                         p.Position = UDim2.new(i/partitionNum, -1, 0, 0)
+                                         p.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
                                          p.BorderSizePixel = 0
-                                         p.ZIndex = 2 -- Place over green bar
+                                         p.ZIndex = 5 -- Renders over the green fill
                                          p.Parent = bgBar
                                     end
                                 end
                                 
-                                -- Smoothly update width based on progress
-                                local filler = progressBar.Background.Filler
-                                local targetWidth = hackProgress
-                                local fillTween = TweenService:Create(filler, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(targetWidth, 0, 1, 0)})
-                                fillTween:Play()
                                 progressBar.Enabled = true
+                                progressBar.Background.Filler.Size = UDim2.new(hackProgress, 0, 1, 0)
                             else
                                 -- Not hacking or finished. Hide the bar.
                                 if progressBar then
@@ -2499,7 +2524,7 @@ RunService.RenderStepped:Connect(function()
                         local nameStr = ""
                          
                         if dName and dName ~= rName then
-                            nameStr = dName .. "\n[@" .. rName .. ")"
+                            nameStr = dName .. "\n(@" .. rName .. ")"
                          else
                             nameStr = "@" .. rName
                         end
