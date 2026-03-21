@@ -2049,12 +2049,24 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Computer ESP (Static Colors)
+        -- Computer Dynamic Colors (Fixed: Green restored, Red strobe removed)
         if espEnabled then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
-                    hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
-                    hl.FillTransparency = 0.5
+                    local screen = obj:FindFirstChild("Screen")
+                    if screen then
+                        local cName = screen.BrickColor.Name:lower()
+                        if cName:find("green") or cName:find("lime") then
+                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
+                            hl.FillTransparency = 0.5
+                        elseif cName:find("red") or cName:find("error") then
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
+                            hl.FillTransparency = 0.5 -- Solid red while error is active (single "blink" duration)
+                        else
+                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
+                            hl.FillTransparency = 0.5
+                        end
+                    end
                 else
                     if hl and typeof(hl) == "Instance" then hl:Destroy() end
                     ComputerESP_Cache[obj] = nil
