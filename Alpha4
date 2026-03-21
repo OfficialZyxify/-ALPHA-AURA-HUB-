@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Aim Assist)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Universal Aim Assist)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -74,16 +74,8 @@ local dynamicChamsPulse = false
 
 -- Aim Assist States
 local aimAssistEnabled = false
-local aimAssistFOV = 150
-local aimAssistSmoothing = 0.5 
-local showAimFOV = false
-
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Thickness = 1.5
-FOVCircle.Color = Color3.fromRGB(255, 255, 255)
-FOVCircle.Filled = false
-FOVCircle.Transparency = 0.8
-FOVCircle.Visible = false
+local aimAssistFOV = 120 -- Invisible zone in the center of the screen
+local aimAssistSmoothing = 0.15 -- Low value for smooth magnetic pull
 
 -- Data Caches
 local ESP_Data_Cache = {} 
@@ -388,11 +380,12 @@ local function IsVisibleAim(targetPart, ignoreList)
     return false
 end
 
---// TARGET IDENTIFICATION (Aim Assist)
+--// TARGET IDENTIFICATION (Universal Aim Assist)
 local function GetClosestTarget()
     local closestDist = aimAssistFOV
     local closestTarget = nil
-    local mousePos = UserInputService:GetMouseLocation()
+    -- Tracks the absolute center of the screen, perfect for both PC and Mobile without relying on a mouse cursor
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
@@ -407,7 +400,7 @@ local function GetClosestTarget()
             local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
             
             if onScreen then
-                local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                 if dist2D <= closestDist then
                     -- Strict Raycast passing the user's physical geometry and target geometry to ignore
                     if IsVisibleAim(head, {LocalPlayer.Character, p.Character}) then
@@ -598,8 +591,6 @@ local function DisableAllFeatures()
     Camera.FieldOfView = 70 
 
     aimAssistEnabled = false
-    FOVCircle.Visible = false
-    showAimFOV = false
 
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
@@ -1782,17 +1773,11 @@ RiskyLabel.Font = Enum.Font.GothamBold
 RiskyLabel.TextSize = 10
 RiskyLabel.LayoutOrder = GetNextOrder()
 
-CreateButton("🎯 Toggle Aim Assist (R-Click): OFF", function(b)
+CreateButton("🎯 Toggle Aim Assist: OFF", function(b)
     aimAssistEnabled = not aimAssistEnabled
-    b.Text = "🎯 Toggle Aim Assist (R-Click): " .. (aimAssistEnabled and "ON" or "OFF")
+    b.Text = "🎯 Toggle Aim Assist: " .. (aimAssistEnabled and "ON" or "OFF")
     b.TextColor3 = aimAssistEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(aimAssistEnabled and "Aim Assist Active" or "Aim Assist Disabled")
-end, GetNextOrder())
-
-CreateButton("⭕ Show Aim FOV Circle: OFF", function(b)
-    showAimFOV = not showAimFOV
-    b.Text = "⭕ Show Aim FOV Circle: " .. (showAimFOV and "ON" or "OFF")
-    b.TextColor3 = showAimFOV and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    Notify(aimAssistEnabled and "Universal Aim Assist Active" or "Aim Assist Disabled")
 end, GetNextOrder())
 
 -- Speed UI
@@ -2345,26 +2330,14 @@ end)
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- AIM ASSIST LOGIC
+        -- AIM ASSIST LOGIC (Universal tracking)
         if aimAssistEnabled then
-            if showAimFOV then
-                FOVCircle.Position = UserInputService:GetMouseLocation()
-                FOVCircle.Radius = aimAssistFOV
-                FOVCircle.Visible = true
-            else
-                FOVCircle.Visible = false
+            local targetHead = GetClosestTarget()
+            if targetHead then
+                local currentCFrame = Camera.CFrame
+                local targetCFrame = CFrame.new(currentCFrame.Position, targetHead.Position)
+                Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
             end
-
-            -- Lock on logic (Right Mouse Button)
-            if UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-                local targetHead = GetClosestTarget()
-                if targetHead then
-                    local targetCFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
-                    Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, aimAssistSmoothing)
-                end
-            end
-        else
-            FOVCircle.Visible = false
         end
 
         if not espEnabled then return end
