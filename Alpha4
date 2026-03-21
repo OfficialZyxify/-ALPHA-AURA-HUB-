@@ -2057,49 +2057,51 @@ RunService.RenderStepped:Connect(function()
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
-                        local isRed = cName:find("red") or cName:find("error")
                         
                         if cName:find("green") or cName:find("lime") then
                             hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
                             hl.FillTransparency = 0.5
                             ComputerHasErrored[obj] = nil -- Clear error state
-                        elseif isRed or ComputerHasErrored[obj] then
-                            if isRed then
-                                ComputerHasErrored[obj] = true -- Register error state
-                            end
-                            
-                            -- Check if ANY player is actively hacking it (within 8.5 studs)
-                            local isBeingHacked = false
-                            for _, p in ipairs(Players:GetPlayers()) do
-                                if p.Character then
-                                    local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
-                                    if root then
-                                        local dist = (root.Position - screen.Position).Magnitude
-                                        if dist <= 8.5 then
-                                            isBeingHacked = true
-                                            break
+                        elseif cName:find("red") or cName:find("error") then
+                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
+                            hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
+                            ComputerHasErrored[obj] = true -- Register error state
+                        else
+                            if ComputerHasErrored[obj] then
+                                -- Computer errored previously and is now Light Blue.
+                                -- We need to check if someone is ACTUALLY hacking it (close by)
+                                local isBeingHacked = false
+                                for _, p in ipairs(Players:GetPlayers()) do
+                                    if p.Character then
+                                        local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
+                                        if root then
+                                            local dist = (root.Position - screen.Position).Magnitude
+                                            if dist <= 7 then -- Tight radius so walking past doesn't falsely trigger it
+                                                isBeingHacked = true
+                                                break
+                                            end
                                         end
                                     end
                                 end
-                            end
 
-                            if isBeingHacked then
-                                -- Red/Blue Blink (Active Hacking of Errored PC)
-                                if math.sin(tick() * 8) > 0 then
-                                    hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+                                if isBeingHacked then
+                                    -- Actively being hacked again -> Red/Blue Blink
+                                    if math.sin(tick() * 8) > 0 then
+                                        hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
+                                    else
+                                        hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                    end
+                                    hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
                                 else
-                                    hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
+                                    -- Player walked away, screen is still blue -> Revert to Blinking Red
+                                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                                    hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
                                 end
-                                hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
                             else
-                                -- Nobody is near it -> Revert to Blinking Red
-                                hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
-                                hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
+                                -- Default (Light Blue), never errored
+                                hl.FillColor = Color3.fromRGB(135, 206, 250)
+                                hl.FillTransparency = 0.5
                             end
-                        else
-                            -- Normal Default Computer
-                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
-                            hl.FillTransparency = 0.5
                         end
                     end
                 else
