@@ -78,7 +78,6 @@ local NPCCache = {} -- Format: { [Model] = true }
 local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ComputerESP_Cache = {} -- Cache for FTF Computers
-local ComputerHasErrored = {} -- Track computers that have errored
 
 -- Time States
 local timeChangerEnabled = false
@@ -141,6 +140,7 @@ local function Notify(msg)
     n.Parent = ScreenGui
     Instance.new("UICorner", n)
     local Stroke = Instance.new("UIStroke", n)
+   
     Stroke.Color = Color3.fromRGB(0, 255, 140)
     Stroke.Transparency = 0.6
     n:TweenPosition(UDim2.new(0.5, -140, 0.05, 0), "Out", "Back", 0.5, true)
@@ -178,7 +178,6 @@ local function ClearComputerESP()
         if hl and typeof(hl) == "Instance" then hl:Destroy() end
     end
     table.clear(ComputerESP_Cache)
-    table.clear(ComputerHasErrored)
 end
 
 local function ClearAllESP()
@@ -395,7 +394,6 @@ local function GetBodyBoundingBox(character)
                 maxY = math.max(maxY, pos.Y)
                 maxZ = math.max(maxZ, pos.Z)
             end
-         
             hasParts = true
         end
     end
@@ -1240,7 +1238,7 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     
     b.Text = "🕒 Toggle Time Changer: " .. (timeChangerEnabled and "ON" or "OFF")
     b.TextColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-   
+    
     UpdateTimeStatusVisuals()
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
@@ -1486,7 +1484,7 @@ local function UpdateChamsVisuals()
             
             ChamsMainBtn.Text = "Toggle Chams: OFF"
             ChamsMainBtn.TextColor3 = Color3.new(1, 1, 1)
-          
+           
             WallsBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
             PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
         end
@@ -1641,7 +1639,7 @@ local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
     espShowTracers = not espShowTracers
     if not espShowTracers then 
         for _, item in pairs(CollectionService:GetTagged("AuraESP")) do 
-            if item.Name == "AuraTracer_VF" then item:Destroy() end 
+             if item.Name == "AuraTracer_VF" then item:Destroy() end 
         end 
         for _, tracer in pairs(VF_Tracers) do 
             if typeof(tracer) == "Instance" then tracer:Destroy() else tracer:Remove() end
@@ -1916,17 +1914,17 @@ ToggleFly = function(state)
         flyConnection = RunService.RenderStepped:Connect(function()
             if not flyEnabled or not char.Parent or not hrp.Parent then ToggleFly(false) return end
             for _, v in pairs(char:GetDescendants()) do
-                 if v:IsA("BasePart") then v.CanCollide = false end
+                if v:IsA("BasePart") then v.CanCollide = false end
             end
             local ctrl = GetControls()
             if ctrl then
                 local moveVec = ctrl:GetMoveVector()
                  local camCF = Camera.CFrame
-                 if moveVec.Magnitude > 0 then
+                if moveVec.Magnitude > 0 then
                     local dir = (camCF.LookVector * -moveVec.Z) + (camCF.RightVector * moveVec.X)
                     lv.VectorVelocity = dir * flySpeed
                 else
-                    lv.VectorVelocity = Vector3.zero
+                     lv.VectorVelocity = Vector3.zero
                 end
                  ao.CFrame = camCF
             end
@@ -1934,7 +1932,7 @@ ToggleFly = function(state)
     else
         if flyConnection then flyConnection:Disconnect() flyConnection = nil end
         if hrp then
-             local att = hrp:FindFirstChild("FlyAtt")
+            local att = hrp:FindFirstChild("FlyAtt")
             if att then att:Destroy() end
         end
         if hum then 
@@ -1942,7 +1940,7 @@ ToggleFly = function(state)
             hum:ChangeState(Enum.HumanoidStateType.GettingUp)
         end
         local anim = char:FindFirstChild("Animate")
-        if anim then anim.Disabled = false end
+         if anim then anim.Disabled = false end
         if flyEnabled then Notify("Fly Disabled") end
         flyEnabled = false
     end
@@ -2057,64 +2055,27 @@ RunService.RenderStepped:Connect(function()
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
-                        
                         if cName:find("green") or cName:find("lime") then
                             hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
                             hl.FillTransparency = 0.5
-                            ComputerHasErrored[obj] = nil -- Clear error state
                         elseif cName:find("red") or cName:find("error") then
                             hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
                             hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6) -- Fast blink
-                            ComputerHasErrored[obj] = true -- Register error state
                         else
-                            if ComputerHasErrored[obj] then
-                                -- Computer errored previously and is now Light Blue.
-                                -- We need to check if someone is ACTUALLY hacking it (close by)
-                                local isBeingHacked = false
-                                for _, p in ipairs(Players:GetPlayers()) do
-                                    if p.Character then
-                                        local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character.PrimaryPart
-                                        if root then
-                                            local dist = (root.Position - screen.Position).Magnitude
-                                            if dist <= 7 then -- Tight radius so walking past doesn't falsely trigger it
-                                                isBeingHacked = true
-                                                break
-                                            end
-                                        end
-                                    end
-                                end
-
-                                if isBeingHacked then
-                                    -- Actively being hacked again -> Red/Blue Blink
-                                    if math.sin(tick() * 8) > 0 then
-                                        hl.FillColor = Color3.fromRGB(255, 0, 0) -- Red
-                                    else
-                                        hl.FillColor = Color3.fromRGB(0, 0, 255) -- Blue
-                                    end
-                                    hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
-                                else
-                                    -- Player walked away, screen is still blue -> Revert to Blinking Red
-                                    hl.FillColor = Color3.fromRGB(255, 0, 0)
-                                    hl.FillTransparency = 0.2 + (math.abs(math.sin(tick() * 8)) * 0.6)
-                                end
-                            else
-                                -- Default (Light Blue), never errored
-                                hl.FillColor = Color3.fromRGB(135, 206, 250)
-                                hl.FillTransparency = 0.5
-                            end
+                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
+                            hl.FillTransparency = 0.5
                         end
                     end
                 else
                     if hl and typeof(hl) == "Instance" then hl:Destroy() end
                     ComputerESP_Cache[obj] = nil
-                    ComputerHasErrored[obj] = nil
                 end
             end
         end
 
         -- FOV
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
-            Camera.FieldOfView = currentFOV
+             Camera.FieldOfView = currentFOV
         end
 
         -- Time 
@@ -2146,7 +2107,7 @@ RunService.RenderStepped:Connect(function()
             Lighting.FogEnd = 100000
             Lighting.FogStart = 100000
             local atmo = Lighting:FindFirstChildOfClass("Atmosphere")
-            if atmo then
+             if atmo then
                 atmo.Density = 0
                  atmo.Offset = 0
             end
@@ -2154,7 +2115,7 @@ RunService.RenderStepped:Connect(function()
 
         if dynamicActivated and not fullbrightEnabled then
             if dynamicEnabled then
-                Lighting.EnvironmentDiffuseScale = 1
+                 Lighting.EnvironmentDiffuseScale = 1
                 Lighting.EnvironmentSpecularScale = 1
             else
                 Lighting.EnvironmentDiffuseScale = 0
@@ -2183,7 +2144,7 @@ RunService.RenderStepped:Connect(function()
                 if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
                     local speedDiff = math.max(0, subtleSpeedValue - 16)
                     local multiplier = speedDiff * 0.018 
-                     if multiplier > 0 then
+                    if multiplier > 0 then
                         hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
                    end
                 end
@@ -2197,7 +2158,7 @@ RunService.RenderStepped:Connect(function()
                     if LocalPlayer.CameraMaxZoomDistance == 8 then
                           LocalPlayer.CameraMaxZoomDistance = 400
                           LocalPlayer.CameraMinZoomDistance = 0.5
-                      end
+                     end
                 end
 
                 if shiftLockEnabled or forceThirdPerson then
@@ -2208,7 +2169,7 @@ RunService.RenderStepped:Connect(function()
                       if not forceThirdPerson then hum.AutoRotate = true end
                 end
             end
-          end
+         end
     end)
 end)
 
@@ -2220,7 +2181,7 @@ task.spawn(function()
                 if p ~= LocalPlayer then
                     if p.Character and p.Character.Parent then
 
-                        local oldData = ESP_Data_Cache[p]
+                         local oldData = ESP_Data_Cache[p]
                         if oldData and oldData.Character and oldData.Character ~= p.Character then
                            RemoveESP(oldData.Character)
                         end
@@ -2228,14 +2189,14 @@ task.spawn(function()
                          local role = GetUniversalRole(p)
                         local color = GetSmartColor(role, p)
                         local dist = 0
-                        local isVis = false
+                         local isVis = false
                         local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                         
                         if root then
-                              if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
+                             if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
                                 dist = math.floor((root.Position - LocalPlayer.Character.PrimaryPart.Position).Magnitude)
                             else 
-                                dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
+                                 dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
                             end
             
                             -- OPTIMIZATION: Hoisted raycast check out of RenderStepped loop
@@ -2245,22 +2206,22 @@ task.spawn(function()
                          end
                         
                         ESP_Data_Cache[p] = {
-                             Role = role,
+                            Role = role,
                              Color = color,
                             Dist = dist,
                             Name = p.Name,
-                              DisplayName = p.DisplayName,
+                             DisplayName = p.DisplayName,
                             Character = p.Character,
                             IsVisible = isVis
-                          }
+                         }
                     else
                         local oldData = ESP_Data_Cache[p]
                          if oldData and oldData.Character then
-                              RemoveESP(oldData.Character)
+                             RemoveESP(oldData.Character)
                         end
                          ESP_Data_Cache[p] = nil
                    end
-                 end
+                end
              end
         end
         task.wait(0.1) 
@@ -2299,7 +2260,7 @@ RunService.RenderStepped:Connect(function()
 
                     local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                     if not root then
-                          RemoveESP(p.Character)
+                         RemoveESP(p.Character)
                         continue
                     end
 
@@ -2308,29 +2269,29 @@ RunService.RenderStepped:Connect(function()
                      local cframe, size = GetBodyBoundingBox(p.Character)
                     
                     local forcedColor = data.Color
-                      local hum = p.Character:FindFirstChild("Humanoid")
+                     local hum = p.Character:FindFirstChild("Humanoid")
                      
                     if data.Role == "Downed" then
                         forcedColor = Color3.fromRGB(255, 170, 0)
                     elseif data.Role == "Dead" or (hum and hum.Health <= 0) then
                           forcedColor = Color3.fromRGB(150, 150, 150)
                          data.Role = "Dead"
-                   end
+                    end
 
                     if espShowBoxes then
                         local box = p.Character:FindFirstChild("AuraBox", true)
                         if box and box.Parent ~= root then
-                             box.Parent = root
+                            box.Parent = root
                          elseif not box then
                             box = Instance.new("BillboardGui", root)
                             box.Name = "AuraBox"
                             box.AlwaysOnTop = true 
                             CollectionService:AddTag(box, "AuraESP")
                             local frame = Instance.new("Frame", box)
-                              frame.Size = UDim2.new(1, 0, 1, 0)
+                             frame.Size = UDim2.new(1, 0, 1, 0)
                             frame.BackgroundTransparency = 1
                             local stroke = Instance.new("UIStroke", frame)
-                              stroke.Thickness = 2
+                             stroke.Thickness = 2
                         end
                         
                         -- Dynamically scale based purely on Y with constant 1:1.5 ratio
@@ -2340,7 +2301,7 @@ RunService.RenderStepped:Connect(function()
                         box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
                          -- Lock X and Z to the root so the box stops drifting sideways when limbs move/character rotates
                         box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
-                         box.Frame.UIStroke.Color = forcedColor
+                        box.Frame.UIStroke.Color = forcedColor
                      end
                     
                      if espShowChams then
@@ -2348,28 +2309,28 @@ RunService.RenderStepped:Connect(function()
                          if highlight and highlight.Parent ~= p.Character then
                             highlight.Parent = p.Character
                         elseif not highlight then
-                             highlight = Instance.new("Highlight", p.Character)
+                            highlight = Instance.new("Highlight", p.Character)
                             highlight.Name = "AuraChams"
                              highlight.Adornee = p.Character
-                             CollectionService:AddTag(highlight, "AuraESP")
+                            CollectionService:AddTag(highlight, "AuraESP")
                           end
                         
                         highlight.FillColor = forcedColor
-                         highlight.OutlineColor = Color3.new(1, 1, 1)
+                        highlight.OutlineColor = Color3.new(1, 1, 1)
                           highlight.FillTransparency = pulseAlpha 
 
                         -- OPTIMIZATION: Uses data.IsVisible from the slower loop instead of raycasting every frame
                         if espWallsOnly then
                              if data.IsVisible then
                                 highlight.Enabled = false 
-                              else
+                             else
                                  highlight.Enabled = true
                                 highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                              end
                         else
                              highlight.Enabled = true
                             highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                          end
+                         end
                      else
                         local h = p.Character:FindFirstChild("AuraChams")
                         if h then h:Destroy() end
@@ -2377,27 +2338,27 @@ RunService.RenderStepped:Connect(function()
                     
                       if espShowTracers then
                         local tracer = VF_Tracers[p.Character]
-                          if not tracer then
+                         if not tracer then
                              tracer = Drawing.new("Line")
                             tracer.Thickness = 1.5
                             tracer.Transparency = 1
-                             VF_Tracers[p.Character] = tracer
+                            VF_Tracers[p.Character] = tracer
                           end
 
                         local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
-                          local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
+                         local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
                          local screenOrigin = GetTracerOrigin()
 
                         if targetOnScreen then
                             tracer.From = screenOrigin
-                              tracer.To = Vector2.new(screenTarget.X, screenTarget.Y)
+                            tracer.To = Vector2.new(screenTarget.X, screenTarget.Y)
                              tracer.Color = forcedColor
                             tracer.Visible = true
-                              tracer.Transparency = 0.8
+                             tracer.Transparency = 0.8
                          else
                              tracer.Visible = false
-                          end
+                         end
                     else
                          if VF_Tracers[p.Character] then
                             VF_Tracers[p.Character]:Remove()
@@ -2406,17 +2367,17 @@ RunService.RenderStepped:Connect(function()
                        end
 
                     if espShowNames then
-                         local humanoid = p.Character:FindFirstChild("Humanoid")
+                        local humanoid = p.Character:FindFirstChild("Humanoid")
                          if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
                          local tag = p.Character:FindFirstChild("AuraTag", true)
                         if tag and tag.Parent ~= root then
-                             tag.Parent = root
+                            tag.Parent = root
                          elseif not tag then
                              tag = Instance.new("BillboardGui", root)
                             tag.Name = "AuraTag"
                              tag.Size = UDim2.new(0, 200, 0, 50)
                             tag.StudsOffset = Vector3.new(0, (size.Y/2) + 1.5, 0) 
-                             tag.AlwaysOnTop = true 
+                            tag.AlwaysOnTop = true 
                              CollectionService:AddTag(tag, "AuraESP")
                             local t = Instance.new("TextLabel", tag)
                             t.Size = UDim2.new(1, 0, 1, 0)
@@ -2430,24 +2391,24 @@ RunService.RenderStepped:Connect(function()
                         if data.Role == "Downed" then 
                              topText = "<font color='rgb(255,170,0)'>[DOWN]</font>\n"
                         elseif data.Role == "Dead" then 
-                           topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
+                            topText = "<font color='rgb(180,180,180)'>[DEAD]</font>\n"
                          elseif data.Role == "Beast" then 
                              topText = "<font color='rgb(255,0,0)'>[BEAST]</font>\n"
                         elseif data.Role == "Murderer" then 
                              topText = "<font color='rgb(255,0,0)'>[MURDERER]</font>\n"
                         elseif data.Role == "Sheriff" then 
-                              topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
+                             topText = "<font color='rgb(50,50,255)'>[SHERIFF]</font>\n"
                         end
                          
                         local dName = data.DisplayName or p.DisplayName
-                         local rName = data.Name or p.Name
+                        local rName = data.Name or p.Name
                         local nameStr = ""
                          
                         if dName and dName ~= rName then
                             nameStr = dName .. "\n(@" .. rName .. ")"
                          else
                             nameStr = "@" .. rName
-                         end
+                        end
 
                         local txt = topText .. nameStr .. "\n[" .. data.Dist .. "m]"
                         tag.TextLabel.RichText = true
@@ -2455,7 +2416,7 @@ RunService.RenderStepped:Connect(function()
                        
                          tag.TextLabel.TextColor3 = forcedColor
                      else
-                          local humanoid = p.Character:FindFirstChild("Humanoid")
+                         local humanoid = p.Character:FindFirstChild("Humanoid")
                          if humanoid then humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
                      end
                 end
@@ -2467,7 +2428,7 @@ RunService.RenderStepped:Connect(function()
                 if npc and npc.Parent then
                       local root = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Torso") or npc.PrimaryPart
                     if root then
-                          local cframe, size = GetBodyBoundingBox(npc)
+                         local cframe, size = GetBodyBoundingBox(npc)
                         local color = Color3.fromRGB(255, 170, 0)
                           
                         if espShowBoxes then
@@ -2479,39 +2440,39 @@ RunService.RenderStepped:Connect(function()
                                 box.Name = "AuraBox"
                                 box.AlwaysOnTop = true 
                                  CollectionService:AddTag(box, "AuraESP")
-                                 local frame = Instance.new("Frame", box)
+                                local frame = Instance.new("Frame", box)
                                  frame.Size = UDim2.new(1, 0, 1, 0)
                                  frame.BackgroundTransparency = 1
-                                 local stroke = Instance.new("UIStroke", frame)
+                                local stroke = Instance.new("UIStroke", frame)
                                  stroke.Thickness = 2
                               end
-                             
+                            
                             local boxHeight = size.Y + 0.5
                              local boxWidth = boxHeight / 1.5
-                             
+                            
                             box.Size = UDim2.new(boxWidth, 0, boxHeight, 0)
                              -- Apply the exact same drift fix to NPCs
                             box.StudsOffsetWorldSpace = Vector3.new(0, cframe.Position.Y - root.Position.Y, 0)
                             box.Frame.UIStroke.Color = color
                         end
                         if espShowChams then
-                             local highlight = npc:FindFirstChild("AuraChams", true)
+                            local highlight = npc:FindFirstChild("AuraChams", true)
                             if highlight and highlight.Parent ~= npc then
                                  highlight.Parent = npc
-                             elseif not highlight then
+                            elseif not highlight then
                                 highlight = Instance.new("Highlight", npc)
                                  highlight.Name = "AuraChams"
-                                 highlight.Adornee = npc
+                                highlight.Adornee = npc
                                 CollectionService:AddTag(highlight, "AuraESP")
                              end
-                              highlight.FillColor = color
+                             highlight.FillColor = color
                             highlight.OutlineColor = Color3.new(1, 1, 1)
                              highlight.FillTransparency = pulseAlpha 
-                              highlight.OutlineTransparency = 0
+                             highlight.OutlineTransparency = 0
                             highlight.Enabled = true
                              highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
                         end
-                   
+                 
                         if espShowTracers then
                              local tracer = VF_Tracers[npc]
                             if not tracer then
@@ -2529,45 +2490,45 @@ RunService.RenderStepped:Connect(function()
                              if targetOnScreen then
                                 tracer.From = screenOrigin
                                 tracer.To = Vector2.new(screenTarget.X, screenTarget.Y)
-                                   tracer.Color = color
+                                  tracer.Color = color
                                 tracer.Visible = true
                                 tracer.Transparency = 0.8
-                             else
+                            else
                                 tracer.Visible = false
                             end
                          else
-                             if VF_Tracers[npc] then
+                            if VF_Tracers[npc] then
                                 VF_Tracers[npc]:Remove()
                                  VF_Tracers[npc] = nil
-                             end
+                            end
                         end
                         
                          if espShowNames then
-                             local tag = npc:FindFirstChild("AuraTag", true)
+                            local tag = npc:FindFirstChild("AuraTag", true)
                             if tag and tag.Parent ~= root then
                                  tag.Parent = root
-                             elseif not tag then
+                            elseif not tag then
                                 tag = Instance.new("BillboardGui", root)
                                   tag.Name = "AuraTag"
-                                 tag.Size = UDim2.new(0, 200, 0, 50)
+                                tag.Size = UDim2.new(0, 200, 0, 50)
                                 tag.StudsOffset = Vector3.new(0, (size.Y/2) + 1.5, 0) 
-                                 tag.AlwaysOnTop = true 
+                                   tag.AlwaysOnTop = true 
                                 CollectionService:AddTag(tag, "AuraESP")
                                 local t = Instance.new("TextLabel", tag)
                                  t.Size = UDim2.new(1, 0, 1, 0)
                                 t.BackgroundTransparency = 1
                                 t.TextStrokeTransparency = 0
-                                  t.Font = Enum.Font.GothamBold
+                                 t.Font = Enum.Font.GothamBold
                                 t.TextSize = 13
                             end
              
-                              -- OPTIMIZATION: Uses the hoisted localPos variable instead of checking for PrimaryPart per NPC
+                            -- OPTIMIZATION: Uses the hoisted localPos variable instead of checking for PrimaryPart per NPC
                              local dist = math.floor((root.Position - localPos).Magnitude)
                               local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                              tag.TextLabel.Text = txt
                             tag.TextLabel.TextColor3 = color
                          end
-                     end
+                    end
                 end
             end
         end
@@ -2609,7 +2570,7 @@ MainCircle.InputBegan:Connect(function(input)
         startPos = MainCircle.Position
         
         if dragConnection then dragConnection:Disconnect() end
-          if upConnection then upConnection:Disconnect() end
+         if upConnection then upConnection:Disconnect() end
         
         dragConnection = UserInputService.InputChanged:Connect(function(moveInput)
             if moveInput.UserInputType == Enum.UserInputType.MouseMovement or moveInput.UserInputType == Enum.UserInputType.Touch then
@@ -2620,27 +2581,27 @@ MainCircle.InputBegan:Connect(function(input)
                     local newX = math.clamp(startPos.X.Offset + delta.X, 0, ScreenGui.AbsoluteSize.X - MainCircle.AbsoluteSize.X)
                     local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, ScreenGui.AbsoluteSize.Y - MainCircle.AbsoluteSize.Y)
                 
-                      MainCircle.Position = UDim2.new(0, newX, 0, newY)
+                     MainCircle.Position = UDim2.new(0, newX, 0, newY)
                     
                     local panelX = newX + 70
                     if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = newX - 240 end
-                      MainPanel.Position = UDim2.new(0, panelX, 0, newY)
+                     MainPanel.Position = UDim2.new(0, panelX, 0, newY)
                 end
             end
         end)
         
         upConnection = UserInputService.InputEnded:Connect(function(endInput)
             if endInput.UserInputType == Enum.UserInputType.MouseButton1 or endInput.UserInputType == Enum.UserInputType.Touch then
-                  dragging = false
+                 dragging = false
                 if dragConnection then dragConnection:Disconnect() end
                 if upConnection then upConnection:Disconnect() end
                 
                 if not moved then
-                      expanded = not expanded
+                     expanded = not expanded
                     local buttonPos = MainCircle.Position
                     local panelX = buttonPos.X.Offset + 70
                     if panelX + 230 > ScreenGui.AbsoluteSize.X then panelX = buttonPos.X.Offset - 240 end
-                      MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
+                     MainPanel.Position = UDim2.new(0, panelX, 0, buttonPos.Y.Offset)
                     
                     local targetSize = expanded and UDim2.new(0, 230, 0.65, 0) or UDim2.new(0, 0, 0.65, 0)
                     TweenService:Create(MainPanel, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = targetSize}):Play()
