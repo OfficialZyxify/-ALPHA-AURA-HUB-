@@ -61,7 +61,9 @@ local forceThirdPerson = false
 local subtleSpeedEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
-local autoMinigameEnabled = false -- New FTF Minigame State
+
+-- ON BY DEFAULT
+local autoMinigameEnabled = true 
 
 -- ESP States
 local espEnabled = false
@@ -535,7 +537,7 @@ local function DisableAllFeatures()
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
     
-    autoMinigameEnabled = false 
+    autoMinigameEnabled = true -- Stays on even if exiting everything else just in case
 
     forceThirdPerson = false
     shiftLockEnabled = false
@@ -1690,12 +1692,14 @@ CreateButton("💤 Anti-AFK", function(b)
     Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
 
-CreateButton("💻 Auto Minigame (FTF): OFF", function(b)
+-- Auto Minigame button initialized correctly since it's on by default now
+local AutoMiniBtn = CreateButton("💻 Auto Minigame (FTF): ON", function(b)
     autoMinigameEnabled = not autoMinigameEnabled
     b.Text = "💻 Auto Minigame (FTF): " .. (autoMinigameEnabled and "ON" or "OFF")
     b.TextColor3 = autoMinigameEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(autoMinigameEnabled and "Auto Minigame Enabled (FTF)" or "Auto Minigame Disabled")
 end, GetNextOrder())
+AutoMiniBtn.TextColor3 = Color3.fromRGB(0, 255, 140)
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
 CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
