@@ -1097,7 +1097,7 @@ SliderBarTime.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 SliderBarTime.Text = ""
 Instance.new("UICorner", SliderBarTime)
 
-local SliderDotTime = Instance.new("Frame", SliderBarTime)
+local SliderDotTime = Instance.new("Frame", SliderDotTime)
 SliderDotTime.Size = UDim2.new(0, 16, 0, 16)
 SliderDotTime.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotTime.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
@@ -2049,23 +2049,45 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- Computer Dynamic Colors (Fixed: Green restored, Red strobe removed)
+        -- Computer Dynamic Colors (Syncs perfectly with the in-game ErrorSign icon)
         if espEnabled then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
+                    local isDone = false
+                    local isError = false
+
+                    -- 1. Check if the computer is completed (Screen is Green)
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
                         if cName:find("green") or cName:find("lime") then
-                            hl.FillColor = Color3.fromRGB(0, 255, 0) -- Done (Green)
-                            hl.FillTransparency = 0.5
-                        elseif cName:find("red") or cName:find("error") then
-                            hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error (Red)
-                            hl.FillTransparency = 0.5 -- Solid red while error is active (single "blink" duration)
-                        else
-                            hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
-                            hl.FillTransparency = 0.5
+                            isDone = true
                         end
+                    end
+
+                    -- 2. Check exactly for the "broken computer" icon (ErrorSign) visibility
+                    local errorSign = obj:FindFirstChild("ErrorSign")
+                    if errorSign and errorSign:IsA("BasePart") and errorSign.Transparency < 1 then
+                        isError = true
+                    end
+                    
+                    -- Fallback in case the screen part itself indicates error
+                    if screen and not isDone and not isError then
+                        local cName = screen.BrickColor.Name:lower()
+                        if cName:find("red") or cName:find("error") then
+                            isError = true
+                        end
+                    end
+
+                    if isDone then
+                        hl.FillColor = Color3.fromRGB(0, 255, 0) -- Finished (Green)
+                        hl.FillTransparency = 0.5
+                    elseif isError then
+                        hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error active (Red)
+                        hl.FillTransparency = 0.5 
+                    else
+                        hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
+                        hl.FillTransparency = 0.5
                     end
                 else
                     if hl and typeof(hl) == "Instance" then hl:Destroy() end
