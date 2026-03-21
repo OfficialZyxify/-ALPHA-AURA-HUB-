@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Universal Aim Assist)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Dynamic Aim Assist)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -76,6 +76,7 @@ local dynamicChamsPulse = false
 local aimAssistEnabled = false
 local aimAssistFOV = 120 -- Invisible zone in the center of the screen
 local aimAssistSmoothing = 0.15 -- Low value for smooth magnetic pull
+local aimAssistButtonRef = nil
 
 -- Data Caches
 local ESP_Data_Cache = {} 
@@ -360,11 +361,10 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
---// VISIBILITY CHECKER (Strict Head Raycast for Aim Assist)
+--// VISIBILITY CHECKER (Strict Raycast for Aim Assist)
 local function IsVisibleAim(targetPart, ignoreList)
     if not targetPart then return false end
     local origin = Camera.CFrame.Position
-    -- Vector Subtraction exactly as described: Direction = Position_Target - Position_Origin
     local direction = targetPart.Position - origin 
     
     local params = RaycastParams.new()
@@ -372,7 +372,7 @@ local function IsVisibleAim(targetPart, ignoreList)
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     
-    -- Single precision raycast directly to the hitbox
+    -- Single precision raycast directly to the selected hitbox part
     local result = workspace:Raycast(origin, direction, params)
     if not result or result.Instance:IsDescendantOf(targetPart.Parent) then
         return true 
@@ -380,15 +380,27 @@ local function IsVisibleAim(targetPart, ignoreList)
     return false
 end
 
---// TARGET IDENTIFICATION (Universal Aim Assist)
+--// TARGET IDENTIFICATION (Dynamic Body Part Aim Assist)
 local function GetClosestTarget()
     local closestDist = aimAssistFOV
-    local closestTarget = nil
-    -- Tracks the absolute center of the screen, perfect for both PC and Mobile without relying on a mouse cursor
+    local closestTargetPart = nil
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
+    -- Universal rig support (R6 and R15)
+    local validParts = {
+        "Head", 
+        "Torso", 
+        "UpperTorso", 
+        "LowerTorso", 
+        "HumanoidRootPart", 
+        "RightArm", 
+        "LeftArm", 
+        "RightUpperArm", 
+        "LeftUpperArm"
+    }
+
     for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Head") and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
+        if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
             
             local role = GetUniversalRole(p)
             -- Skip dead/downed
@@ -396,22 +408,27 @@ local function GetClosestTarget()
             -- Basic Team check to avoid friendly fire locking
             if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team and p.Team.Name ~= "Neutral" then continue end
 
-            local head = p.Character.Head
-            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            
-            if onScreen then
-                local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                if dist2D <= closestDist then
-                    -- Strict Raycast passing the user's physical geometry and target geometry to ignore
-                    if IsVisibleAim(head, {LocalPlayer.Character, p.Character}) then
-                        closestDist = dist2D
-                        closestTarget = head
+            -- Evaluate all valid body parts to find the one closest to the center of the screen
+            for _, partName in ipairs(validParts) do
+                local bodyPart = p.Character:FindFirstChild(partName)
+                if bodyPart then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(bodyPart.Position)
+                    
+                    if onScreen then
+                        local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                        if dist2D <= closestDist then
+                            -- Only lock onto this specific part if it's not behind a wall
+                            if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character}) then
+                                closestDist = dist2D
+                                closestTargetPart = bodyPart
+                            end
+                        end
                     end
                 end
             end
         end
     end
-    return closestTarget
+    return closestTargetPart
 end
 
 --// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
@@ -660,8 +677,10 @@ local function DisableAllFeatures()
 end
 
 -------------------------------------------------------------------------
---// CONFIRMATION MODAL
+--// CONFIRMATION MODAL (DYNAMIC FOR ALL RISKY FEATURES)
 -------------------------------------------------------------------------
+local pendingRiskAction = nil 
+
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
 ConfirmModal.Size = UDim2.new(0, 260, 0, 150)
@@ -699,7 +718,7 @@ WarningTitle.Parent = ConfirmModal
 local WarningDesc = Instance.new("TextLabel", ConfirmModal)
 WarningDesc.Size = UDim2.new(0.9, 0, 0, 40)
 WarningDesc.Position = UDim2.new(0.05, 0, 0, 65)
-WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to enable Fly?"
+WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to enable it?"
 WarningDesc.TextColor3 = Color3.fromRGB(230, 230, 230)
 WarningDesc.Font = Enum.Font.Gotham
 WarningDesc.TextSize = 11
@@ -1774,10 +1793,18 @@ RiskyLabel.TextSize = 10
 RiskyLabel.LayoutOrder = GetNextOrder()
 
 CreateButton("🎯 Toggle Aim Assist: OFF", function(b)
-    aimAssistEnabled = not aimAssistEnabled
-    b.Text = "🎯 Toggle Aim Assist: " .. (aimAssistEnabled and "ON" or "OFF")
-    b.TextColor3 = aimAssistEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    Notify(aimAssistEnabled and "Universal Aim Assist Active" or "Aim Assist Disabled")
+    aimAssistButtonRef = b
+    if aimAssistEnabled then
+        aimAssistEnabled = false
+        b.Text = "🎯 Toggle Aim Assist: OFF"
+        b.TextColor3 = Color3.new(1, 1, 1)
+        b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        Notify("Aim Assist Disabled")
+    else
+        WarningDesc.Text = "Aim Assist mathematically tracks player hitboxes and is BANNABLE.\nAre you sure you want to enable it?"
+        pendingRiskAction = "AimAssist"
+        ConfirmModal.Visible = true
+    end
 end, GetNextOrder())
 
 -- Speed UI
@@ -2024,14 +2051,6 @@ local function UpdateFlyButtonVisuals()
     end
 end
 
-ConfirmYesBtn.MouseButton1Click:Connect(function()
-    ConfirmModal.Visible = false
-    flyEnabled = true
-    ToggleFly(true)
-    UpdateFlyButtonVisuals()
-end)
-ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
-
 CreateButton("FLY (RISK: HIGH)", function(b)
     flyButtonRef = b
     if flyEnabled then
@@ -2039,9 +2058,31 @@ CreateButton("FLY (RISK: HIGH)", function(b)
         ToggleFly(false)
         UpdateFlyButtonVisuals()
     else
+        WarningDesc.Text = "This feature is blatant and BANNABLE.\nAre you sure you want to enable Fly?"
+        pendingRiskAction = "Fly"
         ConfirmModal.Visible = true
     end
 end, GetNextOrder())
+
+-- Master Modal Action Logic
+ConfirmYesBtn.MouseButton1Click:Connect(function()
+    ConfirmModal.Visible = false
+    if pendingRiskAction == "Fly" then
+        flyEnabled = true
+        ToggleFly(true)
+        UpdateFlyButtonVisuals()
+    elseif pendingRiskAction == "AimAssist" then
+        aimAssistEnabled = true
+        if aimAssistButtonRef then
+            aimAssistButtonRef.Text = "🎯 AIM ASSIST: ACTIVE ⚠️"
+            aimAssistButtonRef.TextColor3 = Color3.fromRGB(255, 50, 50)
+            aimAssistButtonRef.BackgroundColor3 = Color3.fromRGB(50, 10, 10)
+        end
+        Notify("Aim Assist Active")
+    end
+end)
+ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
+
 
 -------------------------------------------------------------------------
 --// LOOPS
@@ -2330,12 +2371,12 @@ end)
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- AIM ASSIST LOGIC (Universal tracking)
+        -- AIM ASSIST LOGIC (Universal Tracking)
         if aimAssistEnabled then
-            local targetHead = GetClosestTarget()
-            if targetHead then
+            local targetPart = GetClosestTarget()
+            if targetPart then
                 local currentCFrame = Camera.CFrame
-                local targetCFrame = CFrame.new(currentCFrame.Position, targetHead.Position)
+                local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
                 Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
             end
         end
@@ -2656,6 +2697,30 @@ task.spawn(function()
     end
 end)
 
+--// FTF AUTO MINIGAME LOOP (ALWAYS ACTIVE, NO UI)
+task.spawn(function()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    while task.wait(0.05) do
+        pcall(function()
+            local tempUI = PlayerGui:FindFirstChild("TempUI")
+            if tempUI then
+                local buttonPrompt = tempUI:FindFirstChild("ButtonPrompt")
+                local actionProgress = tempUI:FindFirstChild("ActionProgress")
+                local remote = ReplicatedStorage:FindFirstChild("RemoteEvent")
+                
+                if remote and (buttonPrompt or actionProgress) then
+                    remote:FireServer("SetPlayerMinigameResult", true)
+                    -- Clear the UI to prevent it from getting stuck
+                    if buttonPrompt then buttonPrompt:Destroy() end
+                    if actionProgress then actionProgress:Destroy() end
+                    local minigame = tempUI:FindFirstChild("Minigame")
+                    if minigame then minigame:Destroy() end
+                end
+            end
+        end)
+    end
+end)
+
 --// INPUT
 local expanded = false
 local dragging = false
@@ -2714,4 +2779,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix)")
+Notify("Aura Hub V54 (Dynamic Universal Aim Assist Updated)")
