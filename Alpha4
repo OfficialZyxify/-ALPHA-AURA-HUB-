@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + Dynamic Aim Assist)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -74,8 +74,8 @@ local dynamicChamsPulse = false
 
 -- Aim Assist States
 local aimAssistEnabled = false
-local aimAssistFOV = 120 -- Invisible zone in the center of the screen
-local aimAssistSmoothing = 0.15 -- Low value for smooth magnetic pull
+local aimAssistFOV = 130 -- Invisible zone in the center of the screen
+local aimAssistSmoothing = 0.04 -- Very low value for gentle friction/magnetism instead of hard locking
 local aimAssistButtonRef = nil
 
 -- Data Caches
@@ -380,24 +380,11 @@ local function IsVisibleAim(targetPart, ignoreList)
     return false
 end
 
---// TARGET IDENTIFICATION (Dynamic Body Part Aim Assist)
+--// TARGET IDENTIFICATION (Center of Mass Aim Assist Friction)
 local function GetClosestTarget()
     local closestDist = aimAssistFOV
     local closestTargetPart = nil
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
-    -- Universal rig support (R6 and R15)
-    local validParts = {
-        "Head", 
-        "Torso", 
-        "UpperTorso", 
-        "LowerTorso", 
-        "HumanoidRootPart", 
-        "RightArm", 
-        "LeftArm", 
-        "RightUpperArm", 
-        "LeftUpperArm"
-    }
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
@@ -408,20 +395,18 @@ local function GetClosestTarget()
             -- Basic Team check to avoid friendly fire locking
             if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team and p.Team.Name ~= "Neutral" then continue end
 
-            -- Evaluate all valid body parts to find the one closest to the center of the screen
-            for _, partName in ipairs(validParts) do
-                local bodyPart = p.Character:FindFirstChild(partName)
-                if bodyPart then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(bodyPart.Position)
-                    
-                    if onScreen then
-                        local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        if dist2D <= closestDist then
-                            -- Only lock onto this specific part if it's not behind a wall
-                            if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character}) then
-                                closestDist = dist2D
-                                closestTargetPart = bodyPart
-                            end
+            -- ONLY target the center of mass to allow free aiming around the body
+            local bodyPart = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character:FindFirstChild("UpperTorso")
+            
+            if bodyPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(bodyPart.Position)
+                
+                if onScreen then
+                    local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if dist2D <= closestDist then
+                        if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character}) then
+                            closestDist = dist2D
+                            closestTargetPart = bodyPart
                         end
                     end
                 end
@@ -2371,12 +2356,13 @@ end)
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- AIM ASSIST LOGIC (Universal Tracking)
+        -- AIM ASSIST LOGIC (True Friction / Magnetism)
         if aimAssistEnabled then
             local targetPart = GetClosestTarget()
             if targetPart then
                 local currentCFrame = Camera.CFrame
                 local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
+                -- Drastically reduced the smoothing weight so it acts as gentle drag, not a hard snap
                 Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
             end
         end
@@ -2779,4 +2765,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Dynamic Universal Aim Assist Updated)")
+Notify("Aura Hub V54 (True Friction Aim Assist Updated)")
