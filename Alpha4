@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Fix + Aim Assist Anti-Glitch Persistence)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -38,7 +38,6 @@ local function DeepClean()
     end
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
     
-    -- Hard sweep for ANY lingering ESP parts from older versions/executions
     for _, v in pairs(workspace:GetDescendants()) do
         if v.Name == "AuraBox" or v.Name == "AuraTag" or v.Name == "AuraChams" or v.Name == "AuraChams_Computer" then
             v:Destroy()
@@ -74,16 +73,17 @@ local dynamicChamsPulse = false
 
 -- Aim Assist States
 local aimAssistEnabled = false
-local aimAssistFOV = 250 -- Greatly increased invisible zone in the center of the screen
-local aimAssistSmoothing = 0.15 -- Increased value so friction actually affects custom cameras
+local aimAssistFOV = 200 
+local aimAssistSmoothing = 0.08 
 local aimAssistButtonRef = nil
+local CurrentAimTarget = nil -- Anti-Glitch Persistence State
 
 -- Data Caches
 local ESP_Data_Cache = {} 
-local NPCCache = {} -- Format: { [Model] = true }
-local VF_Tracers = {} -- Cache for Drawing API Tracers
-local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
-local ComputerESP_Cache = {} -- Cache for FTF Computers
+local NPCCache = {} 
+local VF_Tracers = {} 
+local BoundingBoxCache = {} 
+local ComputerESP_Cache = {} 
 
 -- Time States
 local timeChangerEnabled = false
@@ -122,8 +122,8 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AuraHub_V54_Balanced" 
 ScreenGui.ResetOnSpawn = false
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder = 2147483647 -- Max DisplayOrder to force rendering over Roblox menus
-ScreenGui.IgnoreGuiInset = true -- Ignore topbar to span full screen
+ScreenGui.DisplayOrder = 2147483647 
+ScreenGui.IgnoreGuiInset = true 
 ScreenGui.Parent = GetSafeParent()
 
 local _layoutOrder = 0
@@ -158,7 +158,6 @@ end
 local function RemoveESP(model)
     if not model then return end
     
-    -- Bulletproof removal using GetDescendants to catch UI no matter where it got parented
     local items = {AuraBox = true, AuraTag = true, AuraChams = true}
     for _, child in ipairs(model:GetDescendants()) do
         if items[child.Name] then
@@ -166,7 +165,6 @@ local function RemoveESP(model)
         end
     end
 
-    -- Clean up Drawing Tracer
     if VF_Tracers[model] then
         if typeof(VF_Tracers[model]) == "Instance" then
             VF_Tracers[model]:Destroy()
@@ -213,7 +211,6 @@ local function ClearNPCESP()
     end
     table.clear(NPCCache)
     
-    -- Hard sweep for lingering NPCs that spawned during the toggle
     for _, v in pairs(workspace:GetDescendants()) do
         if v:IsA("Model") and v:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(v) then
             RemoveESP(v)
@@ -228,7 +225,6 @@ local function GetUniversalRole(player)
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
          
-        -- 1. DOWNED CHECK
         local attrDown = player.Character:GetAttribute("Downed")
         local attrRev = player.Character:GetAttribute("Revive")
         local attrState = player.Character:GetAttribute("State")
@@ -238,21 +234,17 @@ local function GetUniversalRole(player)
             return "Downed"
          end
 
-        -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
 
-        -- 3. INVENTORY & EQUIPMENT SCAN (MM2 & FTF SEPARATED)
         local isMM2 = (game.PlaceId == 142823291)
         local isFTF = (game.PlaceId == 893973440)
 
-        -- MM2 Strict Tool Detection
         if isMM2 then
             local function checkItems(container)
                 if not container then return nil end
                 for _, item in pairs(container:GetChildren()) do
-                    -- ONLY check actual tools, ignoring accessories or body parts
                     if item:IsA("Tool") then
                         local name = item.Name:lower()
                         if name == "knife" or name:find("dagger") or name:find("knife") or name:find("pitchfork") or name:find("saw") or name:find("scythe") then 
@@ -266,14 +258,12 @@ local function GetUniversalRole(player)
                 return nil
             end
              
-            -- Check both equipped (Character) and unequipped (Backpack) weapons
             local mm2Role = checkItems(player.Character) or checkItems(player:FindFirstChild("Backpack"))
             if mm2Role then 
                 return mm2Role 
             end
          end
 
-        -- FTF Logic
         if isFTF then
             for _, child in pairs(player.Character:GetChildren()) do
                 local name = child.Name:lower()
@@ -372,7 +362,6 @@ local function IsVisibleAim(targetPart, ignoreList)
     params.FilterType = Enum.RaycastFilterType.Exclude
     params.IgnoreWater = true
     
-    -- Single precision raycast directly to the selected hitbox part
     local result = workspace:Raycast(origin, direction, params)
     if not result or result.Instance:IsDescendantOf(targetPart.Parent) then
         return true 
@@ -380,22 +369,35 @@ local function IsVisibleAim(targetPart, ignoreList)
     return false
 end
 
---// TARGET IDENTIFICATION (Center of Mass Aim Assist Friction)
+--// TARGET IDENTIFICATION (Anti-Glitch Persistence)
 local function GetClosestTarget()
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    -- 1. Check if our current target is still valid and within the FOV to prevent glitchy thrashing
+    if CurrentAimTarget and CurrentAimTarget.Parent and CurrentAimTarget.Parent:FindFirstChild("Humanoid") and CurrentAimTarget.Parent.Humanoid.Health > 0 then
+        local screenPos, onScreen = Camera:WorldToViewportPoint(CurrentAimTarget.Position)
+        if onScreen then
+            local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+            if dist2D <= aimAssistFOV and IsVisibleAim(CurrentAimTarget, {LocalPlayer.Character, CurrentAimTarget.Parent, Camera}) then
+                return CurrentAimTarget 
+            end
+        end
+    end
+
+    -- Reset if current target invalid
+    CurrentAimTarget = nil
+    
     local closestDist = aimAssistFOV
     local closestTargetPart = nil
-    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
+    -- 2. Find a new target if we don't have one
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
             
             local role = GetUniversalRole(p)
-            -- Skip dead/downed
             if role == "Dead" or role == "Downed" then continue end
-            -- Basic Team check to avoid friendly fire locking
             if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team and p.Team.Name ~= "Neutral" then continue end
 
-            -- ONLY target the center of mass to allow free aiming around the body
             local bodyPart = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character:FindFirstChild("UpperTorso")
             
             if bodyPart then
@@ -404,7 +406,6 @@ local function GetClosestTarget()
                 if onScreen then
                     local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                     if dist2D <= closestDist then
-                        -- Included Camera in ignore list to prevent 3rd person collision bugs
                         if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character, Camera}) then
                             closestDist = dist2D
                             closestTargetPart = bodyPart
@@ -414,10 +415,12 @@ local function GetClosestTarget()
             end
         end
     end
+    
+    CurrentAimTarget = closestTargetPart
     return closestTargetPart
 end
 
---// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
+--// OPTIMIZED: BODY BOUNDING BOX CALCULATOR
 local function GetBodyBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
     if not root then return character:GetBoundingBox() end
@@ -429,7 +432,6 @@ local function GetBodyBoundingBox(character)
     local minX, minY, minZ = math.huge, math.huge, math.huge
     local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
     local hasParts = false
-
     local rootInv = root.CFrame:Inverse()
 
     for _, part in pairs(character:GetChildren()) do
@@ -554,12 +556,10 @@ local function ToggleAntiFling(state)
             antiFlingConnection:Disconnect()
             antiFlingConnection = nil
         end
-        -- Properly restore collisions for standard R6/R15 rigs
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
                 for _, part in ipairs(p.Character:GetDescendants()) do
                     if part:IsA("BasePart") then
-                        -- Roblox default physics: Head and Torso are true, limbs/HRP are false
                          if part.Name == "Head" or part.Name == "Torso" or part.Name == "UpperTorso" or part.Name == "LowerTorso" then
                             part.CanCollide = true
                         else
@@ -594,6 +594,7 @@ local function DisableAllFeatures()
     Camera.FieldOfView = 70 
 
     aimAssistEnabled = false
+    CurrentAimTarget = nil
 
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
@@ -1782,6 +1783,7 @@ CreateButton("🎯 Toggle Aim Assist: OFF", function(b)
     aimAssistButtonRef = b
     if aimAssistEnabled then
         aimAssistEnabled = false
+        CurrentAimTarget = nil
         b.Text = "🎯 Toggle Aim Assist: OFF"
         b.TextColor3 = Color3.new(1, 1, 1)
         b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
@@ -2119,7 +2121,6 @@ task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
              for model, _ in pairs(NPCCache) do
-                -- Removing the Health <= 0 check so NPCs that technically "die" but still exist physically won't lose ESP
                 if not model or not model:IsDescendantOf(workspace) then
                     NPCCache[model] = nil
                     RemoveESP(model)
@@ -2145,26 +2146,25 @@ end)
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- AIM ASSIST LOGIC (True Friction / Magnetism natively in RenderStepped)
+        -- AIM ASSIST LOGIC (Anti-Glitch Persistence in RenderStepped)
         if aimAssistEnabled then
             local targetPart = GetClosestTarget()
             if targetPart then
                 local currentCFrame = Camera.CFrame
-                -- Generate a fresh CFrame looking at the target while retaining our exact current position
-                local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
-                -- Apply stronger friction drag directly inside the primary frame loop
+                -- Calculate looking direction precisely
+                local targetCFrame = CFrame.lookAt(currentCFrame.Position, targetPart.Position)
+                -- Apply ultra-smooth friction
                 Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
             end
         end
 
-        -- Computer Dynamic Colors (Syncs perfectly with the in-game ErrorSign icon)
+        -- Computer Dynamic Colors 
         if espEnabled then
             for obj, hl in pairs(ComputerESP_Cache) do
                 if obj and obj.Parent then
                     local isDone = false
                     local isError = false
 
-                    -- 1. Check if the computer is completed (Screen is Green)
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
                         local cName = screen.BrickColor.Name:lower()
@@ -2173,13 +2173,11 @@ RunService.RenderStepped:Connect(function()
                         end
                     end
 
-                    -- 2. Check exactly for the "broken computer" icon (ErrorSign) visibility
                     local errorSign = obj:FindFirstChild("ErrorSign")
                     if errorSign and errorSign:IsA("BasePart") and errorSign.Transparency < 1 then
                         isError = true
                     end
                     
-                    -- Fallback in case the screen part itself indicates error
                     if screen and not isDone and not isError then
                         local cName = screen.BrickColor.Name:lower()
                         if cName:find("red") or cName:find("error") then
@@ -2188,13 +2186,13 @@ RunService.RenderStepped:Connect(function()
                     end
 
                     if isDone then
-                        hl.FillColor = Color3.fromRGB(0, 255, 0) -- Finished (Green)
+                        hl.FillColor = Color3.fromRGB(0, 255, 0) 
                         hl.FillTransparency = 0.5
                     elseif isError then
-                        hl.FillColor = Color3.fromRGB(255, 0, 0) -- Error active (Red)
+                        hl.FillColor = Color3.fromRGB(255, 0, 0) 
                         hl.FillTransparency = 0.5 
                     else
-                        hl.FillColor = Color3.fromRGB(135, 206, 250) -- Default (Light Blue)
+                        hl.FillColor = Color3.fromRGB(135, 206, 250) 
                         hl.FillTransparency = 0.5
                     end
                 else
@@ -2330,7 +2328,6 @@ task.spawn(function()
                                  dist = math.floor((root.Position - Camera.CFrame.Position).Magnitude) 
                              end
             
-                            -- OPTIMIZATION: Hoisted raycast check out of RenderStepped loop
                              if espWallsOnly then
                                  isVis = IsVisible(p.Character, {LocalPlayer.Character, p.Character})
                             end
@@ -2450,7 +2447,6 @@ RunService.RenderStepped:Connect(function()
                         highlight.OutlineColor = Color3.new(1, 1, 1)
                          highlight.FillTransparency = pulseAlpha 
 
-                        -- OPTIMIZATION: Uses data.IsVisible from the slower loop instead of raycasting every frame
                          if espWallsOnly then
                              if data.IsVisible then
                                   highlight.Enabled = false 
@@ -2653,7 +2649,6 @@ RunService.RenderStepped:Connect(function()
                                 t.TextSize = 13
                             end
              
-                             -- OPTIMIZATION: Uses the hoisted localPos variable instead of checking for PrimaryPart per NPC
                              local dist = math.floor((root.Position - localPos).Magnitude)
                               local txt = npc.Name .. "\n[NPC]" .. "\n[" .. dist .. "m]"
                                tag.TextLabel.Text = txt
@@ -2685,7 +2680,7 @@ task.spawn(function()
     end
 end)
 
---// FTF AUTO MINIGAME LOOP (ALWAYS ACTIVE, NO UI)
+--// FTF AUTO MINIGAME LOOP
 task.spawn(function()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     while task.wait(0.05) do
@@ -2698,7 +2693,6 @@ task.spawn(function()
                 
                 if remote and (buttonPrompt or actionProgress) then
                     remote:FireServer("SetPlayerMinigameResult", true)
-                    -- Clear the UI to prevent it from getting stuck
                     if buttonPrompt then buttonPrompt:Destroy() end
                     if actionProgress then actionProgress:Destroy() end
                     local minigame = tempUI:FindFirstChild("Minigame")
@@ -2767,4 +2761,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (Aim Assist Stabilized for Mobile/Westbound)")
+Notify("Aura Hub V54 (Target Persistence Anti-Glitch Active)")
