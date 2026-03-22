@@ -404,7 +404,8 @@ local function GetClosestTarget()
                 if onScreen then
                     local dist2D = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                     if dist2D <= closestDist then
-                        if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character}) then
+                        -- Included Camera in ignore list to prevent 3rd person collision bugs
+                        if IsVisibleAim(bodyPart, {LocalPlayer.Character, p.Character, Camera}) then
                             closestDist = dist2D
                             closestTargetPart = bodyPart
                         end
@@ -2356,17 +2357,6 @@ end)
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
     pcall(function()
-        -- AIM ASSIST LOGIC (True Friction / Magnetism)
-        if aimAssistEnabled then
-            local targetPart = GetClosestTarget()
-            if targetPart then
-                local currentCFrame = Camera.CFrame
-                local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
-                -- Drastically reduced the smoothing weight so it acts as gentle drag, not a hard snap
-                Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
-            end
-        end
-
         if not espEnabled then return end
         
         local pulseAlpha = 0.5
@@ -2664,6 +2654,21 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
+--// 🟢 AIM ASSIST LOOP (Camera Priority Fix for Custom Camera Games like Westbound)
+RunService:BindToRenderStep("AuraAimAssist", Enum.RenderPriority.Camera.Value + 1, function()
+    pcall(function()
+        if aimAssistEnabled then
+            local targetPart = GetClosestTarget()
+            if targetPart then
+                local currentCFrame = Camera.CFrame
+                local targetCFrame = CFrame.new(currentCFrame.Position, targetPart.Position)
+                -- Apply the friction drag AFTER the game's custom camera scripts run
+                Camera.CFrame = currentCFrame:Lerp(targetCFrame, aimAssistSmoothing)
+            end
+        end
+    end)
+end)
+
 --// FPS & PING
 local frameCount, lastUpdate, currentFPS = 0, tick(), 60
 RunService.Heartbeat:Connect(function()
@@ -2765,4 +2770,4 @@ MainCircle.InputBegan:Connect(function(input)
 end)
 
 SetSliderVisualsTime(customClockTime)
-Notify("Aura Hub V54 (True Friction Aim Assist Updated)")
+Notify("Aura Hub V54 (Camera Priority Fixed for Custom Cameras)")
