@@ -1,4 +1,4 @@
---// AuraHub V55: Custom Speed Input (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction)
+--// AuraHub V55: Custom Speed Input Stable (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -1865,25 +1865,28 @@ local function SetSliderVisualsSpeed(val)
     percentage = math.clamp(percentage, 0, 1)
     SliderDotSpeed.Position = UDim2.new(percentage, -8, 0.5, -8)
     SpeedLabel.Text = "Subtle Speed: " .. cleanVal .. (cleanVal == 16 and " (Default)" or "")
-    if CustomSpeedInput and CustomSpeedInput.Text ~= tostring(cleanVal) then
+    if CustomSpeedInput and CustomSpeedInput.Parent then
         CustomSpeedInput.Text = tostring(cleanVal)
     end
 end
 
-local function SetCustomSpeedValue(val, showNotify)
+local function SetSpeedValue(val, showNotify)
     local cleanVal = tonumber(val)
     if not cleanVal then return false end
-    cleanVal = math.floor(math.max(minSpeed, cleanVal))
+    cleanVal = math.floor(cleanVal)
+    if cleanVal < minSpeed then cleanVal = minSpeed end
     subtleSpeedValue = cleanVal
     SetSliderVisualsSpeed(cleanVal)
-    if showNotify then Notify("Custom Speed Set: " .. cleanVal) end
+    if showNotify then
+        Notify("Custom Speed Set: " .. cleanVal)
+    end
     return true
 end
 
 local function UpdateSpeed(input)
     if not subtleSpeedEnabled then return end
     local pos = math.clamp((input.Position.X - SliderBarSpeed.AbsolutePosition.X) / SliderBarSpeed.AbsoluteSize.X, 0, 1)
-    SetCustomSpeedValue(math.floor(minSpeed + (pos * (maxSpeed - minSpeed))), false)
+    SetSpeedValue(math.floor(minSpeed + (pos * (maxSpeed - minSpeed))), false)
 end
 local slidingSpeed = false
 SliderBarSpeed.InputBegan:Connect(function(input)
@@ -1914,7 +1917,6 @@ CustomSpeedLabel.TextColor3 = Color3.new(1, 1, 1)
 CustomSpeedLabel.Font = Enum.Font.GothamBold
 CustomSpeedLabel.TextSize = 10
 CustomSpeedLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 table.insert(SpeedVisuals.ActiveItems, CustomSpeedLabel)
 
 CustomSpeedInput = Instance.new("TextBox", CustomSpeedFrame)
@@ -1922,44 +1924,38 @@ CustomSpeedInput.Size = UDim2.new(0.58, 0, 0, 24)
 CustomSpeedInput.Position = UDim2.new(0.42, 0, 0, 4)
 CustomSpeedInput.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 CustomSpeedInput.BackgroundTransparency = 0.7
+CustomSpeedInput.BorderSizePixel = 0
 CustomSpeedInput.Text = tostring(subtleSpeedValue)
-CustomSpeedInput.PlaceholderText = "Type speed, press Enter"
+CustomSpeedInput.PlaceholderText = "Type any speed"
 CustomSpeedInput.TextColor3 = Color3.new(0.6, 0.6, 0.6)
-CustomSpeedInput.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 CustomSpeedInput.Font = Enum.Font.GothamBold
 CustomSpeedInput.TextSize = 10
 CustomSpeedInput.ClearTextOnFocus = false
-CustomSpeedInput.TextEditable = false
 Instance.new("UICorner", CustomSpeedInput).CornerRadius = UDim.new(0, 6)
-local CustomSpeedStroke = Instance.new("UIStroke", CustomSpeedInput)
-CustomSpeedStroke.Color = Color3.fromRGB(0, 255, 140)
-CustomSpeedStroke.Transparency = 0.85
-
 table.insert(SpeedVisuals.ActiveItems, CustomSpeedInput)
 table.insert(SpeedVisuals.DimItems, CustomSpeedInput)
 
 local function RefreshCustomSpeedInputVisual()
     if not CustomSpeedInput then return end
-    CustomSpeedInput.TextEditable = subtleSpeedEnabled
     CustomSpeedInput.TextColor3 = subtleSpeedEnabled and Color3.new(1, 1, 1) or Color3.new(0.6, 0.6, 0.6)
-    CustomSpeedInput.BackgroundTransparency = subtleSpeedEnabled and 0 or 0.7
-    CustomSpeedStroke.Transparency = subtleSpeedEnabled and 0.35 or 0.85
+    CustomSpeedInput.PlaceholderText = subtleSpeedEnabled and "Type any speed" or "Enable speed first"
 end
 
 CustomSpeedInput.FocusLost:Connect(function()
     if not subtleSpeedEnabled then
-        SetSliderVisualsSpeed(subtleSpeedValue)
+        CustomSpeedInput.Text = tostring(subtleSpeedValue)
+        RefreshCustomSpeedInputVisual()
         return
     end
 
-    local cleanText = CustomSpeedInput.Text:gsub(",", "")
-    if not SetCustomSpeedValue(cleanText, true) then
+    local typedSpeed = string.gsub(CustomSpeedInput.Text or "", ",", "")
+    if not SetSpeedValue(typedSpeed, true) then
         CustomSpeedInput.Text = tostring(subtleSpeedValue)
         CustomSpeedInput.TextColor3 = Color3.fromRGB(255, 100, 100)
         Notify("Enter a valid speed number")
         task.delay(0.7, function()
             if CustomSpeedInput and CustomSpeedInput.Parent then
-                CustomSpeedInput.TextColor3 = subtleSpeedEnabled and Color3.new(1, 1, 1) or Color3.new(0.6, 0.6, 0.6)
+                RefreshCustomSpeedInputVisual()
             end
         end)
     end
@@ -1991,7 +1987,7 @@ local function CreatePresetSpeed(val, label)
    
     btn.MouseButton1Click:Connect(function()
         if not subtleSpeedEnabled then return end
-        SetCustomSpeedValue(val, false)
+        SetSpeedValue(val, false)
     end)
 end
 CreatePresetSpeed(16, "16")
