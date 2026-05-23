@@ -1162,7 +1162,7 @@ SliderBarTime.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 SliderBarTime.Text = ""
 Instance.new("UICorner", SliderBarTime)
 
-local SliderDotTime = Instance.new("Frame", SliderDotTime)
+local SliderDotTime = Instance.new("Frame", SliderBarTime)
 SliderDotTime.Size = UDim2.new(0, 16, 0, 16)
 SliderDotTime.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotTime.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
@@ -1796,7 +1796,7 @@ end, GetNextOrder())
 local SpeedVisuals = {ActiveItems = {}, DimItems = {}}
 
 local SpeedFrame = Instance.new("Frame", ScrollContainer)
-SpeedFrame.Size = UDim2.new(0.9, 0, 0, 65) 
+SpeedFrame.Size = UDim2.new(0.9, 0, 0, 95) 
 SpeedFrame.BackgroundTransparency = 1
 SpeedFrame.LayoutOrder = GetNextOrder()
 
@@ -1884,6 +1884,32 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 UserInputService.InputEnded:Connect(function() slidingSpeed = false end)
+
+local CustomSpeedInput = Instance.new("TextBox", SpeedFrame)
+CustomSpeedInput.Size = UDim2.new(1, 0, 0, 25)
+CustomSpeedInput.Position = UDim2.new(0, 0, 0, 65)
+CustomSpeedInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+CustomSpeedInput.TextColor3 = Color3.new(1, 1, 1)
+CustomSpeedInput.Font = Enum.Font.Gotham
+CustomSpeedInput.TextSize = 10
+CustomSpeedInput.PlaceholderText = "Type custom speed here..."
+CustomSpeedInput.Text = ""
+Instance.new("UICorner", CustomSpeedInput).CornerRadius = UDim.new(0, 4)
+table.insert(SpeedVisuals.ActiveItems, CustomSpeedInput)
+table.insert(SpeedVisuals.DimItems, CustomSpeedInput)
+
+CustomSpeedInput.FocusLost:Connect(function()
+    if not subtleSpeedEnabled then 
+        CustomSpeedInput.Text = ""
+        return 
+    end
+    local val = tonumber(CustomSpeedInput.Text)
+    if val then
+        subtleSpeedValue = val
+        SetSliderVisualsSpeed(val)
+    end
+    CustomSpeedInput.Text = ""
+end)
 
 local PresetFrameSpeed = Instance.new("Frame", ScrollContainer)
 PresetFrameSpeed.Size = UDim2.new(0.9, 0, 0, 25)
@@ -2351,7 +2377,6 @@ Players.PlayerRemoving:Connect(function(p)
     if data and data.Character then RemoveESP(data.Character) end
     ESP_Data_Cache[p] = nil
 end)
-
 
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
