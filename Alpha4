@@ -10,10 +10,12 @@ local HttpService = game:GetService("HttpService")
 local CollectionService = game:GetService("CollectionService") 
 local CoreGui = game:GetService("CoreGui")
 
+
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui", 10) 
 if not PlayerGui then return end 
 local Camera = workspace.CurrentCamera
+
 
 --// Get Secure GUI Parent (Renders over Escape Menu / Loading Screens)
 local function GetSafeParent()
@@ -24,6 +26,7 @@ local function GetSafeParent()
     if success and result then return result end
     return PlayerGui
 end
+
 
 --// 🛑 DEEP CLEANUP
 local function DeepClean()
@@ -47,6 +50,7 @@ local function DeepClean()
 end
 DeepClean() 
 
+
 --// Global States
 local currentFOV = 70
 local subtleSpeedValue = 16 
@@ -57,9 +61,11 @@ local shiftLockEnabled = false
 local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
-local subtleSpeedEnabled = false 
+local subtleSpeedEnabled = false
+local subtleJumoEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
+
 
 -- ESP States
 local espEnabled = false
@@ -72,11 +78,13 @@ local espShowChams = false
 local espWallsOnly = false 
 local dynamicChamsPulse = false
 
+
 -- Aim Assist States
 local aimAssistEnabled = false
 local aimAssistFOV = 130 -- Invisible zone in the center of the screen
 local aimAssistSmoothing = 0.04 -- Very low value for gentle friction/magnetism instead of hard locking
 local aimAssistButtonRef = nil
+
 
 -- Data Caches
 local ESP_Data_Cache = {} 
@@ -85,12 +93,14 @@ local VF_Tracers = {} -- Cache for Drawing API Tracers
 local BoundingBoxCache = {} -- OPTIMIZATION: Cache for character bounds
 local ComputerESP_Cache = {} -- Cache for FTF Computers
 
+
 -- Time States
 local timeChangerEnabled = false
 local dynamicDayNightEnabled = false
 local noFogEnabled = false
 local customClockTime = Lighting.ClockTime 
 local dayNightSpeed = 0.001 
+
 
 -- Optimization & Original Lighting Cache
 local optimizationEnabled = false 
@@ -99,6 +109,7 @@ local optimizationCache = {}
 local originalQualityLevel = 1 
 pcall(function() originalQualityLevel = settings().Rendering.QualityLevel end)
 
+
 local originalShadows = Lighting.GlobalShadows
 local originalAmbient = Lighting.Ambient
 local originalBrightness = Lighting.Brightness
@@ -106,6 +117,7 @@ local originalFogEnd = Lighting.FogEnd
 local originalFogStart = Lighting.FogStart
 local originalFogColor = Lighting.FogColor
 local originalClockTime = Lighting.ClockTime 
+
 
 local originalAtmosphereDensity = nil
 local originalAtmosphereOffset = nil
@@ -117,6 +129,7 @@ pcall(function()
     end
 end)
 
+
 --// UI Creation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "AuraHub_V54_Balanced" 
@@ -126,11 +139,13 @@ ScreenGui.DisplayOrder = 2147483647 -- Max DisplayOrder to force rendering over 
 ScreenGui.IgnoreGuiInset = true -- Ignore topbar to span full screen
 ScreenGui.Parent = GetSafeParent()
 
+
 local _layoutOrder = 0
 local function GetNextOrder()
     _layoutOrder = _layoutOrder + 1
     return _layoutOrder
 end
+
 
 --// Notifier
 local function Notify(msg)
@@ -154,6 +169,7 @@ local function Notify(msg)
     end)
 end
 
+
 --// CLEANUP FUNCTIONS
 local function RemoveESP(model)
     if not model then return end
@@ -165,6 +181,7 @@ local function RemoveESP(model)
              child:Destroy()
         end
     end
+
 
     -- Clean up Drawing Tracer
     if VF_Tracers[model] then
@@ -178,12 +195,14 @@ local function RemoveESP(model)
     BoundingBoxCache[model] = nil
 end
 
+
 local function ClearComputerESP()
     for obj, hl in pairs(ComputerESP_Cache) do
         if hl and typeof(hl) == "Instance" then hl:Destroy() end
     end
     table.clear(ComputerESP_Cache)
 end
+
 
 local function ClearAllESP()
     for _, item in pairs(CollectionService:GetTagged("AuraESP")) do item:Destroy() end
@@ -201,11 +220,13 @@ local function ClearAllESP()
     ClearComputerESP()
 end
 
+
 local function ClearPlayerESP()
     for _, p in pairs(Players:GetPlayers()) do
         if p.Character then RemoveESP(p.Character) end
     end
 end
+
 
 local function ClearNPCESP()
     for model, _ in pairs(NPCCache) do
@@ -220,6 +241,7 @@ local function ClearNPCESP()
         end
     end
 end
+
 
 --// UNIVERSAL ROLE DETECTOR
 local function GetUniversalRole(player)
@@ -238,14 +260,17 @@ local function GetUniversalRole(player)
             return "Downed"
          end
 
+
         -- 2. DEAD CHECK
         if hum and hum.Health <= 0 then
             return "Dead"
         end
 
+
         -- 3. INVENTORY & EQUIPMENT SCAN (MM2 & FTF SEPARATED)
         local isMM2 = (game.PlaceId == 142823291)
         local isFTF = (game.PlaceId == 893973440)
+
 
         -- MM2 Strict Tool Detection
         if isMM2 then
@@ -273,10 +298,12 @@ local function GetUniversalRole(player)
             end
          end
 
+
         -- FTF Logic
         if isFTF then
             for _, child in pairs(player.Character:GetChildren()) do
                 local name = child.Name:lower()
+
 
                 if name:find("hammer") then
                     if child:IsA("Tool") then
@@ -308,14 +335,17 @@ local function GetUniversalRole(player)
         end
     end
 
+
     if player.Team then
         local tName = player.Team.Name:lower()
         if tName == "neutral" or tName == "lobby" or tName == "spectator" then return "Neutral" end
         return player.Team.Name
     end
 
+
     return "Neutral"
 end
+
 
 --// SMART COLOR ENGINE
 local function GetSmartColor(role, player)
@@ -331,8 +361,10 @@ local function GetSmartColor(role, player)
     if r == "neutral" or r == "lobby" or r == "nil" then return Color3.fromRGB(255, 255, 255) end
     if player.TeamColor then return player.TeamColor.Color end
 
+
     return Color3.fromRGB(255, 255, 255)
 end
+
 
 --// VISIBILITY CHECKER (General Purpose)
 local function IsVisible(targetModel, ignoreList)
@@ -361,6 +393,7 @@ local function IsVisible(targetModel, ignoreList)
     return false 
 end
 
+
 --// VISIBILITY CHECKER (Strict Raycast for Aim Assist)
 local function IsVisibleAim(targetPart, ignoreList)
     if not targetPart then return false end
@@ -380,11 +413,13 @@ local function IsVisibleAim(targetPart, ignoreList)
     return false
 end
 
+
 --// TARGET IDENTIFICATION (Center of Mass Aim Assist Friction)
 local function GetClosestTarget()
     local closestDist = aimAssistFOV
     local closestTargetPart = nil
     local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
 
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("Humanoid") and p.Character.Humanoid.Health > 0 then
@@ -394,6 +429,7 @@ local function GetClosestTarget()
             if role == "Dead" or role == "Downed" then continue end
             -- Basic Team check to avoid friendly fire locking
             if p.Team and LocalPlayer.Team and p.Team == LocalPlayer.Team and p.Team.Name ~= "Neutral" then continue end
+
 
             -- ONLY target the center of mass to allow free aiming around the body
             local bodyPart = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character:FindFirstChild("UpperTorso")
@@ -416,20 +452,25 @@ local function GetClosestTarget()
     return closestTargetPart
 end
 
+
 --// OPTIMIZED: BODY BOUNDING BOX CALCULATOR (WITH DYNAMIC REFRESH)
 local function GetBodyBoundingBox(character)
     local root = character:FindFirstChild("HumanoidRootPart") or character.PrimaryPart
     if not root then return character:GetBoundingBox() end
 
+
     if BoundingBoxCache[character] and (tick() - BoundingBoxCache[character].Time < 0.5) then
         return root.CFrame * BoundingBoxCache[character].Offset, BoundingBoxCache[character].Size
     end
+
 
     local minX, minY, minZ = math.huge, math.huge, math.huge
     local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
     local hasParts = false
 
+
     local rootInv = root.CFrame:Inverse()
+
 
     for _, part in pairs(character:GetChildren()) do
         if part:IsA("BasePart") then
@@ -460,6 +501,7 @@ local function GetBodyBoundingBox(character)
         end
     end
 
+
     if hasParts then
         local centerLocal = Vector3.new((minX + maxX)/2, (minY + maxY)/2, (minZ + maxZ)/2)
         local size = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
@@ -473,6 +515,7 @@ local function GetBodyBoundingBox(character)
     end
 end
 
+
 --// TRACER ORIGIN CALCULATOR
 local function GetTracerOrigin()
     if LocalPlayer.Character and LocalPlayer.Character.PrimaryPart then
@@ -485,6 +528,7 @@ local function GetTracerOrigin()
     end
     return Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
 end
+
 
 --// Server Hopper
 local function StableServerHop()
@@ -505,6 +549,7 @@ local function StableServerHop()
     end
 end
 
+
 --// Rejoin Function
 local function RejoinServer()
     Notify("Rejoining Server...")
@@ -516,6 +561,7 @@ local function RejoinServer()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
     end
 end
+
 
 --// HDR Effects
 local function GetHDREffects()
@@ -529,9 +575,12 @@ local function GetHDREffects()
 end
 
 
+
+
 --// ANTI-FLING LOGIC
 local antiFlingEnabled = false
 local antiFlingConnection = nil
+
 
 local function ToggleAntiFling(state)
     if state then
@@ -572,10 +621,13 @@ local function ToggleAntiFling(state)
 end
 
 
+
+
 --// MASTER TOGGLE CLEAR SYSTEM
 local flyEnabled = false
 local flyConnection = nil
 local ToggleFly
+
 
 local function DisableAllFeatures()
     espEnabled = false
@@ -589,13 +641,19 @@ local function DisableAllFeatures()
     dynamicChamsPulse = false
     ClearAllESP()
 
+
     fovEnabled = false
     Camera.FieldOfView = 70 
 
+
     aimAssistEnabled = false
+
 
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
+
+    subtleJumpEnabled = false
+    subtleJumpValue = 50
 
     forceThirdPerson = false
     shiftLockEnabled = false
@@ -607,9 +665,11 @@ local function DisableAllFeatures()
     LocalPlayer.CameraMaxZoomDistance = 400 
     LocalPlayer.CameraMinZoomDistance = 0.5
 
+
     timeChangerEnabled = false
     dynamicDayNightEnabled = false
     Lighting.ClockTime = originalClockTime
+
 
     noFogEnabled = false
      fullbrightEnabled = false
@@ -655,16 +715,19 @@ local function DisableAllFeatures()
         table.clear(optimizationCache)
     end
 
+
     if flyEnabled then
         flyEnabled = false
         if ToggleFly then ToggleFly(false) end
     end
 end
 
+
 -------------------------------------------------------------------------
 --// CONFIRMATION MODAL (DYNAMIC FOR ALL RISKY FEATURES)
 -------------------------------------------------------------------------
 local pendingRiskAction = nil 
+
 
 local ConfirmModal = Instance.new("Frame")
 ConfirmModal.Name = "RiskConfirmation"
@@ -677,10 +740,12 @@ ConfirmModal.ZIndex = 200
 ConfirmModal.Parent = ScreenGui
 Instance.new("UICorner", ConfirmModal).CornerRadius = UDim.new(0, 12)
 
+
 local ConfirmStroke = Instance.new("UIStroke", ConfirmModal)
 ConfirmStroke.Color = Color3.fromRGB(255, 30, 30)
 ConfirmStroke.Thickness = 3
 ConfirmStroke.Transparency = 0
+
 
 local WarningIcon = Instance.new("TextLabel", ConfirmModal)
 WarningIcon.Size = UDim2.new(1, 0, 0, 40)
@@ -689,6 +754,7 @@ WarningIcon.Text = "⚠️"
 WarningIcon.TextSize = 30
 WarningIcon.BackgroundTransparency = 1
 WarningIcon.Parent = ConfirmModal
+
 
 local WarningTitle = Instance.new("TextLabel", ConfirmModal)
 WarningTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -699,6 +765,7 @@ WarningTitle.Font = Enum.Font.GothamBold
 WarningTitle.TextSize = 14
 WarningTitle.BackgroundTransparency = 1
 WarningTitle.Parent = ConfirmModal
+
 
 local WarningDesc = Instance.new("TextLabel", ConfirmModal)
 WarningDesc.Size = UDim2.new(0.9, 0, 0, 40)
@@ -711,6 +778,7 @@ WarningDesc.TextWrapped = true
 WarningDesc.BackgroundTransparency = 1
 WarningDesc.Parent = ConfirmModal
 
+
 local ConfirmYesBtn = Instance.new("TextButton", ConfirmModal)
 ConfirmYesBtn.Size = UDim2.new(0.4, 0, 0, 30)
 ConfirmYesBtn.Position = UDim2.new(0.05, 0, 0.76, 0)
@@ -722,6 +790,7 @@ ConfirmYesBtn.TextSize = 11
 Instance.new("UICorner", ConfirmYesBtn).CornerRadius = UDim.new(0, 6)
 ConfirmYesBtn.Parent = ConfirmModal
 
+
 local ConfirmNoBtn = Instance.new("TextButton", ConfirmModal)
 ConfirmNoBtn.Size = UDim2.new(0.4, 0, 0, 30)
 ConfirmNoBtn.Position = UDim2.new(0.55, 0, 0.76, 0)
@@ -732,6 +801,7 @@ ConfirmNoBtn.Font = Enum.Font.GothamBold
 ConfirmNoBtn.TextSize = 11
 Instance.new("UICorner", ConfirmNoBtn).CornerRadius = UDim.new(0, 6)
 ConfirmNoBtn.Parent = ConfirmModal
+
 
 -------------------------------------------------------------------------
 --// CLOSE MODAL (GREEN/QUESTION)
@@ -747,10 +817,12 @@ CloseModal.ZIndex = 200
 CloseModal.Parent = ScreenGui
 Instance.new("UICorner", CloseModal).CornerRadius = UDim.new(0, 12)
 
+
 local CloseStroke = Instance.new("UIStroke", CloseModal)
 CloseStroke.Color = Color3.fromRGB(50, 255, 100)
 CloseStroke.Thickness = 3
 CloseStroke.Transparency = 0
+
 
 local QuestionIcon = Instance.new("TextLabel", CloseModal)
 QuestionIcon.Size = UDim2.new(1, 0, 0, 40)
@@ -759,6 +831,7 @@ QuestionIcon.Text = "❓"
 QuestionIcon.TextSize = 30
 QuestionIcon.BackgroundTransparency = 1
 QuestionIcon.Parent = CloseModal
+
 
 local CloseTitle = Instance.new("TextLabel", CloseModal)
 CloseTitle.Size = UDim2.new(1, 0, 0, 20)
@@ -769,6 +842,7 @@ CloseTitle.Font = Enum.Font.GothamBold
 CloseTitle.TextSize = 14
 CloseTitle.BackgroundTransparency = 1
 CloseTitle.Parent = CloseModal
+
 
 local CloseDesc = Instance.new("TextLabel", CloseModal)
 CloseDesc.Size = UDim2.new(0.9, 0, 0, 40)
@@ -781,6 +855,7 @@ CloseDesc.TextWrapped = true
 CloseDesc.BackgroundTransparency = 1
 CloseDesc.Parent = CloseModal
 
+
 local CloseYesBtn = Instance.new("TextButton", CloseModal)
 CloseYesBtn.Size = UDim2.new(0.4, 0, 0, 30)
 CloseYesBtn.Position = UDim2.new(0.05, 0, 0.76, 0)
@@ -792,6 +867,7 @@ CloseYesBtn.TextSize = 11
 Instance.new("UICorner", CloseYesBtn).CornerRadius = UDim.new(0, 6)
 CloseYesBtn.Parent = CloseModal
 
+
 local CloseNoBtn = Instance.new("TextButton", CloseModal)
 CloseNoBtn.Size = UDim2.new(0.4, 0, 0, 30)
 CloseNoBtn.Position = UDim2.new(0.55, 0, 0.76, 0)
@@ -802,6 +878,7 @@ CloseNoBtn.Font = Enum.Font.GothamBold
 CloseNoBtn.TextSize = 11
 Instance.new("UICorner", CloseNoBtn).CornerRadius = UDim.new(0, 6)
 CloseNoBtn.Parent = CloseModal
+
 
 -------------------------------------------------------------------------
 --// UI BASE
@@ -816,6 +893,7 @@ MainCircle.ZIndex = 100
 MainCircle.Parent = ScreenGui
 Instance.new("UICorner", MainCircle).CornerRadius = UDim.new(1, 0)
 
+
 local MainPanel = Instance.new("Frame")
 MainPanel.Name = "MainPanel"
 MainPanel.Size = UDim2.new(0, 0, 0.65, 0) 
@@ -827,6 +905,7 @@ MainPanel.ZIndex = 1
 MainPanel.Parent = ScreenGui
 Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 15)
 
+
 --// Profile & Stats
 local ProfileImg = Instance.new("ImageLabel")
 ProfileImg.Size = UDim2.new(0, 45, 0, 45)
@@ -836,6 +915,7 @@ pcall(function()
 end)
 ProfileImg.Parent = MainPanel
 Instance.new("UICorner", ProfileImg).CornerRadius = UDim.new(1, 0)
+
 
 local NameLabel = Instance.new("TextLabel")
 NameLabel.Size = UDim2.new(1, -70, 0, 18)
@@ -849,6 +929,7 @@ NameLabel.TextSize = 13
 NameLabel.TextXAlignment = Enum.TextXAlignment.Left
 NameLabel.Parent = MainPanel
 
+
 local StatsLabel = Instance.new("TextLabel")
 StatsLabel.Size = UDim2.new(1, -70, 0, 20)
 StatsLabel.Position = UDim2.new(0, 65, 0, 33)
@@ -859,6 +940,7 @@ StatsLabel.Font = Enum.Font.Gotham
 StatsLabel.TextSize = 9 
 StatsLabel.TextXAlignment = Enum.TextXAlignment.Left
 StatsLabel.Parent = MainPanel
+
 
 --// CLOSE BUTTON
 local ExitUIBtn = Instance.new("TextButton")
@@ -874,9 +956,11 @@ ExitUIBtn.ZIndex = 10
 ExitUIBtn.Parent = MainPanel
 Instance.new("UICorner", ExitUIBtn).CornerRadius = UDim.new(0, 6)
 
+
 ExitUIBtn.MouseButton1Click:Connect(function()
     CloseModal.Visible = true
 end)
+
 
 CloseYesBtn.MouseButton1Click:Connect(function()
     CloseModal.Visible = false
@@ -885,9 +969,11 @@ CloseYesBtn.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
 end)
 
+
 CloseNoBtn.MouseButton1Click:Connect(function()
     CloseModal.Visible = false
 end)
+
 
 local SessionLabel = Instance.new("TextLabel")
 SessionLabel.Size = UDim2.new(1, 0, 0, 20)
@@ -898,6 +984,7 @@ SessionLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
 SessionLabel.Font = Enum.Font.GothamMedium
 SessionLabel.TextSize = 9
 SessionLabel.Parent = MainPanel
+
 
 --// SCROLLABLE CONTAINER
 local ScrollContainer = Instance.new("ScrollingFrame")
@@ -911,14 +998,17 @@ ScrollContainer.AutomaticCanvasSize = Enum.AutomaticSize.Y
 ScrollContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
 ScrollContainer.Parent = MainPanel
 
+
 local UIList = Instance.new("UIListLayout", ScrollContainer)
 UIList.SortOrder = Enum.SortOrder.LayoutOrder
 UIList.Padding = UDim.new(0, 4) 
 UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
+
 local UIPad = Instance.new("UIPadding", ScrollContainer)
 UIPad.PaddingTop = UDim.new(0, 5)
 UIPad.PaddingBottom = UDim.new(0, 25)
+
 
 -- Helpers
 local function CreateButton(text, callback, layoutOrder)
@@ -936,6 +1026,7 @@ local function CreateButton(text, callback, layoutOrder)
     return btn
 end
 
+
 local function CreateSpacer(layoutOrder)
     local sp = Instance.new("Frame", ScrollContainer)
     sp.Size = UDim2.new(1, 0, 0, 12) 
@@ -943,6 +1034,7 @@ local function CreateSpacer(layoutOrder)
     sp.LayoutOrder = layoutOrder
     return sp
 end
+
 
 -------------------------------------------------------------------------
 --// 🟢 SAFE SECTION
@@ -956,13 +1048,16 @@ SafeLabel.Font = Enum.Font.GothamBold
 SafeLabel.TextSize = 10
 SafeLabel.LayoutOrder = GetNextOrder()
 
+
 --// FOV Logic
 local FOVVisuals = {ActiveItems = {}, DimItems = {}}
+
 
 local FOVFrame = Instance.new("Frame", ScrollContainer)
 FOVFrame.Size = UDim2.new(0.9, 0, 0, 65) 
 FOVFrame.BackgroundTransparency = 1
 FOVFrame.LayoutOrder = GetNextOrder()
+
 
 local FOVLabel = Instance.new("TextLabel", FOVFrame)
 FOVLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -974,6 +1069,7 @@ FOVLabel.TextSize = 10
 FOVLabel.Position = UDim2.new(0, 0, 0, 0)
 table.insert(FOVVisuals.ActiveItems, FOVLabel)
 
+
 local FOVNote = Instance.new("TextLabel", FOVFrame)
 FOVNote.Size = UDim2.new(1, 0, 0, 10)
 FOVNote.Text = "⚠️ Enable FOV First"
@@ -983,10 +1079,12 @@ FOVNote.Font = Enum.Font.GothamBold
 FOVNote.TextSize = 9
 FOVNote.Position = UDim2.new(0, 0, 0, 15)
 
+
 local RulerFrameFOV = Instance.new("Frame", FOVFrame)
 RulerFrameFOV.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameFOV.Position = UDim2.new(0, 0, 0, 45)
 RulerFrameFOV.BackgroundTransparency = 1
+
 
 local function CreateFOVRulerMark(posScale, text)
     local mark = Instance.new("TextLabel", RulerFrameFOV)
@@ -1006,12 +1104,14 @@ CreateFOVRulerMark(0.6, "100")
 CreateFOVRulerMark(0.8, "110")
 CreateFOVRulerMark(1, "120")
 
+
 local SliderBarFOV = Instance.new("TextButton", FOVFrame)
 SliderBarFOV.Size = UDim2.new(1, 0, 0, 6)
 SliderBarFOV.Position = UDim2.new(0, 0, 0, 35)
 SliderBarFOV.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 SliderBarFOV.Text = ""
 Instance.new("UICorner", SliderBarFOV)
+
 
 local SliderDotFOV = Instance.new("Frame", SliderBarFOV)
 SliderDotFOV.Size = UDim2.new(0, 16, 0, 16)
@@ -1020,12 +1120,14 @@ SliderDotFOV.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 Instance.new("UICorner", SliderDotFOV).CornerRadius = UDim.new(1, 0)
 FOVVisuals.SliderDot = SliderDotFOV
 
+
 local function SetSliderVisualsFOV(val)
     local percentage = (val - 70) / 50
     percentage = math.clamp(percentage, 0, 1)
     SliderDotFOV.Position = UDim2.new(percentage, -8, 0.5, -8)
     FOVLabel.Text = (val == 70) and "Field of View: 70 (Default)" or "Field of View: " .. val
 end
+
 
 local function UpdateFOV(input)
     if not fovEnabled then return end
@@ -1034,6 +1136,7 @@ local function UpdateFOV(input)
     currentFOV = math.floor(70 + (pos * 50))
     FOVLabel.Text = (currentFOV == 70) and "Field of View: 70 (Default)" or "Field of View: " .. currentFOV
 end
+
 
 local slidingFOV = false
 SliderBarFOV.InputBegan:Connect(function(input)
@@ -1050,6 +1153,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function() slidingFOV = false end)
 
+
 local PresetFrameFOV = Instance.new("Frame", ScrollContainer)
 PresetFrameFOV.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameFOV.BackgroundTransparency = 1
@@ -1058,6 +1162,7 @@ local PresetLayoutFOV = Instance.new("UIListLayout", PresetFrameFOV)
 PresetLayoutFOV.FillDirection = Enum.FillDirection.Horizontal
 PresetLayoutFOV.HorizontalAlignment = Enum.HorizontalAlignment.Center
 PresetLayoutFOV.Padding = UDim.new(0, 5)
+
 
 local function CreatePresetFOV(val, label)
     local btn = Instance.new("TextButton", PresetFrameFOV)
@@ -1082,6 +1187,7 @@ CreatePresetFOV(70, "Default (70)")
 CreatePresetFOV(100, "Pro (100)")
 CreatePresetFOV(120, "Max (120)")
 
+
 CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     fovEnabled = not fovEnabled
     if not fovEnabled then 
@@ -1101,18 +1207,23 @@ CreateButton("👁️ Toggle FOV Modifier: OFF", function(b)
     end
     FOVVisuals.SliderDot.BackgroundColor3 = fovEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 
+
     Notify(fovEnabled and "FOV Modifier Active" or "FOV Modifier Disabled")
 end, GetNextOrder())
 
+
 CreateSpacer(GetNextOrder())
+
 
 --// TIME
 local TimeVisuals = {ActiveItems = {}, DimItems = {}}
+
 
 local TimeFrame = Instance.new("Frame", ScrollContainer)
 TimeFrame.Size = UDim2.new(0.9, 0, 0, 65) 
 TimeFrame.BackgroundTransparency = 1
 TimeFrame.LayoutOrder = GetNextOrder()
+
 
 local TimeLabel = Instance.new("TextLabel", TimeFrame)
 TimeLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -1124,6 +1235,7 @@ TimeLabel.TextSize = 10
 TimeLabel.Position = UDim2.new(0, 0, 0, 0)
 table.insert(TimeVisuals.ActiveItems, TimeLabel)
 
+
 local TimeNote = Instance.new("TextLabel", TimeFrame)
 TimeNote.Size = UDim2.new(1, 0, 0, 10)
 TimeNote.Text = "⚠️ Enable Time First"
@@ -1133,10 +1245,12 @@ TimeNote.Font = Enum.Font.GothamBold
 TimeNote.TextSize = 9
 TimeNote.Position = UDim2.new(0, 0, 0, 15)
 
+
 local RulerFrame = Instance.new("Frame", TimeFrame)
 RulerFrame.Size = UDim2.new(1, 0, 0, 10)
 RulerFrame.Position = UDim2.new(0, 0, 0, 45)
 RulerFrame.BackgroundTransparency = 1
+
 
 local function CreateRulerMark(posScale, text)
     local mark = Instance.new("TextLabel", RulerFrame)
@@ -1155,6 +1269,7 @@ CreateRulerMark(0.5, "12pm")
 CreateRulerMark(0.75, "6pm")
 CreateRulerMark(1, "12am")
 
+
 local SliderBarTime = Instance.new("TextButton", TimeFrame)
 SliderBarTime.Size = UDim2.new(1, 0, 0, 6)
 SliderBarTime.Position = UDim2.new(0, 0, 0, 35)
@@ -1162,12 +1277,14 @@ SliderBarTime.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 SliderBarTime.Text = ""
 Instance.new("UICorner", SliderBarTime)
 
+
 local SliderDotTime = Instance.new("Frame", SliderBarTime)
 SliderDotTime.Size = UDim2.new(0, 16, 0, 16)
 SliderDotTime.Position = UDim2.new(0, -8, 0.5, -8)
 SliderDotTime.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 Instance.new("UICorner", SliderDotTime).CornerRadius = UDim.new(1, 0)
 TimeVisuals.SliderDot = SliderDotTime
+
 
 local function FormatTime(val)
     local hours = math.floor(val)
@@ -1180,12 +1297,14 @@ local function FormatTime(val)
     return string.format("%02d:%02d %s", hours, minutes, period)
 end
 
+
 local function SetSliderVisualsTime(val)
     local percentage = val / 24
     percentage = math.clamp(percentage, 0, 1)
     SliderDotTime.Position = UDim2.new(percentage, -8, 0.5, -8)
     TimeLabel.Text = "Time Changer: " .. FormatTime(val)
 end
+
 
 local function UpdateTime(input)
     if not timeChangerEnabled then return end
@@ -1194,6 +1313,7 @@ local function UpdateTime(input)
     customClockTime = pos * 24
     TimeLabel.Text = "Time Changer: " .. FormatTime(customClockTime)
 end
+
 
 local slidingTime = false
 SliderBarTime.InputBegan:Connect(function(input)
@@ -1210,6 +1330,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function() slidingTime = false end)
 
+
 local PresetFrameTime = Instance.new("Frame", ScrollContainer)
 PresetFrameTime.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameTime.BackgroundTransparency = 1
@@ -1218,6 +1339,7 @@ local PresetLayoutTime = Instance.new("UIListLayout", PresetFrameTime)
 PresetLayoutTime.FillDirection = Enum.FillDirection.Horizontal
 PresetLayoutTime.Padding = UDim.new(0, 3) 
 PresetLayoutTime.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
 
 local function CreatePresetTime(val, label)
     local btn = Instance.new("TextButton", PresetFrameTime)
@@ -1247,6 +1369,7 @@ CreatePresetTime(18, "Dusk")
 CreatePresetTime(21, "Night")
 CreatePresetTime(24, "Midnight")
 
+
 local function UpdateTimeStatusVisuals()
     if not timeChangerEnabled then
          TimeNote.Text = "⚠️ Enable Time First"
@@ -1269,9 +1392,11 @@ local function UpdateTimeStatusVisuals()
     TimeVisuals.SliderDot.BackgroundColor3 = timeChangerEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
 end
 
+
 local DynamicTimeBtn = Instance.new("TextButton", ScrollContainer)
 DynamicTimeBtn.Name = "DynamicBtn"
 DynamicTimeBtn.Size = UDim2.new(0.9, 0, 0, 25) 
+
 
 DynamicTimeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
 DynamicTimeBtn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
@@ -1281,6 +1406,7 @@ DynamicTimeBtn.Text = "🔄 Dynamic Day & Night Cycle (Slow)"
 DynamicTimeBtn.LayoutOrder = GetNextOrder()
 Instance.new("UICorner", DynamicTimeBtn)
 table.insert(TimeVisuals.DimItems, DynamicTimeBtn)
+
 
 DynamicTimeBtn.MouseButton1Click:Connect(function()
     if not timeChangerEnabled then return end
@@ -1294,6 +1420,7 @@ DynamicTimeBtn.MouseButton1Click:Connect(function()
     UpdateTimeStatusVisuals()
      Notify(dynamicDayNightEnabled and "Dynamic Cycle Active" or "Dynamic Cycle Paused (Default Time)")
 end)
+
 
 CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     timeChangerEnabled = not timeChangerEnabled
@@ -1310,7 +1437,9 @@ CreateButton("🕒 Toggle Time Changer: OFF", function(b)
     Notify(timeChangerEnabled and "Time Control Enabled" or "Game Time Restored")
 end, GetNextOrder())
 
+
 CreateSpacer(GetNextOrder())
+
 
 CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     noFogEnabled = not noFogEnabled
@@ -1330,6 +1459,7 @@ CreateButton("🌫️ Clear Vision (No Fog)", function(b)
     Notify(noFogEnabled and "Fog Removed" or "Fog Restored")
 end, GetNextOrder())
 
+
 CreateButton("☀️ Fullbright (Night Vision)", function(b)
     fullbrightEnabled = not fullbrightEnabled
     if not fullbrightEnabled then
@@ -1343,6 +1473,7 @@ CreateButton("☀️ Fullbright (Night Vision)", function(b)
     b.TextColor3 = fullbrightEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(fullbrightEnabled and "Fullbright Enabled" or "Lighting Restored")
 end, GetNextOrder())
+
 
 CreateButton("📈 Natural FPS Boost", function(b)
     optimizationEnabled = not optimizationEnabled
@@ -1376,6 +1507,7 @@ CreateButton("📈 Natural FPS Boost", function(b)
     end
 end, GetNextOrder())
 
+
 CreateButton("🌑 Toggle Shadows", function(b)
     shadowsDisabled = not shadowsDisabled
     if shadowsDisabled then
@@ -1389,6 +1521,7 @@ CreateButton("🌑 Toggle Shadows", function(b)
     end
 end, GetNextOrder())
 
+
 CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     dynamicActivated = true 
     dynamicEnabled = not dynamicEnabled
@@ -1396,13 +1529,16 @@ CreateButton("💡 Dynamic Lighting & Shadows", function(b)
     Notify(dynamicEnabled and "Dynamic Shadows Restored" or "Dynamic Shadows Disabled")
 end, GetNextOrder())
 
+
 CreateButton("✨ HDR Lighting", function(b)
     hdrEnabled = not hdrEnabled
     b.TextColor3 = hdrEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(hdrEnabled and "HDR High Fidelity On" or "HDR Disabled")
 end, GetNextOrder())
 
+
 CreateSpacer(GetNextOrder())
+
 
 -------------------------------------------------------------------------
 --// 🟡 UTILITY SECTION (MASTER FIRST)
@@ -1416,11 +1552,13 @@ UtilLabel.Font = Enum.Font.GothamBold
 UtilLabel.TextSize = 10
 UtilLabel.LayoutOrder = GetNextOrder()
 
+
 --// MASTER ESP VISUALS
 local MasterFrame = Instance.new("Frame", ScrollContainer)
 MasterFrame.Size = UDim2.new(0.9, 0, 0, 55) 
 MasterFrame.BackgroundTransparency = 1
 MasterFrame.LayoutOrder = GetNextOrder()
+
 
 local MasterLabel = Instance.new("TextLabel", MasterFrame)
 MasterLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -1431,6 +1569,7 @@ MasterLabel.Font = Enum.Font.Gotham
 MasterLabel.TextSize = 10
 MasterLabel.Position = UDim2.new(0, 0, 0, 0)
 
+
 local MasterNote = Instance.new("TextLabel", MasterFrame)
 MasterNote.Size = UDim2.new(1, 0, 0, 10)
 MasterNote.Text = "⚠️ Enable Master First"
@@ -1439,6 +1578,7 @@ MasterNote.BackgroundTransparency = 1
 MasterNote.Font = Enum.Font.GothamBold
 MasterNote.TextSize = 9
 MasterNote.Position = UDim2.new(0, 0, 0, 15)
+
 
 local MasterBtn = Instance.new("TextButton", MasterFrame)
 MasterBtn.Size = UDim2.new(1, 0, 0, 25)
@@ -1451,6 +1591,8 @@ MasterBtn.TextSize = 11
 Instance.new("UICorner", MasterBtn).CornerRadius = UDim.new(0, 6)
 
 
+
+
 -- ESP SUB-BUTTONS (Dependent on Master)
 local EspRow1 = Instance.new("Frame", ScrollContainer)
 EspRow1.Size = UDim2.new(0.9, 0, 0, 25)
@@ -1461,6 +1603,7 @@ EspRow1Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow1Layout.Padding = UDim.new(0, 5)
 EspRow1Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
+
 local EspRow2 = Instance.new("Frame", ScrollContainer)
 EspRow2.Size = UDim2.new(0.9, 0, 0, 25)
 EspRow2.BackgroundTransparency = 1
@@ -1469,6 +1612,7 @@ local EspRow2Layout = Instance.new("UIListLayout", EspRow2)
 EspRow2Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow2Layout.Padding = UDim.new(0, 5)
 EspRow2Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
 
 local EspRow3 = Instance.new("Frame", ScrollContainer)
 EspRow3.Size = UDim2.new(0.9, 0, 0, 25)
@@ -1479,11 +1623,13 @@ EspRow3Layout.FillDirection = Enum.FillDirection.Horizontal
 EspRow3Layout.Padding = UDim.new(0, 5)
 EspRow3Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
+
 -- CHAMS SECTION (Dependent on Master)
 local ChamsFrame = Instance.new("Frame", ScrollContainer)
 ChamsFrame.Size = UDim2.new(0.9, 0, 0, 105) 
 ChamsFrame.BackgroundTransparency = 1
 ChamsFrame.LayoutOrder = GetNextOrder()
+
 
 local ChamsLabel = Instance.new("TextLabel", ChamsFrame)
 ChamsLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -1494,6 +1640,7 @@ ChamsLabel.Font = Enum.Font.Gotham
 ChamsLabel.TextSize = 10
 ChamsLabel.Position = UDim2.new(0, 0, 0, 0)
 
+
 local ChamsNote = Instance.new("TextLabel", ChamsFrame)
 ChamsNote.Size = UDim2.new(1, 0, 0, 10)
 ChamsNote.Text = "⚠️ Enable Master ESP First"
@@ -1502,6 +1649,7 @@ ChamsNote.BackgroundTransparency = 1
 ChamsNote.Font = Enum.Font.GothamBold
 ChamsNote.TextSize = 9
 ChamsNote.Position = UDim2.new(0, 0, 0, 15)
+
 
 local ChamsMainBtn = Instance.new("TextButton", ChamsFrame)
 ChamsMainBtn.Size = UDim2.new(1, 0, 0, 25)
@@ -1513,6 +1661,7 @@ ChamsMainBtn.Font = Enum.Font.GothamSemibold
 ChamsMainBtn.TextSize = 11
 Instance.new("UICorner", ChamsMainBtn).CornerRadius = UDim.new(0, 6)
 
+
 local WallsBtn = Instance.new("TextButton", ChamsFrame)
 WallsBtn.Size = UDim2.new(0.48, 0, 0, 25)
 WallsBtn.Position = UDim2.new(0, 0, 0, 60)
@@ -1523,6 +1672,7 @@ WallsBtn.Font = Enum.Font.GothamSemibold
 WallsBtn.TextSize = 10
 Instance.new("UICorner", WallsBtn).CornerRadius = UDim.new(0, 6)
 
+
 local PulseBtn = Instance.new("TextButton", ChamsFrame)
 PulseBtn.Size = UDim2.new(0.48, 0, 0, 25)
 PulseBtn.Position = UDim2.new(0.52, 0, 0, 60)
@@ -1532,6 +1682,7 @@ PulseBtn.TextColor3 = Color3.new(0.5, 0.5, 0.5)
 PulseBtn.Font = Enum.Font.GothamSemibold
 PulseBtn.TextSize = 10
 Instance.new("UICorner", PulseBtn).CornerRadius = UDim.new(0, 6)
+
 
 --// LOGIC FUNCTIONS
 local function UpdateChamsVisuals()
@@ -1570,7 +1721,9 @@ local function UpdateChamsVisuals()
     PulseBtn.Text = "Dynamic Pulse: " .. (dynamicChamsPulse and "ON" or "OFF")
 end
 
+
 local EspButtons = {}
+
 
 local function UpdateMasterVisuals()
     if espEnabled then
@@ -1599,6 +1752,7 @@ local function UpdateMasterVisuals()
     UpdateChamsVisuals() 
 end
 
+
 local function CreateSubToggle(parent, text, defaultState, callback)
     local btn = Instance.new("TextButton", parent)
     btn.Size = UDim2.new(0.48, 0, 1, 0)
@@ -1617,6 +1771,7 @@ local function CreateSubToggle(parent, text, defaultState, callback)
         btn.TextColor3 = Color3.new(0.8, 0.8, 0.8)
     end
 
+
     btn.MouseButton1Click:Connect(function()
         if not espEnabled then return end 
         local newState = callback()
@@ -1626,6 +1781,7 @@ local function CreateSubToggle(parent, text, defaultState, callback)
     
     return btn
 end
+
 
 -- DATA INIT HELPERS
 local function RegisterComputer(obj)
@@ -1641,6 +1797,7 @@ local function RegisterComputer(obj)
         ComputerESP_Cache[obj] = hl
     end
 end
+
 
 -- CREATE BUTTONS
 MasterBtn.MouseButton1Click:Connect(function()
@@ -1668,6 +1825,7 @@ MasterBtn.MouseButton1Click:Connect(function()
     end
     UpdateMasterVisuals()
 end)
+
 
 CreateSubToggle(EspRow1, "Show Players", true, function()
     espShowPlayers = not espShowPlayers
@@ -1716,6 +1874,7 @@ local TracerBtn = CreateSubToggle(EspRow3, "Tracers", true, function()
     return espShowTracers
 end)
 
+
 -- CHAMS CONNECTS
 ChamsMainBtn.MouseButton1Click:Connect(function()
     if not espEnabled then return end 
@@ -1726,7 +1885,9 @@ end)
 WallsBtn.MouseButton1Click:Connect(function() if espEnabled and espShowChams then espWallsOnly = not espWallsOnly UpdateChamsVisuals() end end)
 PulseBtn.MouseButton1Click:Connect(function() if espEnabled and espShowChams then dynamicChamsPulse = not dynamicChamsPulse UpdateChamsVisuals() end end)
 
+
 CreateSpacer(GetNextOrder())
+
 
 CreateButton("🔒 Shiftlock: OFF", function(b)
     shiftLockEnabled = not shiftLockEnabled
@@ -1735,11 +1896,13 @@ CreateButton("🔒 Shiftlock: OFF", function(b)
     Notify(shiftLockEnabled and "Shiftlock Enabled" or "Shiftlock Disabled")
 end, GetNextOrder())
 
+
 CreateButton("🎥 Force Shoulder View", function(b)
     forceThirdPerson = not forceThirdPerson
     b.TextColor3 = forceThirdPerson and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(forceThirdPerson and "Shoulder Lock Active" or "Standard View Restored")
 end, GetNextOrder())
+
 
 CreateButton("🛡️ Anti-Fling", function(b)
     antiFlingEnabled = not antiFlingEnabled
@@ -1748,11 +1911,13 @@ CreateButton("🛡️ Anti-Fling", function(b)
     Notify(antiFlingEnabled and "Anti-Fling Active" or "Anti-Fling Disabled (Collisions Restored)")
 end, GetNextOrder())
 
+
 CreateButton("💤 Anti-AFK", function(b)
     antiAfkEnabled = not antiAfkEnabled
     b.TextColor3 = antiAfkEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
     Notify(antiAfkEnabled and "Anti-AFK Protection Active" or "Anti-AFK Protection Off")
 end, GetNextOrder())
+
 
 CreateButton("🌐 Server Hopper", function() StableServerHop() end, GetNextOrder())
 CreateButton("🔄 Rejoin Server", function() RejoinServer() end, GetNextOrder())
@@ -1763,7 +1928,9 @@ CreateButton("☠️ Reset Character", function()
     end 
 end, GetNextOrder())
 
+
 CreateSpacer(GetNextOrder())
+
 
 -------------------------------------------------------------------------
 --// 🔴 RISKY SECTION
@@ -1776,6 +1943,7 @@ RiskyLabel.BackgroundTransparency = 1
 RiskyLabel.Font = Enum.Font.GothamBold
 RiskyLabel.TextSize = 10
 RiskyLabel.LayoutOrder = GetNextOrder()
+
 
 CreateButton("🎯 Toggle Aim Assist: OFF", function(b)
     aimAssistButtonRef = b
@@ -1792,13 +1960,16 @@ CreateButton("🎯 Toggle Aim Assist: OFF", function(b)
     end
 end, GetNextOrder())
 
+
 -- Speed UI
 local SpeedVisuals = {ActiveItems = {}, DimItems = {}}
+
 
 local SpeedFrame = Instance.new("Frame", ScrollContainer)
 SpeedFrame.Size = UDim2.new(0.9, 0, 0, 95) 
 SpeedFrame.BackgroundTransparency = 1
 SpeedFrame.LayoutOrder = GetNextOrder()
+
 
 local SpeedLabel = Instance.new("TextLabel", SpeedFrame)
 SpeedLabel.Size = UDim2.new(1, 0, 0, 15)
@@ -1810,6 +1981,7 @@ SpeedLabel.TextSize = 10
 SpeedLabel.Position = UDim2.new(0, 0, 0, 0)
 table.insert(SpeedVisuals.ActiveItems, SpeedLabel)
 
+
 local SpeedNote = Instance.new("TextLabel", SpeedFrame)
 SpeedNote.Size = UDim2.new(1, 0, 0, 10)
 SpeedNote.Text = "⚠️ Enable Speed First"
@@ -1819,10 +1991,12 @@ SpeedNote.Font = Enum.Font.GothamBold
 SpeedNote.TextSize = 9
 SpeedNote.Position = UDim2.new(0, 0, 0, 15)
 
+
 local RulerFrameSpeed = Instance.new("Frame", SpeedFrame)
 RulerFrameSpeed.Size = UDim2.new(1, 0, 0, 10)
 RulerFrameSpeed.Position = UDim2.new(0, 0, 0, 45) 
 RulerFrameSpeed.BackgroundTransparency = 1
+
 
 local function CreateSpeedRulerMark(posScale, text)
     local mark = Instance.new("TextLabel", RulerFrameSpeed)
@@ -1841,6 +2015,7 @@ CreateSpeedRulerMark(0.52, "60")
 CreateSpeedRulerMark(0.76, "80")
 CreateSpeedRulerMark(1, "100")
 
+
 local SliderBarSpeed = Instance.new("TextButton", SpeedFrame)
 SliderBarSpeed.Size = UDim2.new(1, 0, 0, 6)
 SliderBarSpeed.Position = UDim2.new(0, 0, 0, 35)
@@ -1848,12 +2023,14 @@ SliderBarSpeed.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
 SliderBarSpeed.Text = ""
 Instance.new("UICorner", SliderBarSpeed)
 
+
 local SliderDotSpeed = Instance.new("Frame", SliderBarSpeed)
 SliderDotSpeed.Size = UDim2.new(0, 16, 0, 16)
 SliderDotSpeed.Position = UDim2.new(0, -8, 0.5, -8) 
 SliderDotSpeed.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
 Instance.new("UICorner", SliderDotSpeed).CornerRadius = UDim.new(1, 0)
 SpeedVisuals.SliderDot = SliderDotSpeed
+
 
 local minSpeed = 16
 local maxSpeed = 100
@@ -1885,6 +2062,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 UserInputService.InputEnded:Connect(function() slidingSpeed = false end)
 
+
 local CustomSpeedInput = Instance.new("TextBox", SpeedFrame)
 CustomSpeedInput.Size = UDim2.new(1, 0, 0, 25)
 CustomSpeedInput.Position = UDim2.new(0, 0, 0, 65)
@@ -1897,6 +2075,7 @@ CustomSpeedInput.Text = ""
 Instance.new("UICorner", CustomSpeedInput).CornerRadius = UDim.new(0, 4)
 table.insert(SpeedVisuals.ActiveItems, CustomSpeedInput)
 table.insert(SpeedVisuals.DimItems, CustomSpeedInput)
+
 
 CustomSpeedInput.FocusLost:Connect(function()
     if not subtleSpeedEnabled then 
@@ -1911,6 +2090,7 @@ CustomSpeedInput.FocusLost:Connect(function()
     CustomSpeedInput.Text = ""
 end)
 
+
 local PresetFrameSpeed = Instance.new("Frame", ScrollContainer)
 PresetFrameSpeed.Size = UDim2.new(0.9, 0, 0, 25)
 PresetFrameSpeed.BackgroundTransparency = 1
@@ -1919,6 +2099,7 @@ local PresetLayoutSpeed = Instance.new("UIListLayout", PresetFrameSpeed)
 PresetLayoutSpeed.FillDirection = Enum.FillDirection.Horizontal
 PresetLayoutSpeed.HorizontalAlignment = Enum.HorizontalAlignment.Center
 PresetLayoutSpeed.Padding = UDim.new(0, 5)
+
 
 local function CreatePresetSpeed(val, label)
     local btn = Instance.new("TextButton", PresetFrameSpeed)
@@ -1944,6 +2125,7 @@ CreatePresetSpeed(20, "20")
 CreatePresetSpeed(25, "25")
 CreatePresetSpeed(30, "30")
 
+
 CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     subtleSpeedEnabled = not subtleSpeedEnabled
     
@@ -1961,12 +2143,187 @@ CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
+-- Jump UI
+local JumpVisuals = {ActiveItems = {}, DimItems = {}}
+
+local JumpFrame = Instance.new("Frame", ScrollContainer)
+JumpFrame.Size = UDim2.new(0.9, 0, 0, 95) 
+JumpFrame.BackgroundTransparency = 1
+JumpFrame.LayoutOrder = GetNextOrder()
+
+local JumpLabel = Instance.new("TextLabel", JumpFrame)
+JumpLabel.Size = UDim2.new(1, 0, 0, 15)
+JumpLabel.Text = "Subtle Jump: 50 (Default)"
+JumpLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
+JumpLabel.BackgroundTransparency = 1
+JumpLabel.Font = Enum.Font.Gotham
+JumpLabel.TextSize = 10
+JumpLabel.Position = UDim2.new(0, 0, 0, 0)
+table.insert(JumpVisuals.ActiveItems, JumpLabel)
+
+local JumpNote = Instance.new("TextLabel", JumpFrame)
+JumpNote.Size = UDim2.new(1, 0, 0, 10)
+JumpNote.Text = "⚠️ Enable Jump First"
+JumpNote.TextColor3 = Color3.fromRGB(255, 100, 100)
+JumpNote.BackgroundTransparency = 1
+JumpNote.Font = Enum.Font.GothamBold
+JumpNote.TextSize = 9
+JumpNote.Position = UDim2.new(0, 0, 0, 15)
+
+local RulerFrameJump = Instance.new("Frame", JumpFrame)
+RulerFrameJump.Size = UDim2.new(1, 0, 0, 10)
+RulerFrameJump.Position = UDim2.new(0, 0, 0, 45) 
+RulerFrameJump.BackgroundTransparency = 1
+
+local function CreateJumpRulerMark(posScale, text)
+    local mark = Instance.new("TextLabel", RulerFrameJump)
+    mark.Size = UDim2.new(0, 20, 1, 0)
+    mark.Position = UDim2.new(posScale, -10, 0, 0)
+    mark.BackgroundTransparency = 1
+    mark.Text = text
+    mark.TextColor3 = Color3.fromRGB(180, 180, 180)
+    mark.Font = Enum.Font.Gotham
+    mark.TextSize = 8
+    table.insert(JumpVisuals.ActiveItems, mark)
+end
+-- Scaled carefully from 50 to 150 range
+CreateJumpRulerMark(0.047, "50") 
+CreateJumpRulerMark(0.28, "75")
+CreateJumpRulerMark(0.52, "100")
+CreateJumpRulerMark(0.76, "125")
+CreateJumpRulerMark(1, "150")
+
+local SliderBarJump = Instance.new("TextButton", JumpFrame)
+SliderBarJump.Size = UDim2.new(1, 0, 0, 6)
+SliderBarJump.Position = UDim2.new(0, 0, 0, 35)
+SliderBarJump.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+SliderBarJump.Text = ""
+Instance.new("UICorner", SliderBarJump)
+
+local SliderDotJump = Instance.new("Frame", SliderBarJump)
+SliderDotJump.Size = UDim2.new(0, 16, 0, 16)
+SliderDotJump.Position = UDim2.new(0, -8, 0.5, -8) 
+SliderDotJump.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
+Instance.new("UICorner", SliderDotJump).CornerRadius = UDim.new(1, 0)
+JumpVisuals.SliderDot = SliderDotJump
+
+local minJump = 50
+local maxJump = 150
+
+local function SetSliderVisualsJump(val)
+    local percentage = (val - minJump) / (maxJump - minJump)
+    percentage = math.clamp(percentage, 0, 1)
+    SliderDotJump.Position = UDim2.new(percentage, -8, 0.5, -8)
+    JumpLabel.Text = "Subtle Jump: " .. val .. (val == 50 and " (Default)" or "")
+end
+
+local function UpdateJump(input)
+    if not subtleJumpEnabled then return end
+    local pos = math.clamp((input.Position.X - SliderBarJump.AbsolutePosition.X) / SliderBarJump.AbsoluteSize.X, 0, 1)
+    SliderDotJump.Position = UDim2.new(pos, -8, 0.5, -8)
+    subtleJumpValue = math.floor(minJump + (pos * (maxJump - minJump)))
+    JumpLabel.Text = "Subtle Jump: " .. subtleJumpValue .. (subtleJumpValue == 50 and " (Default)" or "")
+end
+
+local slidingJump = false
+SliderBarJump.InputBegan:Connect(function(input)
+    if not subtleJumpEnabled then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        slidingJump = true
+        UpdateJump(input)
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if slidingJump and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+         UpdateJump(input)
+    end
+end)
+UserInputService.InputEnded:Connect(function() slidingJump = false end)
+
+local CustomJumpInput = Instance.new("TextBox", JumpFrame)
+CustomJumpInput.Size = UDim2.new(1, 0, 0, 25)
+CustomJumpInput.Position = UDim2.new(0, 0, 0, 65)
+CustomJumpInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+CustomJumpInput.TextColor3 = Color3.new(1, 1, 1)
+CustomJumpInput.Font = Enum.Font.Gotham
+CustomJumpInput.TextSize = 10
+CustomJumpInput.PlaceholderText = "Type custom jump here..."
+CustomJumpInput.Text = ""
+Instance.new("UICorner", CustomJumpInput).CornerRadius = UDim.new(0, 4)
+table.insert(JumpVisuals.ActiveItems, CustomJumpInput)
+table.insert(JumpVisuals.DimItems, CustomJumpInput)
+
+CustomJumpInput.FocusLost:Connect(function()
+    if not subtleJumpEnabled then 
+        CustomJumpInput.Text = ""
+        return 
+    end
+    local val = tonumber(CustomJumpInput.Text)
+    if val then
+        subtleJumpValue = val
+        SetSliderVisualsJump(val)
+    end
+    CustomJumpInput.Text = ""
+end)
+
+local PresetFrameJump = Instance.new("Frame", ScrollContainer)
+PresetFrameJump.Size = UDim2.new(0.9, 0, 0, 25)
+PresetFrameJump.BackgroundTransparency = 1
+PresetFrameJump.LayoutOrder = GetNextOrder()
+local PresetLayoutJump = Instance.new("UIListLayout", PresetFrameJump)
+PresetLayoutJump.FillDirection = Enum.FillDirection.Horizontal
+PresetLayoutJump.HorizontalAlignment = Enum.HorizontalAlignment.Center
+PresetLayoutJump.Padding = UDim.new(0, 5)
+
+local function CreatePresetJump(val, label)
+    local btn = Instance.new("TextButton", PresetFrameJump)
+    btn.Size = UDim2.new(0.23, 0, 1, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    btn.BackgroundTransparency = 0.7
+    btn.Text = label
+    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 10
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    table.insert(JumpVisuals.ActiveItems, btn)
+    table.insert(JumpVisuals.DimItems, btn)
+   
+    btn.MouseButton1Click:Connect(function()
+        if not subtleJumpEnabled then return end
+        subtleJumpValue = val
+        SetSliderVisualsJump(val)
+    end)
+end
+CreatePresetJump(50, "50")
+CreatePresetJump(65, "65")
+CreatePresetJump(80, "80")
+CreatePresetJump(95, "95")
+
+CreateButton("Toggle Subtle Jump: OFF", function(b)
+    subtleJumpEnabled = not subtleJumpEnabled
+    
+    b.Text = "Toggle Subtle Jump: " .. (subtleJumpEnabled and "ON" or "OFF")
+    b.TextColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
+    
+    JumpNote.Text = subtleJumpEnabled and "Status: Active" or "Enable Jump First"
+    JumpNote.TextColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
+    
+    for _, item in pairs(JumpVisuals.DimItems) do
+         item.BackgroundTransparency = subtleJumpEnabled and 0 or 0.7
+    end
+    JumpVisuals.SliderDot.BackgroundColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
+    
+    Notify(subtleJumpEnabled and "Subtle Jump Active" or "Standard Jump Restored")
+end, GetNextOrder())
+
 CreateSpacer(GetNextOrder())
 
 -- FLY BUTTON LOGIC
 local flySpeed = 50
 local Controls = nil
 local flyButtonRef = nil 
+
 
 local function GetControls()
     if not Controls then
@@ -1975,6 +2332,7 @@ local function GetControls()
     end
     return Controls
 end
+
 
 ToggleFly = function(state)
     local char = LocalPlayer.Character
@@ -2019,6 +2377,7 @@ ToggleFly = function(state)
              end
         end)
 
+
         flyConnection = RunService.RenderStepped:Connect(function()
             if not flyEnabled or not char.Parent or not hrp.Parent then ToggleFly(false) return end
             for _, v in pairs(char:GetDescendants()) do
@@ -2054,6 +2413,7 @@ ToggleFly = function(state)
     end
 end
 
+
 local function UpdateFlyButtonVisuals()
     if flyButtonRef then
         flyButtonRef.Text = flyEnabled and "🚀 FLY: ACTIVE ⚠️" or "FLY (RISK: HIGH)"
@@ -2061,6 +2421,7 @@ local function UpdateFlyButtonVisuals()
         flyButtonRef.BackgroundColor3 = flyEnabled and Color3.fromRGB(50, 10, 10) or Color3.fromRGB(35, 35, 35)
     end
 end
+
 
 CreateButton("FLY (RISK: HIGH)", function(b)
     flyButtonRef = b
@@ -2074,6 +2435,7 @@ CreateButton("FLY (RISK: HIGH)", function(b)
         ConfirmModal.Visible = true
     end
 end, GetNextOrder())
+
 
 -- Master Modal Action Logic
 ConfirmYesBtn.MouseButton1Click:Connect(function()
@@ -2095,9 +2457,12 @@ end)
 ConfirmNoBtn.MouseButton1Click:Connect(function() ConfirmModal.Visible = false end)
 
 
+
+
 -------------------------------------------------------------------------
 --// LOOPS
 -------------------------------------------------------------------------
+
 
 local function RegisterNPC(model)
     if not espEnabled or not espShowNPCs then return end
@@ -2114,6 +2479,7 @@ local function RegisterNPC(model)
     end
 end
 
+
 workspace.DescendantAdded:Connect(function(v)
     if espEnabled then
         if espShowNPCs and v:IsA("Model") then
@@ -2127,6 +2493,7 @@ workspace.DescendantAdded:Connect(function(v)
     end
 end)
 
+
 task.spawn(function()
     while true do
         if espEnabled and espShowNPCs then
@@ -2139,6 +2506,7 @@ task.spawn(function()
         task.wait(3)
     end
 end)
+
 
 task.spawn(function()
     while true do
@@ -2167,6 +2535,8 @@ task.spawn(function()
 end)
 
 
+
+
 -- LOGIC LOOP (Protected)
 RunService.RenderStepped:Connect(function()
     pcall(function()
@@ -2177,6 +2547,7 @@ RunService.RenderStepped:Connect(function()
                     local isDone = false
                     local isError = false
 
+
                     -- 1. Check if the computer is completed (Screen is Green)
                     local screen = obj:FindFirstChild("Screen")
                     if screen then
@@ -2185,6 +2556,7 @@ RunService.RenderStepped:Connect(function()
                             isDone = true
                         end
                     end
+
 
                     -- 2. Check exactly for the "broken computer" icon (ErrorSign) visibility
                     local errorSign = obj:FindFirstChild("ErrorSign")
@@ -2199,6 +2571,7 @@ RunService.RenderStepped:Connect(function()
                             isError = true
                         end
                     end
+
 
                     if isDone then
                         hl.FillColor = Color3.fromRGB(0, 255, 0) -- Finished (Green)
@@ -2217,10 +2590,12 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
+
         -- FOV
         if fovEnabled and Camera and Camera.FieldOfView ~= currentFOV then
              Camera.FieldOfView = currentFOV
         end
+
 
         -- Time 
         if timeChangerEnabled then
@@ -2236,6 +2611,7 @@ RunService.RenderStepped:Connect(function()
                  SetSliderVisualsTime(customClockTime)
              end
         end
+
 
         -- Lighting & Atmosphere Loop Enforcer
         if fullbrightEnabled then
@@ -2257,6 +2633,7 @@ RunService.RenderStepped:Connect(function()
             end
          end
 
+
         if dynamicActivated and not fullbrightEnabled then
             if dynamicEnabled then
                  Lighting.EnvironmentDiffuseScale = 1
@@ -2266,6 +2643,7 @@ RunService.RenderStepped:Connect(function()
                 Lighting.EnvironmentSpecularScale = 0
             end
         end
+
 
         local Bloom, ColorCorr = GetHDREffects()
         if hdrEnabled and not fullbrightEnabled then
@@ -2278,6 +2656,7 @@ RunService.RenderStepped:Connect(function()
             Bloom.Enabled = false
             ColorCorr.Enabled = false
         end
+
 
          -- Subtle Pursuit
         if LocalPlayer.Character then
@@ -2293,6 +2672,53 @@ RunService.RenderStepped:Connect(function()
                     end
                 end
 
+        
+        local IsJumpingState = false
+
+        RunService.RenderStepped:Connect(function()
+        local Character = LocalPlayer.Character
+        if Character then
+        local hum = Character:FindFirstChildOfClass("Humanoid")
+        local hrp = Character:FindFirstChild("HumanoidRootPart") or Character.PrimaryPart
+        
+        if hum and hrp then
+            -- 1. Handling Subtle Pursuit (Your Existing Speed Fix)
+            if subtleSpeedEnabled and not hum.Sit and hum.MoveDirection.Magnitude > 0 then
+                local speedDiff = math.max(0, subtleSpeedValue - 16)
+                local multiplier = speedDiff * 0.018 
+                if multiplier > 0 then
+                    hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
+                end
+            end
+            
+            -- 2. Handling Subtle Jump (Vector Boost matching the same logic style)
+            if subtleJumpEnabled and not hum.Sit then
+                local jumpState = hum:GetState()
+                
+                -- Check if player is actively ascending from a native jump key press
+                if (jumpState == Enum.HumanoidStateType.Jumping or jumpState == Enum.HumanoidStateType.Freefall) and hrp.AssemblyLinearVelocity.Y > 0 then
+                    if not IsJumpingState then
+                        IsJumpingState = true
+                    end
+                    
+                    -- Calculate safe delta scaling using 50 as the baseline standard jump power
+                    local jumpDiff = math.max(0, subtleJumpValue - 50)
+                    local upMultiplier = jumpDiff * 0.012 -- Smooth vertical scaling factor
+                    
+                    if upMultiplier > 0 then
+                        -- Smoothly push the CFrame upwards matching the physical jump curve
+                        hrp.CFrame = hrp.CFrame + Vector3.new(0, upMultiplier, 0)
+                    end
+                else
+                    -- Reset tracking flag once player begins landing or touches ground
+                    IsJumpingState = false
+                end
+            end
+        end
+    end
+end)
+
+
                  if forceThirdPerson then
                      LocalPlayer.CameraMode = Enum.CameraMode.Classic
                      LocalPlayer.CameraMaxZoomDistance = 8
@@ -2304,6 +2730,7 @@ RunService.RenderStepped:Connect(function()
                           LocalPlayer.CameraMinZoomDistance = 0.5
                      end
                 end
+
 
                 if shiftLockEnabled or forceThirdPerson then
                      hum.AutoRotate = false
@@ -2317,6 +2744,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
+
 --// 🛑 DATA LOOP
 task.spawn(function()
     while true do
@@ -2325,10 +2753,12 @@ task.spawn(function()
                 if p ~= LocalPlayer then
                     if p.Character and p.Character.Parent then
 
+
                          local oldData = ESP_Data_Cache[p]
                         if oldData and oldData.Character and oldData.Character ~= p.Character then
                             RemoveESP(oldData.Character)
                         end
+
 
                          local role = GetUniversalRole(p)
                          local color = GetSmartColor(role, p)
@@ -2372,11 +2802,13 @@ task.spawn(function()
     end
 end)
 
+
 Players.PlayerRemoving:Connect(function(p)
     local data = ESP_Data_Cache[p]
     if data and data.Character then RemoveESP(data.Character) end
     ESP_Data_Cache[p] = nil
 end)
+
 
 --// 🟢 VISUAL LOOP (60 FPS)
 RunService.RenderStepped:Connect(function()
@@ -2392,6 +2824,7 @@ RunService.RenderStepped:Connect(function()
             end
         end
 
+
         if not espEnabled then return end
         
         local pulseAlpha = 0.5
@@ -2399,10 +2832,12 @@ RunService.RenderStepped:Connect(function()
             pulseAlpha = 0.5 + (math.sin(tick() * 4) * 0.2)
         end
 
+
          -- OPTIMIZATION: Hoisted position variables to avoid calculating them thousands of times per frame
         local localChar = LocalPlayer.Character
         local localRoot = localChar and (localChar.PrimaryPart or localChar:FindFirstChild("HumanoidRootPart"))
          local localPos = localRoot and localRoot.Position or Camera.CFrame.Position
+
 
         if espShowPlayers then
              for _, p in pairs(Players:GetPlayers()) do
@@ -2412,11 +2847,13 @@ RunService.RenderStepped:Connect(function()
                         continue 
                     end
 
+
                      local root = p.Character:FindFirstChild("HumanoidRootPart") or p.Character:FindFirstChild("Torso") or p.Character.PrimaryPart
                     if not root then
                          RemoveESP(p.Character)
                         continue
                      end
+
 
                     local data = ESP_Data_Cache[p] or { Role = "Unknown", Color = Color3.new(1,1,1), Dist = 0, Name = p.Name, DisplayName = p.DisplayName, IsVisible = false }
                      
@@ -2431,6 +2868,7 @@ RunService.RenderStepped:Connect(function()
                            forcedColor = Color3.fromRGB(150, 150, 150)
                          data.Role = "Dead"
                    end
+
 
                     if espShowBoxes then
                          local box = p.Character:FindFirstChild("AuraBox", true)
@@ -2473,6 +2911,7 @@ RunService.RenderStepped:Connect(function()
                         highlight.OutlineColor = Color3.new(1, 1, 1)
                          highlight.FillTransparency = pulseAlpha 
 
+
                         -- OPTIMIZATION: Uses data.IsVisible from the slower loop instead of raycasting every frame
                          if espWallsOnly then
                              if data.IsVisible then
@@ -2499,10 +2938,13 @@ RunService.RenderStepped:Connect(function()
                             VF_Tracers[p.Character] = tracer
                            end
 
+
                         local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
                           local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
+
                           local screenOrigin = GetTracerOrigin()
+
 
                         if targetOnScreen then
                             tracer.From = screenOrigin
@@ -2519,6 +2961,7 @@ RunService.RenderStepped:Connect(function()
                              VF_Tracers[p.Character] = nil
                         end
                          end
+
 
                     if espShowNames then
                          local humanoid = p.Character:FindFirstChild("Humanoid")
@@ -2564,6 +3007,7 @@ RunService.RenderStepped:Connect(function()
                             nameStr = "@" .. rName
                         end
 
+
                          local txt = topText .. nameStr .. "\n[" .. data.Dist .. "m]"
                         tag.TextLabel.RichText = true
                         tag.TextLabel.Text = txt
@@ -2576,6 +3020,7 @@ RunService.RenderStepped:Connect(function()
                 end
             end
         end
+
 
         if espShowNPCs then
             for npc, _ in pairs(NPCCache) do
@@ -2636,10 +3081,13 @@ RunService.RenderStepped:Connect(function()
                                  VF_Tracers[npc] = tracer
                             end
 
+
                              local targetPos = cframe.Position - Vector3.new(0, size.Y / 2, 0)
                              local screenTarget, targetOnScreen = Camera:WorldToViewportPoint(targetPos)
 
+
                             local screenOrigin = GetTracerOrigin()
+
 
                              if targetOnScreen then
                                  tracer.From = screenOrigin
@@ -2689,6 +3137,7 @@ RunService.RenderStepped:Connect(function()
     end)
 end)
 
+
 --// FPS & PING
 local frameCount, lastUpdate, currentFPS = 0, tick(), 60
 RunService.Heartbeat:Connect(function()
@@ -2700,6 +3149,7 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+
 task.spawn(function()
      while task.wait(0.5) do
         local t = math.floor(time())
@@ -2707,6 +3157,7 @@ task.spawn(function()
         StatsLabel.Text = string.format("Ping: %dms | FPS: %d", math.floor(LocalPlayer:GetNetworkPing()*1000), currentFPS)
     end
 end)
+
 
 --// FTF AUTO MINIGAME LOOP (ALWAYS ACTIVE, NO UI)
 task.spawn(function()
@@ -2732,6 +3183,7 @@ task.spawn(function()
     end
 end)
 
+
 --// INPUT
 local expanded = false
 local dragging = false
@@ -2739,6 +3191,7 @@ local moved = false
 local dragStart, startPos
 local dragThreshold = 5
 local dragConnection, upConnection
+
 
 MainCircle.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -2788,6 +3241,7 @@ MainCircle.InputBegan:Connect(function(input)
         end)
     end
 end)
+
 
 SetSliderVisualsTime(customClockTime)
 Notify("Aura Hub V54 (True Friction Aim Assist Updated)")
