@@ -62,7 +62,7 @@ local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
 local subtleSpeedEnabled = false
-local subtleJumoEnabled = false 
+local subtleJumpEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
 
