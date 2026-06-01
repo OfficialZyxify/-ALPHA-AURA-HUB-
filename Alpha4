@@ -49,8 +49,7 @@ DeepClean()
 
 --// Global States
 local currentFOV = 70
-local subtleSpeedValue = 16
-local subtleJumpValue = 50 
+local subtleSpeedValue = 16 
 local shadowsDisabled = false
 local dynamicEnabled = false
 local dynamicActivated = false 
@@ -58,8 +57,7 @@ local shiftLockEnabled = false
 local antiAfkEnabled = false
 local hdrEnabled = false
 local forceThirdPerson = false
-local subtleSpeedEnabled = false
-local subtleJumpEnabled = false 
+local subtleSpeedEnabled = false 
 local fovEnabled = false 
 local fullbrightEnabled = false
 
@@ -598,9 +596,6 @@ local function DisableAllFeatures()
 
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
-
-    subtleJumpEnabled = false
-    subtleJumpValue = 50
 
     forceThirdPerson = false
     shiftLockEnabled = false
@@ -1966,175 +1961,6 @@ CreateButton("⚡ Toggle Subtle Pursuit: OFF", function(b)
     Notify(subtleSpeedEnabled and "Subtle Speed Active" or "Standard Speed Restored")
 end, GetNextOrder())
 
--- Jump UI
-local JumpVisuals = {ActiveItems = {}, DimItems = {}}
-
-local JumpFrame = Instance.new("Frame", ScrollContainer)
-JumpFrame.Size = UDim2.new(0.9, 0, 0, 95) 
-JumpFrame.BackgroundTransparency = 1
-JumpFrame.LayoutOrder = GetNextOrder()
-
-local JumpLabel = Instance.new("TextLabel", JumpFrame)
-JumpLabel.Size = UDim2.new(1, 0, 0, 15)
-JumpLabel.Text = "Subtle Jump: 50 (Default)"
-JumpLabel.TextColor3 = Color3.new(1, 1, 1) -- Bright White
-JumpLabel.BackgroundTransparency = 1
-JumpLabel.Font = Enum.Font.Gotham
-JumpLabel.TextSize = 10
-JumpLabel.Position = UDim2.new(0, 0, 0, 0)
-table.insert(JumpVisuals.ActiveItems, JumpLabel)
-
-local JumpNote = Instance.new("TextLabel", JumpFrame)
-JumpNote.Size = UDim2.new(1, 0, 0, 10)
-JumpNote.Text = "⚠️ Enable Jump First"
-JumpNote.TextColor3 = Color3.fromRGB(255, 100, 100)
-JumpNote.BackgroundTransparency = 1
-JumpNote.Font = Enum.Font.GothamBold
-JumpNote.TextSize = 9
-JumpNote.Position = UDim2.new(0, 0, 0, 15)
-
-local RulerFrameJump = Instance.new("Frame", JumpFrame)
-RulerFrameJump.Size = UDim2.new(1, 0, 0, 10)
-RulerFrameJump.Position = UDim2.new(0, 0, 0, 45) 
-RulerFrameJump.BackgroundTransparency = 1
-
-local function CreateJumpRulerMark(posScale, text)
-    local mark = Instance.new("TextLabel", RulerFrameJump)
-    mark.Size = UDim2.new(0, 20, 1, 0)
-    mark.Position = UDim2.new(posScale, -10, 0, 0)
-    mark.BackgroundTransparency = 1
-    mark.Text = text
-    mark.TextColor3 = Color3.fromRGB(180, 180, 180)
-    mark.Font = Enum.Font.Gotham
-    mark.TextSize = 8
-    table.insert(JumpVisuals.ActiveItems, mark)
-end
-CreateJumpRulerMark(0.047, "60") 
-CreateJumpRulerMark(0.28, "80")
-CreateJumpRulerMark(0.52, "100")
-CreateJumpRulerMark(0.76, "120")
-CreateJumpRulerMark(1, "150")
-
-local SliderBarJump = Instance.new("TextButton", JumpFrame)
-SliderBarJump.Size = UDim2.new(1, 0, 0, 6)
-SliderBarJump.Position = UDim2.new(0, 0, 0, 35)
-SliderBarJump.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-SliderBarJump.Text = ""
-Instance.new("UICorner", SliderBarJump)
-
-local SliderDotJump = Instance.new("Frame", SliderBarJump)
-SliderDotJump.Size = UDim2.new(0, 16, 0, 16)
-SliderDotJump.Position = UDim2.new(0, -8, 0.5, -8) 
-SliderDotJump.BackgroundColor3 = Color3.new(0.3, 0.3, 0.3)
-Instance.new("UICorner", SliderDotJump).CornerRadius = UDim.new(1, 0)
-JumpVisuals.SliderDot = SliderDotJump
-
-local minJump = 50
-local maxJump = 150
-local function SetSliderVisualsJump(val)
-    local percentage = (val - minJump) / (maxJump - minJump)
-    percentage = math.clamp(percentage, 0, 1)
-    SliderDotJump.Position = UDim2.new(percentage, -8, 0.5, -8)
-    JumpLabel.Text = "Subtle Jump: " .. val .. (val == 50 and " (Default)" or "")
-end
-local function UpdateJump(input)
-    if not subtleJumpEnabled then return end
-    local pos = math.clamp((input.Position.X - SliderBarJump.AbsolutePosition.X) / SliderBarJump.AbsoluteSize.X, 0, 1)
-    SliderDotJump.Position = UDim2.new(pos, -8, 0.5, -8)
-    subtleJumpValue = math.floor(minJump + (pos * (maxJump - minJump)))
-    JumpLabel.Text = "Subtle Jump: " .. subtleJumpValue .. (subtleJumpValue == 50 and " (Default)" or "")
-end
-local slidingJump = false
-SliderBarJump.InputBegan:Connect(function(input)
-    if not subtleJumpEnabled then return end
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        slidingJump = true
-        UpdateJump(input)
-    end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if slidingJump and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-         UpdateJump(input)
-    end
-end)
-UserInputService.InputEnded:Connect(function() slidingJump = false end)
-
-local CustomJumpInput = Instance.new("TextBox", JumpFrame)
-CustomJumpInput.Size = UDim2.new(1, 0, 0, 25)
-CustomJumpInput.Position = UDim2.new(0, 0, 0, 65)
-CustomJumpInput.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-CustomJumpInput.TextColor3 = Color3.new(1, 1, 1)
-CustomJumpInput.Font = Enum.Font.Gotham
-CustomJumpInput.TextSize = 10
-CustomJumpInput.PlaceholderText = "Type custom jump here..."
-CustomJumpInput.Text = ""
-Instance.new("UICorner", CustomJumpInput).CornerRadius = UDim.new(0, 4)
-table.insert(JumpVisuals.ActiveItems, CustomJumpInput)
-table.insert(JumpVisuals.DimItems, CustomJumpInput)
-
-CustomJumpInput.FocusLost:Connect(function()
-    if not subtleJumpEnabled then 
-        CustomJumpInput.Text = ""
-        return 
-    end
-    local val = tonumber(CustomJumpInput.Text)
-    if val then
-        subtleJumpValue = val
-        SetSliderVisualsJump(val)
-    end
-    CustomJumpInput.Text = ""
-end)
-
-local PresetFrameJump = Instance.new("Frame", ScrollContainer)
-PresetFrameJump.Size = UDim2.new(0.9, 0, 0, 25)
-PresetFrameJump.BackgroundTransparency = 1
-PresetFrameJump.LayoutOrder = GetNextOrder()
-local PresetLayoutJump = Instance.new("UIListLayout", PresetFrameJump)
-PresetLayoutJump.FillDirection = Enum.FillDirection.Horizontal
-PresetLayoutJump.HorizontalAlignment = Enum.HorizontalAlignment.Center
-PresetLayoutJump.Padding = UDim.new(0, 5)
-
-local function CreatePresetJump(val, label)
-    local btn = Instance.new("TextButton", PresetFrameJump)
-    btn.Size = UDim2.new(0.23, 0, 1, 0)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    btn.BackgroundTransparency = 0.7
-    btn.Text = label
-    btn.TextColor3 = Color3.new(0.6, 0.6, 0.6)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 10
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    table.insert(JumpVisuals.ActiveItems, btn)
-    table.insert(JumpVisuals.DimItems, btn)
-   
-    btn.MouseButton1Click:Connect(function()
-        if not subtleJumpEnabled then return end
-        subtleJumpValue = val
-        SetSliderVisualsJump(val)
-    end)
-end
-CreatePresetJump(50, "50")
-CreatePresetJump(70, "70")
-CreatePresetJump(90, "90")
-CreatePresetJump(110, "110")
-
-CreateButton("🦘 Toggle Subtle Elevation: OFF", function(b)
-    subtleJumpEnabled = not subtleJumpEnabled
-    
-    b.Text = "🦘 Toggle Subtle Elevation: " .. (subtleJumpEnabled and "ON" or "OFF")
-    b.TextColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(1, 1, 1)
-    
-    JumpNote.Text = subtleJumpEnabled and "Status: Active" or "⚠️ Enable Jump First"
-    JumpNote.TextColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.fromRGB(255, 100, 100)
-    
-    for _, item in pairs(JumpVisuals.DimItems) do
-         item.BackgroundTransparency = subtleJumpEnabled and 0 or 0.7
-    end
-    JumpVisuals.SliderDot.BackgroundColor3 = subtleJumpEnabled and Color3.fromRGB(0, 255, 140) or Color3.new(0.3, 0.3, 0.3)
-    
-    Notify(subtleJumpEnabled and "Subtle Jump Active" or "Standard Jump Restored")
-end, GetNextOrder())
-
 CreateSpacer(GetNextOrder())
 
 -- FLY BUTTON LOGIC
@@ -2466,24 +2292,6 @@ RunService.RenderStepped:Connect(function()
                         hrp.CFrame = hrp.CFrame + (hum.MoveDirection * multiplier)
                     end
                 end
-
--- Subtle Elevation
-if LocalPlayer.Character then
-    local hum = LocalPlayer.Character:FindFirstChild("Humanoid")
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart") or LocalPlayer.Character.PrimaryPart
-     
-    if hum and hrp then
-        -- Ensures the player is actually ascending in the air before applying velocity modifications
-        local isRising = hrp.AssemblyLinearVelocity.Y > 1
-        if subtleJumpEnabled and not hum.Sit and isRising then
-            local jumpDiff = math.max(0, subtleJumpValue - 50)
-            local multiplier = jumpDiff * 0.018 
-             if multiplier > 0 then
-                hrp.CFrame = hrp.CFrame + Vector3.new(0, multiplier, 0)
-            end
-        end
-    end
-end
 
                  if forceThirdPerson then
                      LocalPlayer.CameraMode = Enum.CameraMode.Classic
