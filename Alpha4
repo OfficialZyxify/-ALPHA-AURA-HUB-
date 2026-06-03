@@ -1,4 +1,4 @@
---// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction)
+--// AuraHub V54: Balanced Spacing & Consistent Toggles (FTF V4 + NPC Fix V3 + Viewport Tracers Fixed + Dynamic Scale Fixed + Lighting Fix + Anti-Fling Restore Fix + True Aim Assist Friction + Subtle Jump)
 --// Services
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
@@ -547,7 +547,7 @@ local function ToggleAntiFling(state)
                             end
                         end
                     end
-                  end
+                 end
             end)
         end
     else
@@ -598,7 +598,7 @@ local function DisableAllFeatures()
 
     subtleSpeedEnabled = false
     subtleSpeedValue = 16
-    
+
     subtleJumpEnabled = false
     subtleJumpValue = 50
 
@@ -1046,7 +1046,7 @@ SliderBarFOV.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         slidingFOV = true
         UpdateFOV(input)
-     end
+      end
 end)
 UserInputService.InputChanged:Connect(function(input)
     if slidingFOV and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
@@ -2978,4 +2978,3 @@ end)
 
 SetSliderVisualsTime(customClockTime)
 Notify("Aura Hub V54 (Subtle Jump Integrated)")
-
